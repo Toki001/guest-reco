@@ -22,7 +22,7 @@ class Config:
     GUEST_BUCKET_NAME = "guest-captures"
 
     # --- CAMERA & DETECTION TUNING ---
-    REQUIRED_STILL_TIME = 1.0      # Seconds user must hold still
+    REQUIRED_STILL_TIME = 3.0      # Seconds user must hold still
     MOVEMENT_THRESHOLD = 50        # Pixels of movement allowed
     SUCCESS_LOCK_TIME = 3.0        # Seconds to pause after successful scan
     PADDING = 60                   # Pixels to add around the face box

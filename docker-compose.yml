@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: recognition_api
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+    # Mounts the backend folder so code changes update live without rebuilding
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: recognition_web
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./frontend/.env.local
+    restart: unless-stopped
+    # Mounts the frontend folder for live UI updates
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Prevents local node_modules from overriding container
+    # Required for React to hot-reload inside a Docker container
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true

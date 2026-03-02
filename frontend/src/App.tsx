@@ -3,69 +3,50 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { CameraFeed } from './components/CameraFeed';
 import { ResultModal } from './components/ResultModal';
+import AddEmployeeTab from './components/AddEmployeeTab'; 
 import { AccessLog } from './types';
 
 function App() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<'camera' | 'add_employee'>('camera');
   
-  // Default to false so we don't start scanning until the page loads
+  // Controls the local CameraFeed component
   const [isScanning, setIsScanning] = useState(false);
   
-  const [activeResult, setActiveResult] = useState<AccessLog | null>(null);
+  // CHANGED: Now expects an array of logs to support multi-face detection
+  const [activeResults, setActiveResults] = useState<AccessLog[] | null>(null);
+  
   const [isSystemOnline, setIsSystemOnline] = useState(false);
 
   const toggleMobileSidebar = () => setSidebarOpen(!isSidebarOpen);
   const toggleDesktopCollapse = () => setSidebarCollapsed(!isSidebarCollapsed);
 
-  // --- 1. NEW HELPER: Tell Python to Pause/Resume ---
-  const toggleServerProcessing = async (shouldBeActive: boolean) => {
-    try {
-        await fetch('http://localhost:5001/toggle_processing', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ active: shouldBeActive }),
-        });
-    } catch (error) {
-        console.error("Failed to toggle server:", error);
-    }
-  };
-
-  // --- 2. INITIALIZATION: Start fresh when app loads ---
   useEffect(() => {
-    // Reset server to "Paused" state on load, then start
-    toggleServerProcessing(true);
     setIsScanning(true);
   }, []);
 
-  // --- 3. HANDLE DISMISS (Close Modal -> Resume Scanning) ---
   const handleDismiss = () => {
-    setActiveResult(null);
+    setActiveResults(null);
     setIsScanning(true); 
-    toggleServerProcessing(true); // <--- RESUME SERVER
   };
 
-  // --- 4. HANDLE TOGGLE BUTTON (Stop/Start Manually) ---
   const handleToggleScan = () => {
     const newState = !isScanning;
     setIsScanning(newState);
-    
-    if (!newState) setActiveResult(null); 
-    toggleServerProcessing(newState); // <--- TELL SERVER
+    if (!newState) setActiveResults(null); 
   };
 
-  // --- 5. HANDLE SNAP (Face Found -> Pause Scanning) ---
-  const handleResult = (result: { name: string; type: 'guest' | 'employee'; confidence: number; image_url?: string }) => {
-    if (activeResult) return;
-
-    // Pause immediately so we don't snap twice
+  // CHANGED: Accepts an array of results from the multi-face CameraFeed
+  const handleResult = (results: { name: string; type: 'guest' | 'employee'; confidence: number; image_url?: string }[]) => {
+    if (activeResults) return;
     setIsScanning(false);
-    toggleServerProcessing(false); // <--- PAUSE SERVER
 
-    const newLog: AccessLog = {
+    // Map through all detected faces and generate a log for each
+    const newLogs: AccessLog[] = results.map(result => ({
         id: Math.random().toString(36).substr(2, 9),
         time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-        status: result.type === 'employee' ? 'granted' : 'denied',
+        status: result.type === 'employee' ? 'in' : 'denied', 
         isUnknown: result.type === 'guest',
         user: {
             name: result.name || (result.type === 'guest' ? 'Unregistered Visitor' : 'Unknown'),
@@ -75,36 +56,37 @@ function App() {
               : 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
             confidence: result.confidence
         }
-    };
-
-    setActiveResult(newLog);
+    }));
+    
+    setActiveResults(newLogs);
   };
 
   return (
     <div className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 h-screen w-full flex flex-col md:flex-row overflow-hidden relative">
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        isCollapsed={isSidebarCollapsed}
-        toggleMobile={toggleMobileSidebar}
-        toggleCollapse={toggleDesktopCollapse}
-      />
+      <Sidebar isOpen={isSidebarOpen} isCollapsed={isSidebarCollapsed} toggleMobile={toggleMobileSidebar} toggleCollapse={toggleDesktopCollapse} />
 
       <main className="flex-1 flex flex-col h-full relative overflow-hidden">
         <div className="px-4 pt-4 md:px-6 md:pt-6 shrink-0">
             <Header toggleSidebar={toggleMobileSidebar} isOnline={isSystemOnline} />
+            
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setActiveTab('camera')} className={`px-4 py-2 rounded-md font-medium transition-colors ${activeTab === 'camera' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'}`}>Live Scanner</button>
+              <button onClick={() => setActiveTab('add_employee')} className={`px-4 py-2 rounded-md font-medium transition-colors ${activeTab === 'add_employee' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'}`}>Add Employee</button>
+            </div>
         </div>
         
         <div className="flex-1 p-4 md:p-6 min-h-0 overflow-hidden">
-            <CameraFeed 
-              isScanning={isScanning && !activeResult} 
-              onSnap={handleResult}
-              onToggle={handleToggleScan} 
-              onStatusChange={setIsSystemOnline}
-            >
-                {activeResult && (
-                    <ResultModal data={activeResult} onDismiss={handleDismiss} />
-                )}
-            </CameraFeed>
+            {activeTab === 'camera' ? (
+                // CHANGED: isScanning stops if activeResults exists
+                <CameraFeed isScanning={isScanning && !activeResults} onSnap={handleResult} onToggle={handleToggleScan} onStatusChange={setIsSystemOnline}>
+                    {/* CHANGED: Passes the array of results to the Modal */}
+                    {activeResults && <ResultModal data={activeResults} onDismiss={handleDismiss} />}
+                </CameraFeed>
+            ) : (
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 h-full overflow-y-auto p-6">
+                    <AddEmployeeTab /> 
+                </div>
+            )}
         </div>
       </main>
     </div>

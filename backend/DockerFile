@@ -1,0 +1,19 @@
+# Use a lightweight Python 3.9 image
+FROM python:3.9-slim
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy the requirements file and install dependencies
+# (Make sure you have a requirements.txt with fastapi, uvicorn, boto3, supabase, python-multipart, etc.)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the backend code
+COPY . .
+
+# Expose the port FastAPI runs on
+EXPOSE 5001
+
+# Start the FastAPI server on 0.0.0.0 so it can be accessed outside the container
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5001", "--reload"]
