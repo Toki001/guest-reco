@@ -34,7 +34,7 @@ function CameraStationPage() {
     }
   }, [urlKey]);
 
-  const handleKeySubmit = async (e: React.FormEvent) => {
+  const handleKeySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!keyInput.trim()) return;
     setAuthError('');

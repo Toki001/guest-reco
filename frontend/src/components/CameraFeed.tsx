@@ -268,7 +268,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
       });
 
       const results = await Promise.all(promises);
-      const validResults = (results as any[]).filter(r => r !== null && !r.skipped);
+      const validResults = results.filter(r => r !== null && !(r as any).skipped) as any[];
 
       if (validResults.length > 0) {
         onSnap(validResults);
