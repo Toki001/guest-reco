@@ -49,6 +49,7 @@ def init_db():
             registered_at TEXT
         )
     """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_user_timestamp ON access_logs(user_id, timestamp DESC)")
     conn.commit()
     print("✅ SQLite Database Initialized")
 
@@ -149,6 +150,175 @@ def get_stats():
     guests = conn.execute("SELECT COUNT(*) as c FROM access_logs a JOIN users u ON a.user_id = u.id WHERE u.role = 'Guest'").fetchone()["c"]
     cameras_online = conn.execute("SELECT COUNT(*) as c FROM cameras WHERE is_online = 1").fetchone()["c"]
     return {"total_scans": total, "employee_matches": employees, "guest_alerts": guests, "cameras_online": cameras_online}
+
+def delete_user(user_id):
+    conn = get_connection()
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    USER_STATE_CACHE.pop(user_id, None)
+    KNOWN_USERS_CACHE.discard(user_id)
+
+def update_user(user_id, name=None, role=None):
+    conn = get_connection()
+    if name is not None:
+        conn.execute("UPDATE users SET name = ? WHERE id = ?", (name, user_id))
+    if role is not None:
+        conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+    conn.commit()
+
+def update_user_face(user_id, face_encoding_bytes, image_path):
+    conn = get_connection()
+    conn.execute("UPDATE users SET face_encoding = ?, image_path = ? WHERE id = ?",
+                 (face_encoding_bytes, image_path, user_id))
+    conn.commit()
+
+def get_user_detail(user_id):
+    conn = get_connection()
+    row = conn.execute("SELECT id, name, image_path, role FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not row:
+        return None
+    first_seen = conn.execute(
+        "SELECT MIN(timestamp) as ts FROM access_logs WHERE user_id = ?", (user_id,)
+    ).fetchone()["ts"]
+    last_log = conn.execute(
+        "SELECT status, timestamp, camera_id FROM access_logs WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
+        (user_id,)
+    ).fetchone()
+    return {
+        "id": row["id"], "name": row["name"], "image_url": row["image_path"], "role": row["role"],
+        "first_seen": first_seen,
+        "last_status": last_log["status"] if last_log else None,
+        "last_seen": last_log["timestamp"] if last_log else None,
+        "last_camera": last_log["camera_id"] if last_log else None,
+    }
+
+def get_users_with_last_seen():
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT u.id, u.name, u.image_path, u.role,
+               a.status as last_status, a.timestamp as last_seen, a.camera_id as last_camera
+        FROM users u
+        LEFT JOIN access_logs a ON a.user_id = u.id
+            AND a.timestamp = (SELECT MAX(timestamp) FROM access_logs WHERE user_id = u.id)
+        ORDER BY u.name
+    """).fetchall()
+    return [{
+        "id": r["id"], "name": r["name"], "image_url": r["image_path"], "role": r["role"],
+        "last_status": r["last_status"], "last_seen": r["last_seen"], "last_camera": r["last_camera"]
+    } for r in rows]
+
+def get_active_users():
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT u.id, u.name, u.image_path, u.role, a.timestamp as clock_in_time, a.camera_id
+        FROM users u
+        JOIN access_logs a ON a.user_id = u.id
+            AND a.timestamp = (SELECT MAX(timestamp) FROM access_logs WHERE user_id = u.id)
+        WHERE a.status = 'in'
+        ORDER BY a.timestamp DESC
+    """).fetchall()
+    return [{
+        "id": r["id"], "name": r["name"], "image_url": r["image_path"], "role": r["role"],
+        "clock_in_time": r["clock_in_time"], "camera_id": r["camera_id"]
+    } for r in rows]
+
+def get_attendance_logs(page=1, per_page=50, date_from=None, date_to=None,
+                        camera_id=None, user_id=None, status=None):
+    conn = get_connection()
+    conditions = []
+    params = []
+    if date_from:
+        conditions.append("a.timestamp >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("a.timestamp <= ?")
+        params.append(date_to)
+    if camera_id:
+        conditions.append("a.camera_id = ?")
+        params.append(camera_id)
+    if user_id:
+        conditions.append("a.user_id = ?")
+        params.append(user_id)
+    if status:
+        conditions.append("a.status = ?")
+        params.append(status)
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    offset = (page - 1) * per_page
+
+    total = conn.execute(f"SELECT COUNT(*) as c FROM access_logs a {where}", params).fetchone()["c"]
+
+    rows = conn.execute(f"""
+        SELECT a.id, a.user_id, a.status, a.confidence, a.timestamp, a.camera_id,
+               COALESCE(u.name, 'Deleted User') as name, u.image_path, COALESCE(u.role, 'Unknown') as role
+        FROM access_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        {where}
+        ORDER BY a.timestamp DESC
+        LIMIT ? OFFSET ?
+    """, params + [per_page, offset]).fetchall()
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "items": [{
+            "id": r["id"], "user_id": r["user_id"], "status": r["status"],
+            "confidence": r["confidence"], "timestamp": r["timestamp"], "camera_id": r["camera_id"],
+            "name": r["name"], "image_url": r["image_path"], "role": r["role"]
+        } for r in rows]
+    }
+
+def get_user_attendance(user_id, limit=100):
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT id, status, confidence, timestamp, camera_id
+        FROM access_logs WHERE user_id = ?
+        ORDER BY timestamp ASC
+    """, (user_id,)).fetchall()
+
+    # Pair in/out events into sessions
+    sessions = []
+    pending_in = None
+    for r in rows:
+        if r["status"] == "in":
+            pending_in = {"time_in": r["timestamp"], "camera_in": r["camera_id"], "confidence": r["confidence"]}
+        elif r["status"] == "out" and pending_in:
+            duration = None
+            try:
+                t_in = datetime.datetime.fromisoformat(pending_in["time_in"])
+                t_out = datetime.datetime.fromisoformat(r["timestamp"])
+                duration = int((t_out - t_in).total_seconds())
+            except Exception:
+                pass
+            sessions.append({
+                "time_in": pending_in["time_in"],
+                "time_out": r["timestamp"],
+                "camera_in": pending_in["camera_in"],
+                "camera_out": r["camera_id"],
+                "confidence": pending_in["confidence"],
+                "duration_seconds": duration
+            })
+            pending_in = None
+
+    # If there's a pending clock-in with no clock-out yet
+    if pending_in:
+        sessions.append({
+            "time_in": pending_in["time_in"],
+            "time_out": None,
+            "camera_in": pending_in["camera_in"],
+            "camera_out": None,
+            "confidence": pending_in["confidence"],
+            "duration_seconds": None
+        })
+
+    sessions.reverse()  # newest first
+    return sessions[:limit]
+
+def user_exists(user_id):
+    conn = get_connection()
+    row = conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row is not None
 
 # --- CAMERA FUNCTIONS ---
 def register_camera(camera_id, department):
