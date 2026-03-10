@@ -23,7 +23,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const mainLinks = [
     { path: '/dashboard', label: 'Dashboard', icon: 'grid_view' },
     { path: '/cameras', label: 'Cameras', icon: 'videocam' },
-    { path: '/admin/add-employee', label: 'Add Employee', icon: 'person_add' },
+    { path: '/employees', label: 'Employees', icon: 'group' },
+    { path: '/attendance', label: 'Attendance', icon: 'schedule' },
   ];
 
   const systemLinks = [

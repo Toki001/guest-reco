@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
-import AddEmployeeTab from '../components/AddEmployeeTab';
 import DashboardTab from '../components/DashboardTab';
 import CameraGridPage from './CameraGridPage';
+import EmployeesPage from './EmployeesPage';
+
+const EmployeeProfilePage = lazy(() => import('./EmployeeProfilePage'));
+const AttendancePage = lazy(() => import('./AttendancePage'));
 
 function MainApp() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -31,11 +34,9 @@ function MainApp() {
           <Routes>
             <Route path="dashboard" element={<DashboardTab />} />
             <Route path="cameras" element={<CameraGridPage />} />
-            <Route path="admin/add-employee" element={
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 h-full overflow-y-auto p-6">
-                <AddEmployeeTab />
-              </div>
-            } />
+            <Route path="employees" element={<EmployeesPage />} />
+            <Route path="employees/:id" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>}><EmployeeProfilePage /></Suspense>} />
+            <Route path="attendance" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>}><AttendancePage /></Suspense>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>
