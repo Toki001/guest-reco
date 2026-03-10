@@ -4,7 +4,7 @@ import { API_BASE, WS_BASE } from '../config';
 
 interface CameraFeedProps {
   isScanning: boolean;
-  onSnap: (results: { name: string; type: 'guest' | 'employee'; confidence: number; image_url?: string }[]) => void;
+  onSnap: (results: { name: string; type: 'guest' | 'employee'; confidence: number; image_url?: string; status?: string; user_id?: string; skipped?: boolean }[]) => void;
   onToggle: () => void;
   onStatusChange?: (online: boolean) => void;
   cameraId?: string;
@@ -260,7 +260,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
               const response = await fetch(`${API_BASE}/api/recognize`, { method: 'POST', body: formData, headers: fetchHeaders });
               const data = await response.json();
               if (response.ok && data.status !== 'no_face_detected') {
-                resolve({ name: data.message, type: data.type, confidence: data.confidence, image_url: data.image_url });
+                resolve({ name: data.message, type: data.type, confidence: data.confidence, image_url: data.image_url, status: data.status, user_id: data.user_id, skipped: data.skipped });
               } else resolve(null);
             } catch (error) { resolve(null); }
           }, 'image/jpeg');
@@ -268,7 +268,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
       });
 
       const results = await Promise.all(promises);
-      const validResults = results.filter(r => r !== null) as any[];
+      const validResults = (results as any[]).filter(r => r !== null && !r.skipped);
 
       if (validResults.length > 0) {
         onSnap(validResults);

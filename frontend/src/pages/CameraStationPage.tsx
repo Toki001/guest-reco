@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { CameraFeed } from '../components/CameraFeed';
-import { ResultModal } from '../components/ResultModal';
-import { AccessLog } from '../types';
+import { RecognitionToast, ToastData } from '../components/RecognitionToast';
 import { API_BASE } from '../config';
 
 const CAMERA_KEY_STORAGE = 'securesight_camera_key';
@@ -20,8 +19,11 @@ function CameraStationPage() {
   const [authError, setAuthError] = useState('');
 
   const [isScanning, setIsScanning] = useState(true);
-  const [activeResults, setActiveResults] = useState<AccessLog[] | null>(null);
   const [isRegistered, setIsRegistered] = useState(false);
+
+  // Toast system
+  const [toasts, setToasts] = useState<ToastData[]>([]);
+  const cooldownRef = useRef<Map<string, number>>(new Map());
 
   // Save key to localStorage when set via URL
   useEffect(() => {
@@ -37,7 +39,6 @@ function CameraStationPage() {
     if (!keyInput.trim()) return;
     setAuthError('');
 
-    // Test the key by trying to register
     try {
       const formData = new FormData();
       formData.append('camera_id', cameraId || 'test');
@@ -60,7 +61,7 @@ function CameraStationPage() {
     }
   };
 
-  // Register camera with central server on mount (when authenticated)
+  // Register camera with central server on mount
   useEffect(() => {
     if (!cameraId || !apiKey || isRegistered) return;
 
@@ -75,7 +76,6 @@ function CameraStationPage() {
         if (res.ok) {
           setIsRegistered(true);
         } else if (res.status === 401) {
-          // Key is invalid — clear and show prompt
           localStorage.removeItem(CAMERA_KEY_STORAGE);
           setApiKey('');
           setIsAuthenticated(false);
@@ -101,47 +101,40 @@ function CameraStationPage() {
     return () => clearInterval(heartbeat);
   }, [cameraId, departmentName, apiKey, isRegistered]);
 
-  // Auto-dismiss results after 5 seconds
-  useEffect(() => {
-    if (!activeResults) return;
-    const timer = setTimeout(() => {
-      setActiveResults(null);
-      setIsScanning(true);
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [activeResults]);
+  const handleDismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
 
-  const handleResult = (results: { name: string; type: 'guest' | 'employee'; confidence: number; image_url?: string }[]) => {
-    if (activeResults) return;
-    setIsScanning(false);
+  const handleResult = (results: { name: string; type: 'guest' | 'employee'; confidence: number; image_url?: string; status?: string; user_id?: string; skipped?: boolean }[]) => {
+    const now = Date.now();
 
-    const newLogs: AccessLog[] = results.map(result => ({
-      id: Math.random().toString(36).substring(2, 11),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: result.type === 'employee' ? 'in' : 'denied',
-      isUnknown: result.type === 'guest',
-      user: {
-        name: result.name || (result.type === 'guest' ? 'Unregistered Visitor' : 'Unknown'),
-        id: cameraId || 'unknown',
-        imageUrl: result.image_url && result.image_url.length > 0
-          ? (result.image_url.startsWith('/') ? `${API_BASE}${result.image_url}` : result.image_url)
-          : 'placeholder',
-        confidence: result.confidence
-      }
-    }));
+    for (const result of results) {
+      // Skip if no status (shouldn't happen but safety check)
+      if (!result.status) continue;
 
-    setActiveResults(newLogs);
-  };
+      const userId = result.user_id || result.name;
 
-  const handleDismiss = () => {
-    setActiveResults(null);
-    setIsScanning(true);
+      // Client-side cooldown check (secondary guard)
+      const lastSeen = cooldownRef.current.get(userId);
+      if (lastSeen && now - lastSeen < 10000) continue;
+
+      // Update cooldown
+      cooldownRef.current.set(userId, now);
+
+      // Add toast
+      setToasts(prev => [...prev, {
+        id: `${userId}-${now}-${Math.random().toString(36).slice(2, 6)}`,
+        name: result.name,
+        type: result.type,
+        status: result.status as 'in' | 'out',
+        confidence: result.confidence,
+        imageUrl: result.image_url || '',
+      }]);
+    }
   };
 
   const handleToggleScan = () => {
-    const newState = !isScanning;
-    setIsScanning(newState);
-    if (!newState) setActiveResults(null);
+    setIsScanning(prev => !prev);
   };
 
   // Show API key input if not authenticated
@@ -212,13 +205,18 @@ function CameraStationPage() {
       {/* Camera feed */}
       <div className="flex-1 relative">
         <CameraFeed
-          isScanning={isScanning && !activeResults}
+          isScanning={isScanning}
           onSnap={handleResult}
           onToggle={handleToggleScan}
           cameraId={cameraId}
           apiKey={apiKey}
         >
-          {activeResults && <ResultModal data={activeResults} onDismiss={handleDismiss} />}
+          {/* Toast stack */}
+          <div className="absolute bottom-24 right-4 z-40 flex flex-col gap-2">
+            {toasts.map(t => (
+              <RecognitionToast key={t.id} toast={t} onDismiss={handleDismissToast} />
+            ))}
+          </div>
         </CameraFeed>
       </div>
     </div>
