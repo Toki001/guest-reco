@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import os
 import uuid
+import time
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, WebSocket, Depends, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +15,10 @@ from database import (
     get_user_profile, log_access_attempt, insert_user,
     get_access_logs, get_all_users, get_all_users_with_encodings, get_stats,
     register_camera, update_camera_heartbeat, get_all_cameras, mark_camera_offline,
-    get_offline_cameras, delete_camera
+    get_offline_cameras, delete_camera,
+    delete_user, update_user, update_user_face, get_user_detail,
+    get_users_with_last_seen, get_active_users, get_attendance_logs,
+    get_user_attendance, user_exists
 )
 from face_engine import index_face, search_face
 from auth import (
@@ -71,6 +75,10 @@ class ConnectionManager:
             self.disconnect(conn)
 
 manager = ConnectionManager()
+
+# In-memory cooldown: user_id -> last_logged_timestamp (monotonic)
+_scan_cooldown: dict[str, float] = {}
+COOLDOWN_SECONDS = 10
 
 # --- WEBSOCKET ENDPOINT ---
 @app.websocket("/ws/dashboard")
@@ -158,22 +166,34 @@ async def recognize_face(
             avatar_path = save_image_locally(image_bytes, "avatars", f"{guest_id}.jpg")
             await asyncio.to_thread(insert_user, guest_id, guest_name, encoding_bytes, avatar_path, "Guest")
             final_status = await asyncio.to_thread(lambda: log_access_attempt(guest_id, "in", 100.0, camera_id=camera_id))
+            _scan_cooldown[guest_id] = time.monotonic()
 
             # Broadcast to dashboard
             await manager.broadcast({
                 "event": "recognition_result",
                 "data": {"name": guest_name, "type": "guest", "confidence": 100.0,
-                         "image_url": avatar_path, "status": final_status,
+                         "image_url": avatar_path, "status": final_status, "user_id": guest_id,
                          "camera_id": camera_id, "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
             })
             await manager.broadcast({"event": "stats_update", "data": await asyncio.to_thread(get_stats)})
 
             return {"message": guest_name, "type": "guest", "confidence": 100.0,
-                    "image_url": avatar_path, "status": final_status}
+                    "image_url": avatar_path, "status": final_status, "user_id": guest_id}
 
         # Case 3: Match found
         user_id = result["user_id"]
         confidence = result["confidence"]
+
+        # In-memory cooldown: skip if same user scanned within 10 seconds
+        now = time.monotonic()
+        last_scan = _scan_cooldown.get(user_id, 0)
+        if now - last_scan < COOLDOWN_SECONDS:
+            user_profile = await asyncio.to_thread(get_user_profile, user_id)
+            return {"message": user_profile["name"] if user_profile else user_id,
+                    "type": (user_profile.get("role", "Employee").lower() if user_profile else "employee"),
+                    "confidence": confidence, "user_id": user_id, "skipped": True,
+                    "image_url": user_profile.get("image_url", "") if user_profile else "",
+                    "status": None}
 
         user_profile = await asyncio.to_thread(get_user_profile, user_id)
         if user_profile:
@@ -186,19 +206,19 @@ async def recognize_face(
             user_type = "employee"
 
         final_status = await asyncio.to_thread(lambda: log_access_attempt(user_id, "in", confidence, camera_id=camera_id))
+        _scan_cooldown[user_id] = time.monotonic()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ {user_type.title()} Identified: {name} (Clocking {final_status.upper()})")
 
-        # Broadcast to dashboard
         await manager.broadcast({
             "event": "recognition_result",
             "data": {"name": name, "type": user_type, "confidence": confidence,
-                     "image_url": image_url, "status": final_status,
+                     "image_url": image_url, "status": final_status, "user_id": user_id,
                      "camera_id": camera_id, "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
         })
         await manager.broadcast({"event": "stats_update", "data": await asyncio.to_thread(get_stats)})
 
         return {"message": name, "type": user_type, "confidence": confidence,
-                "image_url": image_url, "status": final_status}
+                "image_url": image_url, "status": final_status, "user_id": user_id}
 
     except Exception as e:
         print(f"❌ CRITICAL ERROR in recognize_face: {e}")
@@ -215,6 +235,9 @@ async def add_employee(
 ):
     if not image or not employee_id or not name:
         raise HTTPException(status_code=400, detail="Missing required fields")
+
+    if await asyncio.to_thread(user_exists, employee_id):
+        raise HTTPException(status_code=409, detail="Employee ID already exists")
 
     image_bytes = await image.read()
     filename = secure_filename(image.filename or "unknown.jpg")
@@ -284,6 +307,85 @@ async def remove_camera(camera_id: str, user=Depends(require_admin)):
     })
     await manager.broadcast({"event": "stats_update", "data": await asyncio.to_thread(get_stats)})
     return {"status": "removed", "camera_id": camera_id}
+
+# --- API: EMPLOYEE MANAGEMENT ---
+@app.get('/api/employees')
+async def list_employees(user=Depends(require_admin)):
+    return await asyncio.to_thread(get_users_with_last_seen)
+
+@app.get('/api/employees/{employee_id}')
+async def get_employee(employee_id: str, user=Depends(require_admin)):
+    detail = await asyncio.to_thread(get_user_detail, employee_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    return detail
+
+@app.put('/api/employees/{employee_id}')
+async def update_employee(
+    employee_id: str,
+    name: str = Form(None),
+    role: str = Form(None),
+    user=Depends(require_admin)
+):
+    profile = await asyncio.to_thread(get_user_profile, employee_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    await asyncio.to_thread(update_user, employee_id, name=name, role=role)
+    return {"status": "updated", "employee_id": employee_id}
+
+@app.delete('/api/employees/{employee_id}')
+async def remove_employee(employee_id: str, user=Depends(require_admin)):
+    profile = await asyncio.to_thread(get_user_profile, employee_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    await asyncio.to_thread(delete_user, employee_id)
+    return {"status": "deleted", "employee_id": employee_id}
+
+@app.post('/api/employees/{employee_id}/reface')
+async def reface_employee(
+    employee_id: str,
+    image: UploadFile = File(...),
+    user=Depends(require_admin)
+):
+    profile = await asyncio.to_thread(get_user_profile, employee_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    image_bytes = await image.read()
+    encoding_bytes = await asyncio.to_thread(index_face, image_bytes)
+    if encoding_bytes is None:
+        raise HTTPException(status_code=400, detail="No face detected in the image.")
+    filename = f"{employee_id}_reface_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
+    avatar_path = save_image_locally(image_bytes, "avatars", filename)
+    await asyncio.to_thread(update_user_face, employee_id, encoding_bytes, avatar_path)
+    return {"status": "updated", "image_url": avatar_path}
+
+@app.get('/api/employees/{employee_id}/attendance')
+async def employee_attendance(employee_id: str, user=Depends(require_admin)):
+    profile = await asyncio.to_thread(get_user_profile, employee_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    logs = await asyncio.to_thread(get_user_attendance, employee_id)
+    return logs
+
+# --- API: ATTENDANCE ---
+@app.get('/api/attendance/active')
+async def active_users(user=Depends(require_admin)):
+    return await asyncio.to_thread(get_active_users)
+
+@app.get('/api/attendance')
+async def attendance_log(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    date_from: str = Query(None),
+    date_to: str = Query(None),
+    camera_id: str = Query(None),
+    user_id: str = Query(None),
+    status: str = Query(None),
+    user=Depends(require_admin)
+):
+    return await asyncio.to_thread(
+        get_attendance_logs, page, per_page, date_from, date_to, camera_id, user_id, status
+    )
 
 # --- WEBSOCKET: CAMERA STREAMING ---
 @app.websocket("/ws/camera-stream")
