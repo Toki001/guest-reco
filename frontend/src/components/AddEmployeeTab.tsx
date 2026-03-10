@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { authFetch } from '../auth';
 
 const AddEmployeeTab = () => {
   const [employeeId, setEmployeeId] = useState('');
@@ -109,21 +110,18 @@ const AddEmployeeTab = () => {
     formData.append('image', image);
 
     try {
-      const response = await fetch('http://localhost:5001/api/employees/add', {
-        method: 'POST',
-        body: formData, 
-      });
+      const response = await authFetch('/api/employees/add', { method: 'POST', body: formData });
 
       const data = await response.json();
 
       if (response.ok) {
-        setStatus(`success: Employee registered successfully! FaceID: ${data.face_id}`);
+        setStatus(`success: ${data.message}`);
         setEmployeeId('');
         setName('');
         setImage(null);
         setPreviewUrl(null);
       } else {
-        setStatus(`error: ${data.error}`);
+        setStatus(`error: ${data.detail}`);
       }
     } catch (error) {
       console.error("Upload error:", error);

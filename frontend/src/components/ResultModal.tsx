@@ -36,11 +36,17 @@ export const ResultModal: React.FC<ResultModalProps> = ({ data, onDismiss }) => 
           {data.map((log) => (
             <div key={log.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex items-center space-x-4 border border-slate-100 dark:border-slate-700/50 text-left relative">
               <div className="relative shrink-0">
-                <img 
-                  src={log.user.imageUrl} 
-                  alt={log.user.name} 
-                  className={`w-12 h-12 rounded-full object-cover border-2 shadow-sm ${log.isUnknown ? 'border-amber-400 grayscale' : 'border-green-400 dark:border-slate-600'}`}
-                />
+                {log.user.imageUrl === 'placeholder' ? (
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 shadow-sm bg-slate-600 ${log.isUnknown ? 'border-amber-400' : 'border-green-400 dark:border-slate-600'}`}>
+                    <svg className="w-7 h-7 text-slate-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                  </div>
+                ) : (
+                  <img
+                    src={log.user.imageUrl}
+                    alt={log.user.name}
+                    className={`w-12 h-12 rounded-full object-cover border-2 shadow-sm ${log.isUnknown ? 'border-amber-400 grayscale' : 'border-green-400 dark:border-slate-600'}`}
+                  />
+                )}
                 <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${log.status === 'in' || log.status === 'granted' ? 'bg-green-500' : 'bg-red-500'}`}></div>
               </div>
               

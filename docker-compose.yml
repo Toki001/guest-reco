@@ -2,34 +2,36 @@ version: '3.8'
 
 services:
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: recognition_api
+    container_name: securesight_api
     ports:
       - "5001:5001"
-    env_file:
-      - ./backend/.env
     restart: unless-stopped
-    # Mounts the backend folder so code changes update live without rebuilding
     volumes:
       - ./backend:/app
+      - recognition-data:/app/data
+    environment:
+      - DB_PATH=/app/data/recognition.db
+      - AVATARS_DIR=avatars
+      - SNAPSHOTS_DIR=snapshots
 
   frontend:
-    build: 
+    build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: recognition_web
+    container_name: securesight_web
     ports:
       - "3000:3000"
-    env_file:
-      - ./frontend/.env.local
     restart: unless-stopped
-    # Mounts the frontend folder for live UI updates
     volumes:
       - ./frontend:/app
-      - /app/node_modules # Prevents local node_modules from overriding container
-    # Required for React to hot-reload inside a Docker container
+      - /app/node_modules
     environment:
+      - VITE_API_URL=http://backend:5001
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true
+
+volumes:
+  recognition-data:
