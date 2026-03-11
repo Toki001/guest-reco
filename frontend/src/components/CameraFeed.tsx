@@ -25,7 +25,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
   const anchorsRef = useRef<{ x: number, y: number }[]>([]);
   const stillStartTimeRef = useRef<number | null>(null);
   const requestRef = useRef<number>(0);
-  const REQUIRED_STILL_TIME = 3;
+  const REQUIRED_STILL_TIME = 1;
 
   useEffect(() => {
     isScanningRef.current = isScanning;
@@ -80,28 +80,84 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             lastVideoTime = -1;
             requestRef.current = requestAnimationFrame(renderLoop);
 
-            // Set up frame streaming WebSocket
-            if (cameraId) {
-              const streamWsUrl = `${WS_BASE}/ws/camera-stream?key=${apiKey || ''}`;
-              const streamWs = new WebSocket(streamWsUrl);
-              const streamCanvas = document.createElement('canvas');
-              streamCanvas.width = 320;
-              streamCanvas.height = 240;
-              const streamCtx = streamCanvas.getContext('2d');
+            // Set up WebRTC signaling
+            if (cameraId && videoStream) {
+              const signalUrl = `${WS_BASE}/ws/camera-signal?key=${apiKey || ''}`;
+              const signalWs = new WebSocket(signalUrl);
+              const peerConnections = new Map<number, RTCPeerConnection>();
 
-              const streamInterval = window.setInterval(() => {
-                const videoEl = videoRef.current;
-                if (streamWs.readyState === WebSocket.OPEN && videoEl && videoEl.videoWidth > 0 && streamCtx) {
-                  streamCtx.drawImage(videoEl, 0, 0, 320, 240);
-                  const frame = streamCanvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-                  streamWs.send(JSON.stringify({ camera_id: cameraId, frame }));
+              const rtcConfig: RTCConfiguration = {
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+              };
+
+              signalWs.onopen = () => {
+                signalWs.send(JSON.stringify({ type: 'camera-register', camera_id: cameraId }));
+              };
+
+              signalWs.onmessage = async (event) => {
+                try {
+                  const msg = JSON.parse(event.data);
+
+                  if (msg.type === 'offer') {
+                    // Viewer wants to connect — create peer connection
+                    const viewerId = msg.viewer_id;
+                    const pc = new RTCPeerConnection(rtcConfig);
+                    peerConnections.set(viewerId, pc);
+
+                    // Add local video track
+                    videoStream.getTracks().forEach(track => pc.addTrack(track, videoStream));
+
+                    // Send ICE candidates to viewer
+                    pc.onicecandidate = (e) => {
+                      if (e.candidate && signalWs.readyState === WebSocket.OPEN) {
+                        signalWs.send(JSON.stringify({
+                          type: 'ice-candidate',
+                          viewer_id: viewerId,
+                          data: e.candidate.toJSON()
+                        }));
+                      }
+                    };
+
+                    pc.onconnectionstatechange = () => {
+                      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                        pc.close();
+                        peerConnections.delete(viewerId);
+                      }
+                    };
+
+                    // Set remote offer and create answer
+                    await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+
+                    signalWs.send(JSON.stringify({
+                      type: 'answer',
+                      viewer_id: viewerId,
+                      data: pc.localDescription?.toJSON()
+                    }));
+                  }
+
+                  if (msg.type === 'ice-candidate') {
+                    const pc = peerConnections.get(msg.viewer_id);
+                    if (pc) {
+                      await pc.addIceCandidate(new RTCIceCandidate(msg.data));
+                    }
+                  }
+                } catch (e) {
+                  console.error('WebRTC signaling error:', e);
                 }
-              }, 200);
+              };
 
-              // Store for cleanup
-              (videoRef.current as any)._streamCleanup = () => {
-                clearInterval(streamInterval);
-                streamWs.close();
+              signalWs.onclose = () => {
+                peerConnections.forEach(pc => pc.close());
+                peerConnections.clear();
+              };
+
+              // Store cleanup
+              (videoRef.current as any)._rtcCleanup = () => {
+                peerConnections.forEach(pc => pc.close());
+                peerConnections.clear();
+                signalWs.close();
               };
             }
           };
@@ -162,7 +218,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                 if (drift > maxDrift) maxDrift = drift;
               }
 
-              isMoving = maxDrift > 80;
+              isMoving = maxDrift > 120;
             }
 
             detections.forEach(det => {
@@ -210,8 +266,8 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
     initializeSystem();
 
     return () => {
-      if ((videoRef.current as any)?._streamCleanup) {
-        (videoRef.current as any)._streamCleanup();
+      if ((videoRef.current as any)?._rtcCleanup) {
+        (videoRef.current as any)._rtcCleanup();
       }
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
       if (faceDetector) faceDetector.close();
@@ -227,12 +283,12 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
     if (videoRef.current) {
       const video = videoRef.current;
 
-      const promises = detections.map(async (det) => {
+      // Crop all faces into blobs
+      const blobs: Blob[] = [];
+      for (const det of detections) {
         const box = det.boundingBox;
-
         const padX = box.width * 0.25;
         const padY = box.height * 0.25;
-
         const sx = Math.max(0, box.originX - padX);
         const sy = Math.max(0, box.originY - padY);
         const sw = Math.min(video.videoWidth - sx, box.width + padX * 2);
@@ -242,36 +298,38 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
         faceCanvas.width = sw;
         faceCanvas.height = sh;
         const faceCtx = faceCanvas.getContext('2d');
-
-        if (!faceCtx) return null;
+        if (!faceCtx) continue;
         faceCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
-        return new Promise((resolve) => {
-          faceCanvas.toBlob(async (blob) => {
-            if (!blob) return resolve(null);
-            const formData = new FormData();
-            formData.append('image', blob, `capture_${Date.now()}.jpg`);
-            if (cameraId) {
-              formData.append('camera_id', cameraId);
+        const blob = await new Promise<Blob | null>(resolve =>
+          faceCanvas.toBlob(b => resolve(b), 'image/jpeg')
+        );
+        if (blob) blobs.push(blob);
+      }
+
+      if (blobs.length > 0) {
+        // Send all face crops in a single batch request
+        const formData = new FormData();
+        blobs.forEach((blob, i) => formData.append('images', blob, `face_${i}.jpg`));
+        if (cameraId) formData.append('camera_id', cameraId);
+
+        try {
+          const fetchHeaders: HeadersInit = apiKey ? { 'X-API-Key': apiKey } : {};
+          const response = await fetch(`${API_BASE}/api/recognize-batch`, { method: 'POST', body: formData, headers: fetchHeaders });
+          const data = await response.json();
+
+          if (response.ok && Array.isArray(data.results)) {
+            const validResults = data.results.filter((r: any) => r && !r.skipped && r.status);
+            if (validResults.length > 0) {
+              onSnap(validResults.map((r: any) => ({
+                name: r.message, type: r.type, confidence: r.confidence,
+                image_url: r.image_url, status: r.status, user_id: r.user_id, skipped: r.skipped
+              })));
             }
-
-            try {
-              const fetchHeaders: HeadersInit = apiKey ? { 'X-API-Key': apiKey } : {};
-              const response = await fetch(`${API_BASE}/api/recognize`, { method: 'POST', body: formData, headers: fetchHeaders });
-              const data = await response.json();
-              if (response.ok && data.status !== 'no_face_detected') {
-                resolve({ name: data.message, type: data.type, confidence: data.confidence, image_url: data.image_url, status: data.status, user_id: data.user_id, skipped: data.skipped });
-              } else resolve(null);
-            } catch (error) { resolve(null); }
-          }, 'image/jpeg');
-        });
-      });
-
-      const results = await Promise.all(promises);
-      const validResults = results.filter(r => r !== null && !(r as any).skipped) as any[];
-
-      if (validResults.length > 0) {
-        onSnap(validResults);
+          }
+        } catch (error) {
+          console.error('Batch recognize failed:', error);
+        }
       }
 
       isAnalyzingRef.current = false;
@@ -331,4 +389,4 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
       {children}
     </div>
   );
-};
+}
