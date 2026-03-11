@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuthWsUrl, authFetch } from '../auth';
 
-interface CameraStream {
+interface CameraDisplay {
   camera_id: string;
-  stream: MediaStream | null;
-  pc: RTCPeerConnection | null;
   status: 'connecting' | 'live' | 'offline';
 }
 
@@ -13,34 +11,51 @@ const RTC_CONFIG: RTCConfiguration = {
 };
 
 function CameraGridPage() {
-  const [cameras, setCameras] = useState<Map<string, CameraStream>>(new Map());
+  const [cameras, setCameras] = useState<Map<string, CameraDisplay>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
   const [fullscreen, setFullscreen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+
   const wsRef = useRef<WebSocket | null>(null);
   const mountedRef = useRef(true);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  // PeerConnections stored in ref (NOT in state) — async ops need stable references
+  const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+
+  const attachStream = useCallback((cameraId: string, stream: MediaStream) => {
+    const el = videoRefs.current.get(cameraId);
+    if (el && el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+  }, []);
 
   const setupPeerConnection = useCallback((ws: WebSocket, cameraId: string) => {
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    // Close existing PC if any
+    const existingPc = pcsRef.current.get(cameraId);
+    if (existingPc) {
+      existingPc.close();
+      pcsRef.current.delete(cameraId);
+    }
 
-    // Set initial state
+    const pc = new RTCPeerConnection(RTC_CONFIG);
+    pcsRef.current.set(cameraId, pc);
+
     setCameras(prev => {
       const next = new Map(prev);
-      next.set(cameraId, { camera_id: cameraId, stream: null, pc, status: 'connecting' });
+      next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
       return next;
     });
 
     pc.ontrack = (event) => {
       const stream = event.streams[0];
-      setCameras(prev => {
-        const next = new Map(prev);
-        const existing = next.get(cameraId);
-        if (existing) {
-          next.set(cameraId, { ...existing, stream, status: 'live' });
-        }
-        return next;
-      });
+      if (stream) {
+        setCameras(prev => {
+          const next = new Map(prev);
+          next.set(cameraId, { camera_id: cameraId, status: 'live' });
+          return next;
+        });
+        attachStream(cameraId, stream);
+      }
     };
 
     pc.onicecandidate = (event) => {
@@ -57,33 +72,38 @@ function CameraGridPage() {
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
         setCameras(prev => {
           const next = new Map(prev);
-          const existing = next.get(cameraId);
-          if (existing) {
-            next.set(cameraId, { ...existing, status: 'offline' });
-          }
+          next.set(cameraId, { camera_id: cameraId, status: 'offline' });
           return next;
         });
       }
     };
 
-    // Create and send offer
+    // Create receive-only offer
     pc.addTransceiver('video', { direction: 'recvonly' });
-    pc.createOffer().then(offer => {
-      pc.setLocalDescription(offer);
-      ws.send(JSON.stringify({
-        type: 'offer',
-        camera_id: cameraId,
-        data: offer
-      }));
-    });
+    pc.createOffer()
+      .then(offer => pc.setLocalDescription(offer))
+      .then(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'offer',
+            camera_id: cameraId,
+            data: pc.localDescription
+          }));
+        }
+      })
+      .catch(e => console.error('Failed to create offer:', e));
 
     return pc;
+  }, [attachStream]);
+
+  const closeAllPCs = useCallback(() => {
+    pcsRef.current.forEach(pc => pc.close());
+    pcsRef.current.clear();
   }, []);
 
   const connect = useCallback(async () => {
     if (!mountedRef.current) return;
 
-    // Fetch online cameras first
     let onlineCameras: string[] = [];
     try {
       const res = await authFetch('/api/cameras');
@@ -93,12 +113,13 @@ function CameraGridPage() {
       }
     } catch {}
 
+    if (!mountedRef.current) return;
+
     const ws = new WebSocket(getAuthWsUrl('/ws/viewer-signal'));
     wsRef.current = ws;
 
     ws.onopen = () => {
       setIsConnected(true);
-      // Subscribe to all online cameras
       for (const cameraId of onlineCameras) {
         ws.send(JSON.stringify({ type: 'subscribe', camera_id: cameraId }));
       }
@@ -109,35 +130,32 @@ function CameraGridPage() {
         const msg = JSON.parse(event.data);
 
         if (msg.type === 'subscribed') {
-          // Now create the peer connection and send offer
           setupPeerConnection(ws, msg.camera_id);
         }
 
         if (msg.type === 'answer') {
-          setCameras(prev => {
-            const existing = prev.get(msg.camera_id);
-            if (existing?.pc) {
-              existing.pc.setRemoteDescription(new RTCSessionDescription(msg.data));
-            }
-            return prev;
-          });
+          // Use ref directly — NOT inside setCameras
+          const pc = pcsRef.current.get(msg.camera_id);
+          if (pc && pc.signalingState !== 'closed') {
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+          }
         }
 
         if (msg.type === 'ice-candidate') {
-          setCameras(prev => {
-            const existing = prev.get(msg.camera_id);
-            if (existing?.pc) {
-              existing.pc.addIceCandidate(new RTCIceCandidate(msg.data));
-            }
-            return prev;
-          });
+          const pc = pcsRef.current.get(msg.camera_id);
+          if (pc && pc.signalingState !== 'closed') {
+            await pc.addIceCandidate(new RTCIceCandidate(msg.data));
+          }
         }
 
         if (msg.type === 'camera-removed') {
+          const pc = pcsRef.current.get(msg.camera_id);
+          if (pc) {
+            pc.close();
+            pcsRef.current.delete(msg.camera_id);
+          }
           setCameras(prev => {
             const next = new Map(prev);
-            const existing = next.get(msg.camera_id);
-            if (existing?.pc) existing.pc.close();
             next.delete(msg.camera_id);
             return next;
           });
@@ -151,27 +169,25 @@ function CameraGridPage() {
     ws.onclose = () => {
       setIsConnected(false);
       wsRef.current = null;
-      // Close all peer connections
-      setCameras(prev => {
-        prev.forEach(cam => cam.pc?.close());
-        return new Map();
-      });
+      closeAllPCs();
+      setCameras(new Map());
       if (mountedRef.current) {
         setTimeout(connect, 3000);
       }
     };
 
     ws.onerror = () => ws.close();
-  }, [setupPeerConnection]);
+  }, [setupPeerConnection, closeAllPCs]);
 
   useEffect(() => {
     mountedRef.current = true;
     connect();
     return () => {
       mountedRef.current = false;
+      closeAllPCs();
       if (wsRef.current) wsRef.current.close();
     };
-  }, [connect]);
+  }, [connect, closeAllPCs]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -181,25 +197,15 @@ function CameraGridPage() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Attach streams to video elements
-  useEffect(() => {
-    cameras.forEach((cam, cameraId) => {
-      const videoEl = videoRefs.current.get(cameraId);
-      if (videoEl && cam.stream && videoEl.srcObject !== cam.stream) {
-        videoEl.srcObject = cam.stream;
-      }
-    });
-  }, [cameras]);
-
   const handleRemove = async (cameraId: string) => {
     if (!confirm(`Remove camera "${cameraId.replace(/-/g, ' ')}"? It will need to re-register to reconnect.`)) return;
     setRemoving(cameraId);
     try {
       await authFetch(`/api/cameras/${encodeURIComponent(cameraId)}`, { method: 'DELETE' });
+      const pc = pcsRef.current.get(cameraId);
+      if (pc) { pc.close(); pcsRef.current.delete(cameraId); }
       setCameras(prev => {
         const next = new Map(prev);
-        const existing = next.get(cameraId);
-        if (existing?.pc) existing.pc.close();
         next.delete(cameraId);
         return next;
       });
@@ -213,14 +219,10 @@ function CameraGridPage() {
   const setVideoRef = useCallback((cameraId: string, el: HTMLVideoElement | null) => {
     if (el) {
       videoRefs.current.set(cameraId, el);
-      const cam = cameras.get(cameraId);
-      if (cam?.stream && el.srcObject !== cam.stream) {
-        el.srcObject = cam.stream;
-      }
     } else {
       videoRefs.current.delete(cameraId);
     }
-  }, [cameras]);
+  }, []); // No deps — refs are stable
 
   const cameraList = Array.from(cameras.values());
 
@@ -270,7 +272,6 @@ function CameraGridPage() {
                 />
               </div>
 
-              {/* Top-right actions — visible on hover */}
               <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <button
                   onClick={(e) => { e.stopPropagation(); setFullscreen(cam.camera_id); }}
@@ -343,9 +344,14 @@ function CameraGridPage() {
           <video
             ref={(el) => {
               if (el) {
-                const cam = cameras.get(fullscreen);
-                if (cam?.stream && el.srcObject !== cam.stream) {
-                  el.srcObject = cam.stream;
+                const pc = pcsRef.current.get(fullscreen);
+                if (pc) {
+                  const receivers = pc.getReceivers();
+                  const videoReceiver = receivers.find(r => r.track?.kind === 'video');
+                  if (videoReceiver?.track) {
+                    const stream = new MediaStream([videoReceiver.track]);
+                    if (el.srcObject !== stream) el.srcObject = stream;
+                  }
                 }
               }
             }}

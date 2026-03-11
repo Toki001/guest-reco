@@ -131,11 +131,11 @@ const DashboardTab = () => {
   const refreshData = useCallback(() => {
     setRefreshing(true);
     Promise.all([
-      authFetch('/api/access-logs').then(r => r.json()).then(data => setInitialLogs(data)),
-      authFetch('/api/stats').then(r => r.json()).then(data => setStats(data)),
-      authFetch('/api/cameras').then(r => r.json()).then(data => setCameras(data)),
-    ]).catch(() => {}).finally(() => setRefreshing(false));
-  }, []);
+      authFetch('/api/access-logs').then(r => r.ok ? r.json() : []).then(data => setInitialLogs(data)),
+      authFetch('/api/stats').then(r => r.ok ? r.json() : null).then(data => { if (data) setStats(data); }),
+      authFetch('/api/cameras').then(r => r.ok ? r.json() : []).then(data => setCameras(data)),
+    ]).catch(e => console.error('Dashboard refresh failed:', e)).finally(() => setRefreshing(false));
+  }, [setStats, setCameras]);
 
   // Fetch initial data via REST
   useEffect(() => { refreshData(); }, []);
