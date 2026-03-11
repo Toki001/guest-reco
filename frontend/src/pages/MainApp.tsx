@@ -8,6 +8,7 @@ import EmployeesPage from './EmployeesPage';
 
 const EmployeeProfilePage = lazy(() => import('./EmployeeProfilePage'));
 const AttendancePage = lazy(() => import('./AttendancePage'));
+const VisitorsPage = lazy(() => import('./VisitorsPage'));
 
 function MainApp() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -36,6 +37,7 @@ function MainApp() {
             <Route path="cameras" element={<CameraGridPage />} />
             <Route path="employees" element={<EmployeesPage />} />
             <Route path="employees/:id" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>}><EmployeeProfilePage /></Suspense>} />
+            <Route path="visitors" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>}><VisitorsPage /></Suspense>} />
             <Route path="attendance" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>}><AttendancePage /></Suspense>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

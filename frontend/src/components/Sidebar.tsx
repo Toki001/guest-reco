@@ -24,6 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { path: '/dashboard', label: 'Dashboard', icon: 'grid_view' },
     { path: '/cameras', label: 'Cameras', icon: 'videocam' },
     { path: '/employees', label: 'Employees', icon: 'group' },
+    { path: '/visitors', label: 'Visitors', icon: 'person_search' },
     { path: '/attendance', label: 'Attendance', icon: 'schedule' },
   ];
 

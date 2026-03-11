@@ -28,7 +28,7 @@ function EmployeesPage() {
 
   const fetchEmployees = useCallback(async () => {
     try {
-      const res = await authFetch('/api/employees');
+      const res = await authFetch('/api/employees?role=Employee');
       if (res.ok) {
         const data = await res.json();
         setEmployees(data);
