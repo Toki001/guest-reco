@@ -25,7 +25,7 @@ from auth import (
     check_login, require_admin, require_camera_or_admin,
     verify_ws_auth, get_camera_api_key
 )
-from streaming import stream_manager
+from signaling import signaling_manager
 
 # --- FASTAPI SETUP ---
 app = FastAPI(title="SecureSight Edge Recognition API")
@@ -134,7 +134,85 @@ async def login(username: str = Form(...), password: str = Form(...)):
 async def auth_me(user=Depends(require_admin)):
     return {"username": user["sub"]}
 
-# --- API: RECOGNIZE FACE ---
+# --- API: RECOGNIZE FACE (BATCH) ---
+def _recognize_single(image_bytes, camera_id, known_users):
+    """Synchronous single-face recognition. Called within a thread."""
+    result = search_face(image_bytes, known_users)
+
+    if isinstance(result, dict) and result.get("no_face"):
+        return None
+
+    if result is None:
+        guest_id = f"GUEST-{uuid.uuid4().hex[:6].upper()}"
+        guest_name = f"Guest {guest_id[-4:]}"
+        encoding_bytes = index_face(image_bytes)
+        if encoding_bytes is None:
+            return None
+        avatar_path = save_image_locally(image_bytes, "avatars", f"{guest_id}.jpg")
+        insert_user(guest_id, guest_name, encoding_bytes, avatar_path, "Guest")
+        final_status = log_access_attempt(guest_id, "in", 100.0, camera_id=camera_id)
+        _scan_cooldown[guest_id] = time.monotonic()
+        return {"message": guest_name, "type": "guest", "confidence": 100.0,
+                "image_url": avatar_path, "status": final_status, "user_id": guest_id}
+
+    user_id = result["user_id"]
+    confidence = result["confidence"]
+
+    now = time.monotonic()
+    if now - _scan_cooldown.get(user_id, 0) < COOLDOWN_SECONDS:
+        profile = get_user_profile(user_id)
+        return {"message": profile["name"] if profile else user_id,
+                "type": (profile.get("role", "Employee").lower() if profile else "employee"),
+                "confidence": confidence, "user_id": user_id, "skipped": True,
+                "image_url": profile.get("image_url", "") if profile else "", "status": None}
+
+    profile = get_user_profile(user_id)
+    name = profile["name"] if profile else f"ID: {user_id}"
+    image_url = profile.get("image_url", "") if profile else ""
+    user_type = profile.get("role", "Employee").lower() if profile else "employee"
+
+    final_status = log_access_attempt(user_id, "in", confidence, camera_id=camera_id)
+    _scan_cooldown[user_id] = time.monotonic()
+    return {"message": name, "type": user_type, "confidence": confidence,
+            "image_url": image_url, "status": final_status, "user_id": user_id}
+
+
+@app.post('/api/recognize-batch')
+async def recognize_batch(
+    images: list[UploadFile] = File(...),
+    camera_id: str = Form(None),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    auth=Depends(require_camera_or_admin)
+):
+    """Process multiple face crops in a single request, sequentially."""
+    all_bytes = [await img.read() for img in images]
+    known_users = await asyncio.to_thread(get_all_users_with_encodings)
+
+    def process_all():
+        results = []
+        for img_bytes in all_bytes:
+            r = _recognize_single(img_bytes, camera_id, known_users)
+            if r:
+                results.append(r)
+        return results
+
+    results = await asyncio.to_thread(process_all)
+
+    # Broadcast non-skipped results
+    for r in results:
+        if not r.get("skipped"):
+            await manager.broadcast({
+                "event": "recognition_result",
+                "data": {**r, "camera_id": camera_id,
+                         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+            })
+    if any(not r.get("skipped") for r in results):
+        await manager.broadcast({"event": "stats_update", "data": await asyncio.to_thread(get_stats)})
+
+    return {"results": results}
+
+
+# --- API: RECOGNIZE FACE (SINGLE) ---
 @app.post('/api/recognize')
 async def recognize_face(
     image: UploadFile = File(...),
@@ -299,7 +377,7 @@ async def list_cameras(user=Depends(require_admin)):
 @app.delete('/api/cameras/{camera_id}')
 async def remove_camera(camera_id: str, user=Depends(require_admin)):
     await asyncio.to_thread(delete_camera, camera_id)
-    await stream_manager.drop_camera(camera_id)
+    await signaling_manager.drop_camera(camera_id)
     await manager.broadcast({
         "event": "camera_offline",
         "data": {"camera_id": camera_id, "removed": True,
@@ -387,20 +465,20 @@ async def attendance_log(
         get_attendance_logs, page, per_page, date_from, date_to, camera_id, user_id, status
     )
 
-# --- WEBSOCKET: CAMERA STREAMING ---
-@app.websocket("/ws/camera-stream")
-async def ws_camera_stream(websocket: WebSocket, key: str | None = Query(None)):
+# --- WEBSOCKET: WEBRTC SIGNALING ---
+@app.websocket("/ws/camera-signal")
+async def ws_camera_signal(websocket: WebSocket, key: str | None = Query(None)):
     if not verify_ws_auth(key=key):
         await websocket.close(code=4001, reason="Unauthorized")
         return
-    await stream_manager.handle_camera_stream(websocket)
+    await signaling_manager.handle_camera_signal(websocket)
 
-@app.websocket("/ws/camera-view")
-async def ws_camera_view(websocket: WebSocket, token: str | None = Query(None)):
+@app.websocket("/ws/viewer-signal")
+async def ws_viewer_signal(websocket: WebSocket, token: str | None = Query(None)):
     if not verify_ws_auth(token=token):
         await websocket.close(code=4001, reason="Unauthorized")
         return
-    await stream_manager.handle_camera_view(websocket)
+    await signaling_manager.handle_viewer_signal(websocket)
 
 # --- STATIC FILE MOUNTS (must be AFTER all API routes) ---
 app.mount("/avatars", StaticFiles(directory="avatars"), name="avatars")
