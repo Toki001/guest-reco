@@ -142,6 +142,11 @@ def _recognize_single(image_bytes, camera_id, known_users):
     if isinstance(result, dict) and result.get("no_face"):
         return None
 
+    # Double-verify failed — face matched someone on first pass but not second.
+    # Do NOT register as new guest; just skip this face entirely.
+    if isinstance(result, dict) and result.get("uncertain"):
+        return None
+
     if result is None:
         guest_id = f"GUEST-{uuid.uuid4().hex[:6].upper()}"
         guest_name = f"Guest {guest_id[-4:]}"
@@ -230,6 +235,10 @@ async def recognize_face(
         # Case 1: No face detected in image
         if isinstance(result, dict) and result.get("no_face"):
             return {"status": "no_face_detected", "message": "No face detected in image"}
+
+        # Case 1b: Double-verify failed — skip, don't register as guest
+        if isinstance(result, dict) and result.get("uncertain"):
+            return {"status": "uncertain", "message": "Face detected but verification uncertain"}
 
         # Case 2: No match found - auto-register as guest
         if result is None:

@@ -32,7 +32,8 @@ def search_face(image_bytes, known_users):
     Returns:
         - {"user_id": str, "confidence": float} if match confirmed by both passes
         - {"no_face": True} if no face detected in image
-        - None if face detected but no confirmed match
+        - {"uncertain": True} if first pass matched but second pass disagreed (do NOT register as guest)
+        - None if face detected but no match at all (safe to register as new guest)
     """
     try:
         image = face_recognition.load_image_file(io.BytesIO(image_bytes))
@@ -85,11 +86,11 @@ def search_face(image_bytes, known_users):
         # Both passes must agree on the same person AND pass threshold
         if verify_best_idx != best_idx:
             print(f"Double-verify FAILED: pass1={valid_users[best_idx]['id']} pass2={valid_users[verify_best_idx]['id']}")
-            return None
+            return {"uncertain": True}
 
         if verify_best_distance >= FACE_DISTANCE_THRESHOLD:
             print(f"Double-verify FAILED: second pass distance {verify_best_distance:.3f} >= {FACE_DISTANCE_THRESHOLD}")
-            return None
+            return {"uncertain": True}
 
         # Average confidence from both passes
         avg_distance = (best_distance + verify_best_distance) / 2
