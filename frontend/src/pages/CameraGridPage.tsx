@@ -114,8 +114,6 @@ function CameraGridPage() {
         }
 
         if (msg.type === 'answer') {
-          const cam = cameras.get(msg.camera_id);
-          // Need to get the latest state
           setCameras(prev => {
             const existing = prev.get(msg.camera_id);
             if (existing?.pc) {

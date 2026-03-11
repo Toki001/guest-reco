@@ -25,3 +25,7 @@ venv
 *.sln
 *.sw?
 .superpowers/
+
+# SSL certs
+backend/cert.pem
+backend/key.pem
