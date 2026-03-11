@@ -192,20 +192,105 @@ def get_user_detail(user_id):
         "last_camera": last_log["camera_id"] if last_log else None,
     }
 
-def get_users_with_last_seen():
+def get_users_with_last_seen(role=None):
     conn = get_connection()
-    rows = conn.execute("""
+    role_filter = ""
+    params = []
+    if role and role != "all":
+        role_filter = "WHERE u.role = ?"
+        params = [role]
+    rows = conn.execute(f"""
         SELECT u.id, u.name, u.image_path, u.role,
                a.status as last_status, a.timestamp as last_seen, a.camera_id as last_camera
         FROM users u
         LEFT JOIN access_logs a ON a.user_id = u.id
             AND a.timestamp = (SELECT MAX(timestamp) FROM access_logs WHERE user_id = u.id)
+        {role_filter}
         ORDER BY u.name
-    """).fetchall()
+    """, params).fetchall()
     return [{
         "id": r["id"], "name": r["name"], "image_url": r["image_path"], "role": r["role"],
         "last_status": r["last_status"], "last_seen": r["last_seen"], "last_camera": r["last_camera"]
     } for r in rows]
+
+def get_visitors_aggregated(page=1, per_page=50, date_from=None, date_to=None):
+    conn = get_connection()
+    conditions = ["u.role = 'Guest'"]
+    params = []
+    if date_from:
+        conditions.append("a.timestamp >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("a.timestamp <= ?")
+        params.append(date_to)
+
+    where = "WHERE " + " AND ".join(conditions)
+    offset = (page - 1) * per_page
+
+    total = conn.execute(f"""
+        SELECT COUNT(DISTINCT u.id) as c
+        FROM users u LEFT JOIN access_logs a ON a.user_id = u.id
+        {where}
+    """, params).fetchone()["c"]
+
+    rows = conn.execute(f"""
+        SELECT u.id, u.name, u.image_path,
+               MIN(a.timestamp) as first_seen,
+               MAX(a.timestamp) as last_seen,
+               COUNT(a.id) as total_visits,
+               (SELECT camera_id FROM access_logs WHERE user_id = u.id ORDER BY timestamp DESC LIMIT 1) as last_camera
+        FROM users u
+        LEFT JOIN access_logs a ON a.user_id = u.id
+        {where}
+        GROUP BY u.id
+        ORDER BY last_seen DESC
+        LIMIT ? OFFSET ?
+    """, params + [per_page, offset]).fetchall()
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "items": [{
+            "id": r["id"], "name": r["name"], "image_url": r["image_path"],
+            "first_seen": r["first_seen"], "last_seen": r["last_seen"],
+            "total_visits": r["total_visits"], "last_camera": r["last_camera"]
+        } for r in rows]
+    }
+
+def get_today_stats():
+    conn = get_connection()
+    today_start = conn.execute("SELECT date('now', 'localtime', 'start of day')").fetchone()[0]
+
+    scans = conn.execute(
+        "SELECT COUNT(*) as c FROM access_logs WHERE timestamp >= ?", (today_start,)
+    ).fetchone()["c"]
+
+    unique = conn.execute(
+        "SELECT COUNT(DISTINCT user_id) as c FROM access_logs WHERE timestamp >= ?", (today_start,)
+    ).fetchone()["c"]
+
+    emp_in = conn.execute("""
+        SELECT COUNT(DISTINCT a.user_id) as c FROM access_logs a
+        JOIN users u ON a.user_id = u.id
+        WHERE a.timestamp >= ? AND u.role = 'Employee'
+    """, (today_start,)).fetchone()["c"]
+
+    guest_in = conn.execute("""
+        SELECT COUNT(DISTINCT a.user_id) as c FROM access_logs a
+        JOIN users u ON a.user_id = u.id
+        WHERE a.timestamp >= ? AND u.role = 'Guest'
+    """, (today_start,)).fetchone()["c"]
+
+    on_site = len(get_active_users())
+
+    return {
+        "scans_today": scans,
+        "unique_people_today": unique,
+        "employees_in_today": emp_in,
+        "guests_today": guest_in,
+        "currently_on_site": on_site
+    }
 
 def get_active_users():
     conn = get_connection()

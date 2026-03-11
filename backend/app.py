@@ -18,7 +18,7 @@ from database import (
     get_offline_cameras, delete_camera,
     delete_user, update_user, update_user_face, get_user_detail,
     get_users_with_last_seen, get_active_users, get_attendance_logs,
-    get_user_attendance, user_exists
+    get_user_attendance, user_exists, get_visitors_aggregated, get_today_stats
 )
 from face_engine import index_face, search_face
 from auth import (
@@ -353,6 +353,10 @@ async def list_access_logs(user=Depends(require_admin)):
 async def get_dashboard_stats(user=Depends(require_admin)):
     return await asyncio.to_thread(get_stats)
 
+@app.get('/api/stats/today')
+async def get_today_dashboard_stats(user=Depends(require_admin)):
+    return await asyncio.to_thread(get_today_stats)
+
 # --- API: CAMERA MANAGEMENT ---
 @app.post('/api/camera/register')
 async def register_camera_endpoint(
@@ -397,8 +401,8 @@ async def remove_camera(camera_id: str, user=Depends(require_admin)):
 
 # --- API: EMPLOYEE MANAGEMENT ---
 @app.get('/api/employees')
-async def list_employees(user=Depends(require_admin)):
-    return await asyncio.to_thread(get_users_with_last_seen)
+async def list_employees(role: str = Query("Employee"), user=Depends(require_admin)):
+    return await asyncio.to_thread(get_users_with_last_seen, role=role)
 
 @app.get('/api/employees/{employee_id}')
 async def get_employee(employee_id: str, user=Depends(require_admin)):
@@ -453,6 +457,17 @@ async def employee_attendance(employee_id: str, user=Depends(require_admin)):
         raise HTTPException(status_code=404, detail="Employee not found")
     logs = await asyncio.to_thread(get_user_attendance, employee_id)
     return logs
+
+# --- API: VISITORS ---
+@app.get('/api/visitors')
+async def list_visitors(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    date_from: str = Query(None),
+    date_to: str = Query(None),
+    user=Depends(require_admin)
+):
+    return await asyncio.to_thread(get_visitors_aggregated, page, per_page, date_from, date_to)
 
 # --- API: ATTENDANCE ---
 @app.get('/api/attendance/active')
