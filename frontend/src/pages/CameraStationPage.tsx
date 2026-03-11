@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { CameraFeed } from '../components/CameraFeed';
-import { RecognitionToast, ToastData } from '../components/RecognitionToast';
+import { RecognitionBanner, BannerData } from '../components/RecognitionBanner';
 import { API_BASE } from '../config';
 
 const CAMERA_KEY_STORAGE = 'securesight_camera_key';
@@ -21,9 +21,14 @@ function CameraStationPage() {
   const [isScanning, setIsScanning] = useState(true);
   const [isRegistered, setIsRegistered] = useState(false);
 
-  // Toast system
-  const [toasts, setToasts] = useState<ToastData[]>([]);
+  // Banner system
+  const [banners, setBanners] = useState<BannerData[]>([]);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [isIdle, setIsIdle] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const cooldownRef = useRef<Map<string, number>>(new Map());
+  const idleTimerRef = useRef<number>(0);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Save key to localStorage when set via URL
   useEffect(() => {
@@ -34,10 +39,50 @@ function CameraStationPage() {
     }
   }, [urlKey]);
 
+  // Clock
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Idle state tracker
+  const handleFeedbackChange = useCallback((feedback: string) => {
+    clearTimeout(idleTimerRef.current);
+    if (feedback === 'idle') {
+      idleTimerRef.current = window.setTimeout(() => setIsIdle(true), 10000);
+    } else {
+      setIsIdle(false);
+    }
+  }, []);
+
+  // Audio
+  const unlockAudio = useCallback(() => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new AudioContext();
+    }
+  }, []);
+
+  const playTone = useCallback((frequency: number, duration: number) => {
+    if (isMuted || !audioCtxRef.current) return;
+    const ctx = audioCtxRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = frequency;
+    osc.type = 'sine';
+    gain.gain.value = 0.3;
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.stop(ctx.currentTime + duration);
+  }, [isMuted]);
+
   const handleKeySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!keyInput.trim()) return;
     setAuthError('');
+    unlockAudio();
 
     try {
       const formData = new FormData();
@@ -101,8 +146,8 @@ function CameraStationPage() {
     return () => clearInterval(heartbeat);
   }, [cameraId, departmentName, apiKey, isRegistered]);
 
-  const handleDismissToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+  const handleDismissBanner = useCallback((id: string) => {
+    setBanners(prev => prev.filter(b => b.id !== id));
   }, []);
 
   const handleResult = (results: { name: string; type: 'guest' | 'employee'; confidence: number; image_url?: string; status?: string; user_id?: string; skipped?: boolean }[]) => {
@@ -121,8 +166,8 @@ function CameraStationPage() {
       // Update cooldown
       cooldownRef.current.set(userId, now);
 
-      // Add toast
-      setToasts(prev => [...prev, {
+      // Add banner
+      setBanners(prev => [...prev, {
         id: `${userId}-${now}-${Math.random().toString(36).slice(2, 6)}`,
         name: result.name,
         type: result.type,
@@ -130,10 +175,21 @@ function CameraStationPage() {
         confidence: result.confidence,
         imageUrl: result.image_url || '',
       }]);
+
+      // Play tone
+      if (result.status === 'in') {
+        playTone(880, 0.15);
+      } else {
+        playTone(440, 0.2);
+      }
     }
+
+    // Reset idle state on recognition
+    setIsIdle(false);
   };
 
   const handleToggleScan = () => {
+    unlockAudio();
     setIsScanning(prev => !prev);
   };
 
@@ -190,15 +246,39 @@ function CameraStationPage() {
         <div className="flex items-center space-x-3">
           <span className="material-symbols-outlined text-blue-400">videocam</span>
           <div>
-            <h1 className="text-white font-bold text-lg">{departmentName}</h1>
+            <h1 className="text-white font-bold text-lg">FSUU — {departmentName}</h1>
             <p className="text-slate-500 text-xs uppercase tracking-wider">Camera Station</p>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <span className={`w-2 h-2 rounded-full ${isRegistered ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`}></span>
-          <span className={`text-xs font-bold uppercase tracking-wider ${isRegistered ? 'text-green-400' : 'text-amber-400'}`}>
-            {isRegistered ? 'Connected' : 'Connecting...'}
-          </span>
+        <div className="flex items-center space-x-4">
+          {/* Clock */}
+          <div className="text-right">
+            <p className="text-white font-bold text-sm font-mono">
+              {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
+            <p className="text-slate-400 text-[10px] uppercase tracking-wider">
+              {currentTime.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+          {/* Mute toggle */}
+          <button
+            onClick={() => {
+              unlockAudio();
+              setIsMuted(prev => !prev);
+            }}
+            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
+          >
+            <span className="material-symbols-outlined text-white text-xl">
+              {isMuted ? 'volume_off' : 'volume_up'}
+            </span>
+          </button>
+          {/* Connection status */}
+          <div className="flex items-center space-x-2">
+            <span className={`w-2 h-2 rounded-full ${isRegistered ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`}></span>
+            <span className={`text-xs font-bold uppercase tracking-wider ${isRegistered ? 'text-green-400' : 'text-amber-400'}`}>
+              {isRegistered ? 'Connected' : 'Connecting...'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -210,13 +290,22 @@ function CameraStationPage() {
           onToggle={handleToggleScan}
           cameraId={cameraId}
           apiKey={apiKey}
+          onFeedbackChange={handleFeedbackChange}
         >
-          {/* Toast stack */}
-          <div className="absolute bottom-24 right-4 z-40 flex flex-col gap-2">
-            {toasts.map(t => (
-              <RecognitionToast key={t.id} toast={t} onDismiss={handleDismissToast} />
+          {/* Recognition banners — top of feed */}
+          <div className="absolute top-0 left-0 right-0 z-40 flex flex-col">
+            {banners.slice(0, 3).map(b => (
+              <RecognitionBanner key={b.id} banner={b} onDismiss={handleDismissBanner} />
             ))}
           </div>
+
+          {/* Idle overlay */}
+          {isIdle && isScanning && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[2px]">
+              <span className="material-symbols-outlined text-6xl text-white/60 mb-4 animate-pulse">face</span>
+              <p className="text-white/80 text-lg font-medium tracking-wide">Approach camera to scan</p>
+            </div>
+          )}
         </CameraFeed>
       </div>
     </div>
