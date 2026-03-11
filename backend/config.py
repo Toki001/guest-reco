@@ -16,7 +16,7 @@ class Config:
     SNAPSHOTS_DIR = os.getenv('SNAPSHOTS_DIR', 'snapshots')
 
     # Face Recognition
-    FACE_DISTANCE_THRESHOLD = float(os.getenv('FACE_DISTANCE_THRESHOLD', '0.6'))
+    FACE_DISTANCE_THRESHOLD = float(os.getenv('FACE_DISTANCE_THRESHOLD', '0.45'))
 
     # Camera & Detection Tuning
     REQUIRED_STILL_TIME = 3.0
