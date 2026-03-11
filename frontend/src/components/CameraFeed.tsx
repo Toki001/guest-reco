@@ -287,8 +287,8 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
       const blobs: Blob[] = [];
       for (const det of detections) {
         const box = det.boundingBox;
-        const padX = box.width * 0.25;
-        const padY = box.height * 0.25;
+        const padX = box.width * 0.5;
+        const padY = box.height * 0.5;
         const sx = Math.max(0, box.originX - padX);
         const sy = Math.max(0, box.originY - padY);
         const sw = Math.min(video.videoWidth - sx, box.width + padX * 2);

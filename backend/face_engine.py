@@ -26,11 +26,25 @@ def _get_model():
     return _model
 
 
-def _bytes_to_cv2(image_bytes):
-    """Convert image bytes to numpy array (BGR format for InsightFace)."""
+def _bytes_to_cv2(image_bytes, pad_for_detection=True):
+    """Convert image bytes to numpy array (BGR format for InsightFace).
+
+    When pad_for_detection=True, adds a border around the image so that
+    RetinaFace can detect faces in tight crops where the face fills the frame.
+    """
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     arr = np.array(img)
-    # RGB to BGR
+
+    if pad_for_detection:
+        h, w = arr.shape[:2]
+        # Add 50% padding on each side with neutral gray
+        pad_y = h // 2
+        pad_x = w // 2
+        padded = np.full((h + 2 * pad_y, w + 2 * pad_x, 3), 128, dtype=np.uint8)
+        padded[pad_y:pad_y + h, pad_x:pad_x + w] = arr
+        arr = padded
+
+    # RGB to BGR for InsightFace/OpenCV
     return arr[:, :, ::-1].copy()
 
 
@@ -41,9 +55,10 @@ def index_face(image_bytes):
     with _lock:
         try:
             model = _get_model()
-            img = _bytes_to_cv2(image_bytes)
+            img = _bytes_to_cv2(image_bytes, pad_for_detection=True)
             faces = model.get(img)
             if not faces:
+                print(f"index_face: no face detected (image shape: {img.shape})")
                 return None
             # Use the largest face (by bounding box area)
             face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
@@ -64,7 +79,7 @@ def search_face(image_bytes, known_users):
     with _lock:
         try:
             model = _get_model()
-            img = _bytes_to_cv2(image_bytes)
+            img = _bytes_to_cv2(image_bytes, pad_for_detection=True)
             faces = model.get(img)
 
             if not faces:
@@ -101,8 +116,6 @@ def search_face(image_bytes, known_users):
             best_similarity = float(similarities[best_idx])
 
             # Convert similarity to distance-like metric for threshold comparison
-            # similarity range: -1 to 1, where 1 = identical
-            # We use 1 - similarity as "distance" so existing threshold logic works
             best_distance = 1.0 - best_similarity
 
             if best_distance >= FACE_DISTANCE_THRESHOLD:
