@@ -7,12 +7,13 @@ interface CameraFeedProps {
   onSnap: (results: { name: string; type: 'guest' | 'employee'; confidence: number; image_url?: string; status?: string; user_id?: string; skipped?: boolean }[]) => void;
   onToggle: () => void;
   onStatusChange?: (online: boolean) => void;
+  onFeedbackChange?: (feedback: 'idle' | 'move-closer' | 'hold-still' | 'counting' | 'analyzing') => void;
   cameraId?: string;
   apiKey?: string;
   children?: React.ReactNode;
 }
 
-export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onToggle, onStatusChange, cameraId, apiKey, children }) => {
+export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onToggle, onStatusChange, onFeedbackChange, cameraId, apiKey, children }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,7 +26,18 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
   const anchorsRef = useRef<{ x: number, y: number }[]>([]);
   const stillStartTimeRef = useRef<number | null>(null);
   const requestRef = useRef<number>(0);
-  const REQUIRED_STILL_TIME = 1;
+
+  const MIN_FACE_WIDTH = 80;
+  const LARGE_FACE_THRESHOLD = 150;
+  const STILL_TIME_SHORT = 1;
+  const STILL_TIME_LONG = 2;
+  const requiredStillTimeRef = useRef(STILL_TIME_SHORT);
+  const retryRef = useRef(false);
+  const [scanFeedback, setScanFeedback] = useState<'idle' | 'move-closer' | 'hold-still' | 'counting' | 'analyzing'>('idle');
+
+  useEffect(() => {
+    if (onFeedbackChange) onFeedbackChange(scanFeedback);
+  }, [scanFeedback, onFeedbackChange]);
 
   useEffect(() => {
     isScanningRef.current = isScanning;
@@ -194,8 +206,37 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
 
           const detections = faceDetector.detectForVideo(video, performance.now()).detections;
 
-          if (detections.length > 0) {
-            const currentCenters = detections.map(det => {
+          // Split detections by size
+          const validDetections = detections.filter(det => det.boundingBox!.width >= MIN_FACE_WIDTH);
+          const tooSmallDetections = detections.filter(det => det.boundingBox!.width < MIN_FACE_WIDTH);
+
+          // Draw yellow boxes for too-small faces
+          tooSmallDetections.forEach(det => {
+            const box = det.boundingBox!;
+            const px = canvas.width - box.originX - box.width;
+            ctx.strokeStyle = 'rgba(234, 179, 8, 1)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(px, box.originY, box.width, box.height);
+            ctx.fillStyle = 'rgba(234, 179, 8, 1)';
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText('MOVE CLOSER', px, box.originY - 10);
+          });
+
+          if (validDetections.length === 0) {
+            // No valid faces
+            if (tooSmallDetections.length > 0) {
+              setScanFeedback('move-closer');
+            } else {
+              setScanFeedback('idle');
+            }
+            anchorsRef.current = [];
+            stillStartTimeRef.current = null;
+          } else {
+            // Compute adaptive still time from smallest valid face
+            const smallestWidth = Math.min(...validDetections.map(d => d.boundingBox!.width));
+            requiredStillTimeRef.current = smallestWidth >= LARGE_FACE_THRESHOLD ? STILL_TIME_SHORT : STILL_TIME_LONG;
+
+            const currentCenters = validDetections.map(det => {
               const rawX = det.boundingBox!.originX;
               const px = canvas.width - rawX - det.boundingBox!.width;
               return { x: px + det.boundingBox!.width / 2, y: det.boundingBox!.originY + det.boundingBox!.height / 2 };
@@ -221,7 +262,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
               isMoving = maxDrift > 120;
             }
 
-            detections.forEach(det => {
+            validDetections.forEach(det => {
               const box = det.boundingBox!;
               const px = canvas.width - box.originX - box.width;
 
@@ -232,15 +273,17 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                 ctx.strokeStyle = 'rgba(239, 68, 68, 1)';
                 ctx.strokeRect(px, box.originY, box.width, box.height);
                 ctx.fillStyle = 'rgba(239, 68, 68, 1)';
-                ctx.fillText('MOVEMENT', px, box.originY - 10);
+                ctx.fillText('HOLD STILL', px, box.originY - 10);
+                setScanFeedback('hold-still');
               } else {
                 const timeStill = (currentTime - (stillStartTimeRef.current || currentTime)) / 1000;
-                const remaining = Math.max(0, Math.ceil(REQUIRED_STILL_TIME - timeStill));
+                const remaining = Math.max(0, Math.ceil(requiredStillTimeRef.current - timeStill));
 
                 ctx.strokeStyle = 'rgba(0, 255, 0, 1)';
                 ctx.strokeRect(px, box.originY, box.width, box.height);
                 ctx.fillStyle = 'rgba(0, 255, 0, 1)';
-                ctx.fillText(`HOLD STILL: ${remaining}`, px, box.originY - 10);
+                ctx.fillText(`${remaining}`, px, box.originY - 10);
+                setScanFeedback('counting');
               }
             });
 
@@ -249,13 +292,10 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
               stillStartTimeRef.current = currentTime;
             } else {
               const timeStill = (currentTime - (stillStartTimeRef.current || currentTime)) / 1000;
-              if (timeStill >= REQUIRED_STILL_TIME) {
-                captureAndSendAll(detections);
+              if (timeStill >= requiredStillTimeRef.current) {
+                captureAndSendAll(validDetections);
               }
             }
-          } else {
-            anchorsRef.current = [];
-            stillStartTimeRef.current = null;
           }
         }
       }
@@ -279,6 +319,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
   const captureAndSendAll = async (detections: any[]) => {
     isAnalyzingRef.current = true;
     setScanStatus('analyzing');
+    setScanFeedback('analyzing');
 
     if (videoRef.current) {
       const video = videoRef.current;
@@ -325,6 +366,19 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                 name: r.message, type: r.type, confidence: r.confidence,
                 image_url: r.image_url, status: r.status, user_id: r.user_id, skipped: r.skipped
               })));
+              retryRef.current = false;
+            } else if (!retryRef.current) {
+              // Zero valid results despite sending faces — retry once
+              retryRef.current = true;
+              isAnalyzingRef.current = false;
+              setScanStatus('idle');
+              setScanFeedback('idle');
+              setTimeout(() => {
+                retryRef.current = false;
+                anchorsRef.current = [];
+                stillStartTimeRef.current = null;
+              }, 500);
+              return;
             }
           }
         } catch (error) {
@@ -334,8 +388,10 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
 
       isAnalyzingRef.current = false;
       setScanStatus('idle');
+      setScanFeedback('idle');
       anchorsRef.current = [];
       stillStartTimeRef.current = null;
+      retryRef.current = false;
     }
   };
 
@@ -374,8 +430,18 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
       )}
 
       <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-6 bg-[#0f0f0f] px-8 py-4 rounded-[32px] border border-white/5 shadow-2xl z-30">
-        <span className={`text-[11px] font-mono font-bold uppercase tracking-[0.2em] transition-colors duration-300 ${scanStatus === 'analyzing' ? 'text-blue-400 animate-pulse' : isScanning ? 'text-[#4ade80]' : 'text-amber-500'}`}>
-          {scanStatus === 'analyzing' ? 'ANALYZING MULTIPLE...' : (isScanning ? 'AUTO-CAPTURE ACTIVE' : 'SYSTEM PAUSED')}
+        <span className={`text-[11px] font-mono font-bold uppercase tracking-[0.2em] transition-colors duration-300 ${
+          scanFeedback === 'analyzing' ? 'text-blue-400 animate-pulse' :
+          scanFeedback === 'move-closer' ? 'text-amber-500' :
+          scanFeedback === 'hold-still' ? 'text-red-500' :
+          scanFeedback === 'counting' ? 'text-emerald-500' :
+          isScanning ? 'text-[#4ade80]' : 'text-amber-500'
+        }`}>
+          {scanFeedback === 'analyzing' ? 'ANALYZING...' :
+           scanFeedback === 'move-closer' ? 'MOVE CLOSER' :
+           scanFeedback === 'hold-still' ? 'HOLD STILL' :
+           scanFeedback === 'counting' ? 'CAPTURING...' :
+           isScanning ? 'READY TO SCAN' : 'SYSTEM PAUSED'}
         </span>
         <div className="w-px h-8 bg-white/10"></div>
         <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={onToggle}>
