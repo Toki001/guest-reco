@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { authFetch, getAuthWsUrl } from '../auth';
+import { API_BASE } from '../config';
 
 interface DashboardStats {
   total_scans: number;
@@ -30,6 +31,7 @@ function useDashboardWebSocket() {
   const [cameras, setCameras] = useState<CameraInfo[]>([]);
   const [detections, setDetections] = useState<DetectionEvent[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 10;
   const wsRef = useRef<WebSocket | null>(null);
@@ -78,6 +80,7 @@ function useDashboardWebSocket() {
             }
             break;
         }
+        setLastUpdated(new Date());
       } catch (e) {
         console.error('WebSocket parse error:', e);
       }
@@ -119,12 +122,13 @@ function useDashboardWebSocket() {
     };
   }, [connect]);
 
-  return { stats, setStats, cameras, setCameras, detections, isConnected };
+  return { stats, setStats, cameras, setCameras, detections, isConnected, lastUpdated, setLastUpdated };
 }
 
 const DashboardTab = () => {
-  const { stats, setStats, cameras, setCameras, detections, isConnected } = useDashboardWebSocket();
+  const { stats, setStats, cameras, setCameras, detections, isConnected, lastUpdated, setLastUpdated } = useDashboardWebSocket();
   const [initialLogs, setInitialLogs] = useState<any[]>([]);
+  const [todayStats, setTodayStats] = useState({ scans_today: 0, unique_people_today: 0, currently_on_site: 0, employees_in_today: 0, guests_today: 0 });
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -134,8 +138,9 @@ const DashboardTab = () => {
       authFetch('/api/access-logs').then(r => r.ok ? r.json() : []).then(data => setInitialLogs(data)),
       authFetch('/api/stats').then(r => r.ok ? r.json() : null).then(data => { if (data) setStats(data); }),
       authFetch('/api/cameras').then(r => r.ok ? r.json() : []).then(data => setCameras(data)),
-    ]).catch(e => console.error('Dashboard refresh failed:', e)).finally(() => setRefreshing(false));
-  }, [setStats, setCameras]);
+      authFetch('/api/stats/today').then(r => r.ok ? r.json() : null).then(data => { if (data) setTodayStats(data); }),
+    ]).catch(e => console.error('Dashboard refresh failed:', e)).finally(() => { setRefreshing(false); setLastUpdated(new Date()); });
+  }, [setStats, setCameras, setLastUpdated]);
 
   // Fetch initial data via REST
   useEffect(() => { refreshData(); }, []);
@@ -181,10 +186,30 @@ const DashboardTab = () => {
             <span className={`material-symbols-outlined text-sm ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${isConnected ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-            {isConnected ? 'Live' : 'Disconnected'}
+          <div className="flex items-center gap-3">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${isConnected ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+              {isConnected ? 'Live' : 'Disconnected'}
+            </div>
+            {lastUpdated && (
+              <span className="text-[10px] text-slate-400 font-medium">
+                Updated {formatTime(lastUpdated.toISOString())}
+              </span>
+            )}
           </div>
+        </div>
+      </div>
+
+      {/* Today Summary */}
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-full text-sm font-bold text-blue-600 dark:text-blue-400">
+          {todayStats.scans_today} scans today
+        </div>
+        <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-full text-sm font-bold text-emerald-600 dark:text-emerald-400">
+          {todayStats.unique_people_today} unique people
+        </div>
+        <div className="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 rounded-full text-sm font-bold text-purple-600 dark:text-purple-400">
+          {todayStats.currently_on_site} on site now
         </div>
       </div>
 
@@ -247,9 +272,15 @@ const DashboardTab = () => {
             <div className="space-y-3 max-h-[300px] overflow-y-auto">
               {allDetections.slice(0, 10).map((det, idx) => (
                 <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${det.type === 'guest' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
-                    <span className="material-symbols-outlined text-lg">{det.type === 'guest' ? 'person_alert' : 'badge'}</span>
-                  </div>
+                  {det.image_url ? (
+                    <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
+                         alt={det.name}
+                         className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-600 shrink-0" />
+                  ) : (
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${det.type === 'guest' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                      <span className="material-symbols-outlined text-lg">{det.type === 'guest' ? 'person_alert' : 'badge'}</span>
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm text-slate-900 dark:text-white truncate">{det.name}</p>
                     <p className="text-xs text-slate-500">{det.camera_id || 'Unknown camera'} &middot; {det.confidence}%</p>
@@ -332,9 +363,15 @@ const DashboardTab = () => {
                 allDetections.slice(0, 20).map((det, idx) => (
                   <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="px-6 py-4 flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${det.type === 'guest' ? 'bg-amber-100' : 'bg-blue-100'}`}>
-                        <span className={`material-symbols-outlined text-sm ${det.type === 'guest' ? 'text-amber-600' : 'text-blue-600'}`}>person</span>
-                      </div>
+                      {det.image_url ? (
+                        <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
+                             alt={det.name}
+                             className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-600 shrink-0" />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${det.type === 'guest' ? 'bg-amber-100' : 'bg-blue-100'}`}>
+                          <span className={`material-symbols-outlined text-sm ${det.type === 'guest' ? 'text-amber-600' : 'text-blue-600'}`}>person</span>
+                        </div>
+                      )}
                       <div>
                         <div className="font-bold text-slate-900 dark:text-white">{det.name}</div>
                       </div>
