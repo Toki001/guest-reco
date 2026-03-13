@@ -126,7 +126,7 @@ function CameraGridPage() {
     const peer = new Peer({
       host: window.location.hostname,
       port: Number(window.location.port) || 443,
-      path: '/peerjs',
+      path: '/peer',
       secure: window.location.protocol === 'https:',
       config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
     });

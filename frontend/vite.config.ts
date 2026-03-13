@@ -6,12 +6,12 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 import { PeerServer } from 'peer';
 
 // Start PeerJS signaling server on port 9000
-const peerServer = PeerServer({ port: 9000, path: '/', allow_discovery: true });
+const peerServer = PeerServer({ port: 9000, path: '/peer', allow_discovery: true });
 peerServer.on('connection', (client: any) => {
-  console.log(`[PeerJS] Camera connected: ${client.getId()}`);
+  console.log(`[PeerJS] Connected: ${client.getId()}`);
 });
 peerServer.on('disconnect', (client: any) => {
-  console.log(`[PeerJS] Camera disconnected: ${client.getId()}`);
+  console.log(`[PeerJS] Disconnected: ${client.getId()}`);
 });
 console.log('PeerJS signaling server running on port 9000');
 
@@ -50,8 +50,8 @@ export default defineConfig({
           });
         },
       },
-      // Proxy PeerJS signaling through Vite so cameras use same origin
-      '/peerjs': {
+      // PeerJS signaling — proxy both HTTP and WebSocket
+      '/peer': {
         target: 'http://localhost:9000',
         ws: true,
         configure: (proxy) => {
