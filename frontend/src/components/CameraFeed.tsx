@@ -123,9 +123,11 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
 
                 peer.on('error', (err) => {
                   console.error('[PeerJS Camera] Error:', err.type, err.message);
-                  // Auto-reconnect on fatal errors
-                  if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
-                    setTimeout(() => peer.reconnect(), 3000);
+                  if (err.type === 'unavailable-id') {
+                    // Old session still alive on PeerJS server — wait for it to expire
+                    setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 5000);
+                  } else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
+                    setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 3000);
                   }
                 });
 

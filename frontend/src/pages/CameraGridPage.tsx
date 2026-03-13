@@ -89,8 +89,7 @@ function CameraGridPage() {
     // If no stream received in 8s, retry
     const retryTimer = window.setTimeout(() => {
       retryTimersRef.current.delete(cameraId);
-      const currentStatus = cameras.get(cameraId);
-      if (currentStatus?.status === 'connecting' && peerRef.current && !peerRef.current.destroyed) {
+      if (peerRef.current && !peerRef.current.destroyed) {
         console.log(`[PeerJS Viewer] Timeout for ${cameraId}, retrying...`);
         call.close();
         callCamera(peerRef.current, cameraId);
@@ -152,6 +151,24 @@ function CameraGridPage() {
 
     peer.on('error', (err) => {
       console.error('[PeerJS Viewer] Error:', err.type);
+      if (err.type === 'peer-unavailable') {
+        // Camera not registered yet — extract ID and retry call after 3s
+        const match = err.message.match(/peer\s+cam-(.+)$/);
+        if (match) {
+          const camId = match[1];
+          console.log(`[PeerJS Viewer] Camera ${camId} not ready, retrying in 3s...`);
+          const existing = retryTimersRef.current.get(camId);
+          if (existing) clearTimeout(existing);
+          const timer = window.setTimeout(() => {
+            retryTimersRef.current.delete(camId);
+            if (peer && !peer.destroyed) {
+              callCamera(peer, camId);
+            }
+          }, 3000);
+          retryTimersRef.current.set(camId, timer);
+        }
+        return;
+      }
       if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
         setIsConnected(false);
         setTimeout(() => {
