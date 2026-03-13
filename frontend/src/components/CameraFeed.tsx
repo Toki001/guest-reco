@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
+import Peer from 'peerjs';
 import { API_BASE } from '../config';
 
 interface CameraFeedProps {
@@ -92,43 +93,37 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             lastVideoTime = -1;
             requestRef.current = requestAnimationFrame(renderLoop);
 
-            // Stream video to dashboard via MJPEG relay through backend.
-            // Capture frames from video element and POST as JPEG.
+            // Publish video via PeerJS WebRTC to dashboard viewers.
             if (cameraId && videoStream) {
-              let destroyed = false;
-              const streamCanvas = document.createElement('canvas');
+              const peerId = `cam-${cameraId}`;
+              console.log(`[Camera] Registering as ${peerId}`);
+              const peer = new Peer(peerId, {
+                host: window.location.hostname,
+                port: Number(window.location.port) || 443,
+                path: '/peer',
+                secure: window.location.protocol === 'https:',
+                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
+              });
 
-              const postFrames = async () => {
-                while (!destroyed) {
-                  try {
-                    const v = videoRef.current;
-                    if (v && v.videoWidth > 0) {
-                      streamCanvas.width = v.videoWidth;
-                      streamCanvas.height = v.videoHeight;
-                      streamCanvas.getContext('2d')!.drawImage(v, 0, 0);
-                      const blob = await new Promise<Blob | null>(r =>
-                        streamCanvas.toBlob(r, 'image/jpeg', 0.6)
-                      );
-                      if (blob && !destroyed) {
-                        const headers: HeadersInit = apiKey ? { 'X-API-Key': apiKey } : {};
-                        await fetch(`${API_BASE}/api/camera-frame/${encodeURIComponent(cameraId)}`, {
-                          method: 'POST',
-                          headers: { ...headers, 'Content-Type': 'image/jpeg' },
-                          body: blob,
-                        }).catch(() => {});
-                      }
-                    }
-                  } catch {}
-                  // ~10fps
-                  await new Promise(r => setTimeout(r, 100));
+              peer.on('open', (id) => console.log(`[Camera] Registered: ${id}`));
+              peer.on('call', (call) => {
+                console.log(`[Camera] Answering call from ${call.peer}`);
+                call.answer(videoStream);
+              });
+              peer.on('disconnected', () => {
+                console.log('[Camera] Disconnected, reconnecting...');
+                if (!peer.destroyed) peer.reconnect();
+              });
+              peer.on('error', (err) => {
+                console.error('[Camera] Error:', err.type);
+                if (err.type === 'unavailable-id') {
+                  setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 5000);
+                } else if (['network', 'server-error', 'socket-error'].includes(err.type)) {
+                  setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 3000);
                 }
-              };
+              });
 
-              postFrames();
-
-              (videoRef.current as any)._rtcCleanup = () => {
-                destroyed = true;
-              };
+              (videoRef.current as any)._rtcCleanup = () => peer.destroy();
             }
           };
         }
