@@ -21,6 +21,7 @@ function CameraGridPage() {
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   // PeerConnections stored in ref (NOT in state) — async ops need stable references
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const retryTimersRef = useRef<Map<string, number>>(new Map());
 
   const attachStream = useCallback((cameraId: string, stream: MediaStream) => {
     const el = videoRefs.current.get(cameraId);
@@ -49,6 +50,10 @@ function CameraGridPage() {
     pc.ontrack = (event) => {
       const stream = event.streams[0];
       if (stream) {
+        // Clear retry timer — connection succeeded
+        const timer = retryTimersRef.current.get(cameraId);
+        if (timer) { clearTimeout(timer); retryTimersRef.current.delete(cameraId); }
+
         setCameras(prev => {
           const next = new Map(prev);
           next.set(cameraId, { camera_id: cameraId, status: 'live' });
@@ -93,12 +98,32 @@ function CameraGridPage() {
       })
       .catch(e => console.error('Failed to create offer:', e));
 
+    // Retry if still connecting after 7 seconds
+    const existingTimer = retryTimersRef.current.get(cameraId);
+    if (existingTimer) clearTimeout(existingTimer);
+    const retryTimer = window.setTimeout(() => {
+      retryTimersRef.current.delete(cameraId);
+      const currentPc = pcsRef.current.get(cameraId);
+      if (currentPc && currentPc.connectionState !== 'connected') {
+        console.log(`[WebRTC] Retrying connection for ${cameraId}`);
+        currentPc.close();
+        pcsRef.current.delete(cameraId);
+        // Re-subscribe to trigger a new offer
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'subscribe', camera_id: cameraId }));
+        }
+      }
+    }, 7000);
+    retryTimersRef.current.set(cameraId, retryTimer);
+
     return pc;
   }, [attachStream]);
 
   const closeAllPCs = useCallback(() => {
     pcsRef.current.forEach(pc => pc.close());
     pcsRef.current.clear();
+    retryTimersRef.current.forEach(t => clearTimeout(t));
+    retryTimersRef.current.clear();
   }, []);
 
   // Subscribe to a single camera for WebRTC
