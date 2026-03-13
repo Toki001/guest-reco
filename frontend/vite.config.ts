@@ -50,21 +50,22 @@ export default defineConfig({
       name: 'peerjs-server',
       configureServer(server) {
         if (!server.httpServer) return;
-        // ExpressPeerServer attaches a ws.WebSocketServer with { path, server }
-        // directly to httpServer. The ws library handles upgrade events only for
-        // matching paths (/peer/peerjs). No Express middleware needed — we use
-        // explicit peer IDs so no HTTP requests are made to PeerJS.
-        const _peerApp = ExpressPeerServer(server.httpServer as any, {
+        // ExpressPeerServer creates the WebSocket server only on Express "mount" event.
+        // We MUST use() the app as middleware so the mount event fires. This is safe
+        // because both camera and viewer use explicit peer IDs (no HTTP ID requests).
+        // PeerJS HTTP routes (JSON) won't be caught by Vite's SPA fallback.
+        const peerApp = ExpressPeerServer(server.httpServer as any, {
           path: '/peer',
           allow_discovery: false,
         });
-        (_peerApp as any).on('connection', (client: any) => {
+        server.middlewares.use(peerApp);
+        (peerApp as any).on('connection', (client: any) => {
           console.log(`[PeerJS] Peer connected: ${client.getId()}`);
         });
-        (_peerApp as any).on('disconnect', (client: any) => {
+        (peerApp as any).on('disconnect', (client: any) => {
           console.log(`[PeerJS] Peer disconnected: ${client.getId()}`);
         });
-        console.log('[PeerJS] Signaling server attached at /peer (WebSocket only, offline-first)');
+        console.log('[PeerJS] Signaling server mounted (offline-first)');
       },
     },
   ],
