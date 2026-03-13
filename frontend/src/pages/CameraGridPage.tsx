@@ -68,7 +68,7 @@ function CameraGridPage() {
     };
 
     const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl = `${wsProto}://${location.host}/rtc/api/ws?src=${encodeURIComponent(cameraId)}`;
+    const wsUrl = `${wsProto}://${location.host}/api/ws?src=${encodeURIComponent(cameraId)}`;
     console.log(`[Viewer] Subscribing via go2rtc: ${wsUrl}`);
     const ws = new WebSocket(wsUrl);
 

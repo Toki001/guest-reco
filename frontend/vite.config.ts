@@ -10,6 +10,19 @@ export default defineConfig({
     host: '0.0.0.0',
     https: {},
     proxy: {
+      // go2rtc WebSocket — MUST be before /api so it matches first.
+      // go2rtc serves at /api/ws, backend doesn't use that path.
+      // No path rewrite needed — passes through as-is.
+      '/api/ws': {
+        target: 'http://localhost:1984',
+        ws: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+          proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
+            socket.on('error', () => {});
+          });
+        },
+      },
       '/api': {
         target: 'http://localhost:5001',
         changeOrigin: true,
@@ -34,19 +47,6 @@ export default defineConfig({
           proxy.on('error', (err) => {
             console.log('[proxy] WS error (suppressed):', err.message);
           });
-          proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
-            socket.on('error', () => {});
-          });
-        },
-      },
-      // go2rtc media server — WebRTC signaling via WebSocket + API
-      '/rtc': {
-        target: 'http://localhost:1984',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/rtc/, ''),
-        ws: true,
-        configure: (proxy) => {
-          proxy.on('error', () => {});
           proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
             socket.on('error', () => {});
           });

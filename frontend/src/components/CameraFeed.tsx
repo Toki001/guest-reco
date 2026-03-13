@@ -112,7 +112,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                 });
 
                 const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
-                const wsUrl = `${wsProto}://${location.host}/rtc/api/ws?src=${encodeURIComponent(cameraId)}`;
+                const wsUrl = `${wsProto}://${location.host}/api/ws?src=${encodeURIComponent(cameraId)}`;
                 console.log(`[Camera] Connecting to go2rtc: ${wsUrl}`);
                 ws = new WebSocket(wsUrl);
 
