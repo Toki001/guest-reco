@@ -3,6 +3,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
+import { ExpressPeerServer } from 'peer';
 
 export default defineConfig({
   server: {
@@ -45,6 +46,27 @@ export default defineConfig({
     tailwindcss(),
     react(),
     basicSsl(),
+    {
+      name: 'peerjs-server',
+      configureServer(server) {
+        if (!server.httpServer) return;
+        // ExpressPeerServer attaches a ws.WebSocketServer with { path, server }
+        // directly to httpServer. The ws library handles upgrade events only for
+        // matching paths (/peer/peerjs). No Express middleware needed — we use
+        // explicit peer IDs so no HTTP requests are made to PeerJS.
+        const _peerApp = ExpressPeerServer(server.httpServer as any, {
+          path: '/peer',
+          allow_discovery: false,
+        });
+        (_peerApp as any).on('connection', (client: any) => {
+          console.log(`[PeerJS] Peer connected: ${client.getId()}`);
+        });
+        (_peerApp as any).on('disconnect', (client: any) => {
+          console.log(`[PeerJS] Peer disconnected: ${client.getId()}`);
+        });
+        console.log('[PeerJS] Signaling server attached at /peer (WebSocket only, offline-first)');
+      },
+    },
   ],
   resolve: {
     alias: {

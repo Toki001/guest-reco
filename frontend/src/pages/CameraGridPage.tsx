@@ -7,6 +7,28 @@ interface CameraDisplay {
   status: 'connecting' | 'live' | 'offline';
 }
 
+const PEER_CONFIG = {
+  host: window.location.hostname,
+  port: Number(window.location.port) || 443,
+  path: '/peer',
+  secure: window.location.protocol === 'https:',
+  config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
+};
+
+// Reusable dummy stream for the caller side (1x1 canvas, 0fps, ~zero bandwidth).
+// PeerJS needs at least one video track in the offer SDP so the answerer's
+// video can be negotiated back.
+let _dummyStream: MediaStream | null = null;
+function getDummyStream(): MediaStream {
+  if (!_dummyStream) {
+    const c = document.createElement('canvas');
+    c.width = 1; c.height = 1;
+    c.getContext('2d')!.fillRect(0, 0, 1, 1);
+    _dummyStream = c.captureStream(0);
+  }
+  return _dummyStream;
+}
+
 function CameraGridPage() {
   const [cameras, setCameras] = useState<Map<string, CameraDisplay>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
@@ -19,6 +41,8 @@ function CameraGridPage() {
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const mountedRef = useRef(true);
   const retryTimersRef = useRef<Map<string, number>>(new Map());
+  // Track which cameras have a live stream — prevents retry storm
+  const liveRef = useRef<Set<string>>(new Set());
 
   const attachStream = useCallback((cameraId: string, stream: MediaStream) => {
     streamsRef.current.set(cameraId, stream);
@@ -28,12 +52,24 @@ function CameraGridPage() {
     }
   }, []);
 
+  const clearRetry = useCallback((cameraId: string) => {
+    const t = retryTimersRef.current.get(cameraId);
+    if (t) { clearTimeout(t); retryTimersRef.current.delete(cameraId); }
+  }, []);
+
   const callCamera = useCallback((peer: Peer, cameraId: string) => {
+    if (peer.destroyed || peer.disconnected) return;
+
     const peerId = `gr-cam-${cameraId}`;
 
-    // Close existing call
-    const existingCall = callsRef.current.get(cameraId);
-    if (existingCall) { existingCall.close(); callsRef.current.delete(cameraId); }
+    // If there's already a live stream for this camera, don't create a new call
+    if (liveRef.current.has(cameraId)) return;
+
+    // Clean up any existing call
+    const existing = callsRef.current.get(cameraId);
+    if (existing) { existing.close(); callsRef.current.delete(cameraId); }
+
+    clearRetry(cameraId);
 
     setCameras(prev => {
       const next = new Map(prev);
@@ -41,26 +77,15 @@ function CameraGridPage() {
       return next;
     });
 
-    // Must send a stream with at least one video track — an empty MediaStream
-    // produces an SDP offer with no media sections, so the camera's video
-    // can't be negotiated. A 1x1 canvas at 0fps uses zero bandwidth.
-    const canvas = document.createElement('canvas');
-    canvas.width = 1;
-    canvas.height = 1;
-    const ctx = canvas.getContext('2d');
-    if (ctx) ctx.fillRect(0, 0, 1, 1);
-    const dummyStream = canvas.captureStream(0);
-
-    console.log(`[PeerJS Viewer] Calling ${peerId}`);
-    const call = peer.call(peerId, dummyStream, { metadata: { viewer: true } });
+    console.log(`[Viewer] Calling ${peerId}`);
+    const call = peer.call(peerId, getDummyStream(), { metadata: { viewer: true } });
+    if (!call) return; // peer.call returns null if peer is disconnected
     callsRef.current.set(cameraId, call);
 
     call.on('stream', (remoteStream) => {
-      console.log(`[PeerJS Viewer] Got stream from ${cameraId}`);
-      // Clear retry timer
-      const timer = retryTimersRef.current.get(cameraId);
-      if (timer) { clearTimeout(timer); retryTimersRef.current.delete(cameraId); }
-
+      console.log(`[Viewer] Got stream from ${cameraId}`);
+      clearRetry(cameraId);
+      liveRef.current.add(cameraId);
       setCameras(prev => {
         const next = new Map(prev);
         next.set(cameraId, { camera_id: cameraId, status: 'live' });
@@ -70,9 +95,14 @@ function CameraGridPage() {
     });
 
     call.on('close', () => {
-      console.log(`[PeerJS Viewer] Call closed for ${cameraId}`);
+      console.log(`[Viewer] Call closed: ${cameraId}`);
+      const wasLive = liveRef.current.has(cameraId);
+      liveRef.current.delete(cameraId);
       callsRef.current.delete(cameraId);
       streamsRef.current.delete(cameraId);
+
+      if (!mountedRef.current) return;
+
       setCameras(prev => {
         const next = new Map(prev);
         if (next.has(cameraId)) {
@@ -80,38 +110,30 @@ function CameraGridPage() {
         }
         return next;
       });
-      // Auto-retry after 3s
-      if (mountedRef.current && peerRef.current && !peerRef.current.destroyed) {
+
+      // Only auto-retry if the stream was previously live (genuine drop)
+      // or if the call was never answered (initial connection attempt failed).
+      // Use a longer delay to avoid hammering.
+      if (peerRef.current && !peerRef.current.destroyed) {
+        const delay = wasLive ? 2000 : 5000;
         const timer = window.setTimeout(() => {
           retryTimersRef.current.delete(cameraId);
           if (peerRef.current && !peerRef.current.destroyed) {
             callCamera(peerRef.current, cameraId);
           }
-        }, 3000);
+        }, delay);
         retryTimersRef.current.set(cameraId, timer);
       }
     });
 
     call.on('error', (err) => {
-      console.error(`[PeerJS Viewer] Call error for ${cameraId}:`, err);
+      console.error(`[Viewer] Call error (${cameraId}):`, err.message);
     });
-
-    // If no stream received in 8s, retry
-    const retryTimer = window.setTimeout(() => {
-      retryTimersRef.current.delete(cameraId);
-      if (peerRef.current && !peerRef.current.destroyed) {
-        console.log(`[PeerJS Viewer] Timeout for ${cameraId}, retrying...`);
-        call.close();
-        callCamera(peerRef.current, cameraId);
-      }
-    }, 8000);
-    retryTimersRef.current.set(cameraId, retryTimer);
-  }, [attachStream]);
+  }, [attachStream, clearRetry]);
 
   const connect = useCallback(async () => {
     if (!mountedRef.current) return;
 
-    // Fetch all cameras
     let allCameras: { camera_id: string; is_online: number }[] = [];
     try {
       const res = await authFetch('/api/cameras');
@@ -120,7 +142,6 @@ function CameraGridPage() {
 
     if (!mountedRef.current) return;
 
-    // Show all cameras in grid
     setCameras(prev => {
       const next = new Map(prev);
       for (const cam of allCameras) {
@@ -131,68 +152,55 @@ function CameraGridPage() {
       return next;
     });
 
-    // PeerJS Cloud handles signaling — no self-hosted server needed.
-    // Video stream is still P2P on LAN, only tiny signaling goes through cloud.
+    // Self-hosted PeerJS on same server — offline-first, no cloud dependency
     const viewerId = `gr-viewer-${Math.random().toString(36).substr(2, 10)}`;
-    const peer = new Peer(viewerId, {
-      config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
-    });
+    const peer = new Peer(viewerId, PEER_CONFIG);
     peerRef.current = peer;
 
     peer.on('open', () => {
-      console.log('[PeerJS Viewer] Connected to signaling server');
+      console.log('[Viewer] Connected to PeerJS signaling');
       setIsConnected(true);
-
-      // Call all online cameras
       for (const cam of allCameras) {
-        if (cam.is_online) {
-          callCamera(peer, cam.camera_id);
-        }
+        if (cam.is_online) callCamera(peer, cam.camera_id);
       }
     });
 
     peer.on('disconnected', () => {
-      console.log('[PeerJS Viewer] Disconnected, reconnecting...');
+      console.log('[Viewer] PeerJS disconnected, reconnecting...');
       setIsConnected(false);
-      peer.reconnect();
+      if (!peer.destroyed) peer.reconnect();
     });
 
     peer.on('error', (err) => {
-      console.error('[PeerJS Viewer] Error:', err.type);
       if (err.type === 'peer-unavailable') {
-        // Camera not registered yet — extract ID and retry call after 3s
         const match = err.message.match(/peer\s+gr-cam-(.+)$/);
         if (match) {
           const camId = match[1];
-          console.log(`[PeerJS Viewer] Camera ${camId} not ready, retrying in 3s...`);
-          const existing = retryTimersRef.current.get(camId);
-          if (existing) clearTimeout(existing);
+          console.log(`[Viewer] Camera ${camId} not ready, will retry in 5s`);
+          clearRetry(camId);
           const timer = window.setTimeout(() => {
             retryTimersRef.current.delete(camId);
-            if (peer && !peer.destroyed) {
-              callCamera(peer, camId);
-            }
-          }, 3000);
+            if (peer && !peer.destroyed) callCamera(peer, camId);
+          }, 5000);
           retryTimersRef.current.set(camId, timer);
         }
         return;
       }
+      console.error('[Viewer] PeerJS error:', err.type);
       if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
         setIsConnected(false);
         setTimeout(() => {
-          if (mountedRef.current && peer && !peer.destroyed) peer.reconnect();
+          if (mountedRef.current && !peer.destroyed) peer.reconnect();
         }, 3000);
       }
     });
 
     peer.on('close', () => {
       setIsConnected(false);
-      if (mountedRef.current) {
-        setTimeout(connect, 5000);
-      }
+      if (mountedRef.current) setTimeout(connect, 5000);
     });
 
-    // Listen for camera online/offline via dashboard WS
+    // Dashboard WS for camera online/offline events
     const dashWs = new WebSocket(getAuthWsUrl('/ws/dashboard'));
     (peer as any)._dashWs = dashWs;
 
@@ -206,13 +214,20 @@ function CameraGridPage() {
             next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
             return next;
           });
+          // Delay to let camera's PeerJS peer register
           if (peer && !peer.destroyed) {
-            // Small delay to let camera's PeerJS register
-            setTimeout(() => callCamera(peer, cameraId), 2000);
+            clearRetry(cameraId);
+            const timer = window.setTimeout(() => {
+              retryTimersRef.current.delete(cameraId);
+              callCamera(peer, cameraId);
+            }, 3000);
+            retryTimersRef.current.set(cameraId, timer);
           }
         }
         if (msg.event === 'camera_offline' && msg.data?.camera_id) {
           const cameraId = msg.data.camera_id;
+          clearRetry(cameraId);
+          liveRef.current.delete(cameraId);
           const call = callsRef.current.get(cameraId);
           if (call) { call.close(); callsRef.current.delete(cameraId); }
           streamsRef.current.delete(cameraId);
@@ -228,9 +243,8 @@ function CameraGridPage() {
         }
       } catch {}
     };
-
     dashWs.onerror = () => dashWs.close();
-  }, [callCamera]);
+  }, [callCamera, clearRetry]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -239,6 +253,7 @@ function CameraGridPage() {
       mountedRef.current = false;
       retryTimersRef.current.forEach(t => clearTimeout(t));
       retryTimersRef.current.clear();
+      liveRef.current.clear();
       callsRef.current.forEach(c => c.close());
       callsRef.current.clear();
       if (peerRef.current) {
@@ -260,6 +275,8 @@ function CameraGridPage() {
     setRemoving(cameraId);
     try {
       await authFetch(`/api/cameras/${encodeURIComponent(cameraId)}`, { method: 'DELETE' });
+      clearRetry(cameraId);
+      liveRef.current.delete(cameraId);
       const call = callsRef.current.get(cameraId);
       if (call) { call.close(); callsRef.current.delete(cameraId); }
       setCameras(prev => { const next = new Map(prev); next.delete(cameraId); return next; });
@@ -382,7 +399,7 @@ function CameraGridPage() {
           />
           <div className="absolute top-4 left-4 flex items-center gap-3">
             <span className="text-white font-bold text-lg capitalize">{fullscreen.replace(/-/g, ' ')}</span>
-            <span className="bg-green-500/20 text-green-400 text-xs font-mono px-2 py-1 rounded">PeerJS</span>
+            <span className="bg-green-500/20 text-green-400 text-xs font-mono px-2 py-1 rounded">LIVE</span>
           </div>
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button className="w-10 h-10 rounded-full bg-red-600/80 hover:bg-red-500 flex items-center justify-center transition-colors"
