@@ -121,8 +121,10 @@ function CameraGridPage() {
       return next;
     });
 
-    // Create PeerJS viewer
-    const peer = new Peer({
+    // Create PeerJS viewer with explicit ID (avoids HTTP request to /peer/peerjs/id
+    // which Vite's SPA fallback intercepts and returns index.html)
+    const viewerId = `viewer-${Math.random().toString(36).substr(2, 10)}`;
+    const peer = new Peer(viewerId, {
       host: window.location.hostname,
       port: Number(window.location.port) || 443,
       path: '/peer',

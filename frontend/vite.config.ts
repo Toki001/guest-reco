@@ -50,21 +50,22 @@ export default defineConfig({
       name: 'peerjs-server',
       configureServer(server) {
         if (!server.httpServer) return;
-        // Attach PeerJS signaling directly to Vite's HTTPS server — no proxy needed.
-        // HTTP routes (peer ID assignment) go through connect middleware.
-        // WebSocket upgrades (signaling) are handled directly on the httpServer.
-        const peerServer = ExpressPeerServer(server.httpServer as any, {
+        // ExpressPeerServer attaches a WebSocket upgrade handler directly
+        // to httpServer as a side effect. We DON'T use its Express middleware
+        // for HTTP routes — Vite's SPA fallback intercepts those. Instead,
+        // both camera and viewer use explicit peer IDs, so no HTTP ID
+        // generation request is ever made. Only WebSocket signaling is needed.
+        const _peerServer = ExpressPeerServer(server.httpServer as any, {
           path: '/peer',
           allow_discovery: true,
         });
-        server.middlewares.use(peerServer);
-        (peerServer as any).on('connection', (client: any) => {
+        (_peerServer as any).on('connection', (client: any) => {
           console.log(`[PeerJS] Connected: ${client.getId()}`);
         });
-        (peerServer as any).on('disconnect', (client: any) => {
+        (_peerServer as any).on('disconnect', (client: any) => {
           console.log(`[PeerJS] Disconnected: ${client.getId()}`);
         });
-        console.log('[PeerJS] Signaling attached to Vite HTTPS server at /peer');
+        console.log('[PeerJS] WebSocket signaling attached to Vite HTTPS server');
       },
     },
   ],
