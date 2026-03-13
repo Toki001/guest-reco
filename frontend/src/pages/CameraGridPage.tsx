@@ -1,10 +1,86 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { WebRTCVideo } from 'mediamtx-webrtc-react';
 import { getAuthWsUrl, authFetch } from '../auth';
 
 interface CameraDisplay {
   camera_id: string;
   status: 'connecting' | 'live' | 'offline';
+}
+
+// WHEP viewer component with auto-retry
+function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: () => void; className?: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    let pc: RTCPeerConnection | null = null;
+    let retryTimer: ReturnType<typeof setTimeout>;
+
+    const subscribe = async () => {
+      if (!mountedRef.current) return;
+      try {
+        pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        });
+        pcRef.current = pc;
+
+        pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+
+        pc.ontrack = (e) => {
+          if (videoRef.current && e.streams[0]) {
+            videoRef.current.srcObject = e.streams[0];
+            onLive();
+          }
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        // Wait for ICE gathering
+        await new Promise<void>(resolve => {
+          if (pc!.iceGatheringState === 'complete') return resolve();
+          pc!.onicegatheringstatechange = () => {
+            if (pc!.iceGatheringState === 'complete') resolve();
+          };
+        });
+
+        const res = await fetch(`/mtx/${encodeURIComponent(cameraId)}/whep`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/sdp' },
+          body: pc.localDescription!.sdp,
+        });
+
+        if (res.status !== 201) throw new Error(`WHEP ${res.status}`);
+
+        const answerSdp = await res.text();
+        await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+        console.log(`[Viewer] WHEP connected: ${cameraId}`);
+
+        pc.oniceconnectionstatechange = () => {
+          if (pc?.iceConnectionState === 'failed' || pc?.iceConnectionState === 'disconnected') {
+            pc?.close();
+            if (mountedRef.current) retryTimer = setTimeout(subscribe, 2000);
+          }
+        };
+      } catch {
+        // Stream not available yet — retry
+        pc?.close();
+        if (mountedRef.current) retryTimer = setTimeout(subscribe, 3000);
+      }
+    };
+
+    subscribe();
+
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(retryTimer);
+      pcRef.current?.close();
+    };
+  }, [cameraId, onLive]);
+
+  return <video ref={videoRef} autoPlay playsInline muted className={className} />;
 }
 
 function CameraGridPage() {
@@ -13,10 +89,6 @@ function CameraGridPage() {
   const [fullscreen, setFullscreen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const mountedRef = useRef(true);
-
-  // MediaMTX WHEP URL for a camera stream
-  const whepUrl = (cameraId: string) =>
-    `${location.origin}/mtx/${encodeURIComponent(cameraId)}/whep`;
 
   const connect = useCallback(async () => {
     if (!mountedRef.current) return;
@@ -137,13 +209,10 @@ function CameraGridPage() {
               }`}>
               <div className="cursor-pointer w-full h-full" onClick={() => setFullscreen(cam.camera_id)}>
                 {cam.status !== 'offline' ? (
-                  <WebRTCVideo
-                    url={whepUrl(cam.camera_id)}
-                    autoPlay
-                    muted
-                    playsInline
+                  <WHEPVideo
+                    cameraId={cam.camera_id}
                     className="w-full h-full object-cover"
-                    onPlaying={() => {
+                    onLive={() => {
                       setCameras(prev => {
                         const next = new Map(prev);
                         next.set(cam.camera_id, { camera_id: cam.camera_id, status: 'live' });
@@ -209,12 +278,10 @@ function CameraGridPage() {
 
       {fullscreen && cameras.has(fullscreen) && (
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center" onClick={() => setFullscreen(null)}>
-          <WebRTCVideo
-            url={whepUrl(fullscreen)}
-            autoPlay
-            muted
-            playsInline
+          <WHEPVideo
+            cameraId={fullscreen}
             className="max-w-full max-h-full object-contain"
+            onLive={() => {}}
           />
           <div className="absolute top-4 left-4 flex items-center gap-3">
             <span className="text-white font-bold text-lg capitalize">{fullscreen.replace(/-/g, ' ')}</span>
