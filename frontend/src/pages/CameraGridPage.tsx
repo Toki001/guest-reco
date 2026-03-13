@@ -73,6 +73,9 @@ function CameraGridPage() {
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
+      // Guard: React StrictMode may have closed the PC during WS handshake
+      if (pc.signalingState === 'closed') { ws.close(); return; }
+
       pc.onicecandidate = (ev) => {
         if (ev.candidate && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'webrtc/candidate', value: ev.candidate.candidate }));
@@ -85,9 +88,10 @@ function CameraGridPage() {
     };
 
     ws.onmessage = (ev) => {
+      if (pc.signalingState === 'closed') return;
       const msg = JSON.parse(ev.data);
       if (msg.type === 'webrtc/candidate') {
-        pc.addIceCandidate({ candidate: msg.value, sdpMid: '0' });
+        pc.addIceCandidate({ candidate: msg.value, sdpMid: '0' }).catch(() => {});
       } else if (msg.type === 'webrtc/answer') {
         pc.setRemoteDescription({ type: 'answer', sdp: msg.value });
         console.log(`[Viewer] WebRTC connected for ${cameraId}`);
