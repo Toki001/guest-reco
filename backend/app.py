@@ -509,20 +509,20 @@ async def attendance_log(
         get_attendance_logs, page, per_page, date_from, date_to, camera_id, user_id, status
     )
 
-# --- WEBSOCKET: WEBRTC SIGNALING ---
-@app.websocket("/ws/camera-signal")
-async def ws_camera_signal(websocket: WebSocket, key: str | None = Query(None)):
+# --- WEBSOCKET: CAMERA STREAMING (MJPEG relay) ---
+@app.websocket("/ws/camera-stream")
+async def ws_camera_stream(websocket: WebSocket, key: str | None = Query(None)):
     if not verify_ws_auth(key=key):
         await websocket.close(code=4001, reason="Unauthorized")
         return
-    await signaling_manager.handle_camera_signal(websocket)
+    await signaling_manager.handle_camera_stream(websocket)
 
-@app.websocket("/ws/viewer-signal")
-async def ws_viewer_signal(websocket: WebSocket, token: str | None = Query(None)):
+@app.websocket("/ws/camera-view")
+async def ws_camera_view(websocket: WebSocket, token: str | None = Query(None)):
     if not verify_ws_auth(token=token):
         await websocket.close(code=4001, reason="Unauthorized")
         return
-    await signaling_manager.handle_viewer_signal(websocket)
+    await signaling_manager.handle_camera_view(websocket)
 
 # --- STATIC FILE MOUNTS (must be AFTER all API routes) ---
 app.mount("/avatars", StaticFiles(directory="avatars"), name="avatars")

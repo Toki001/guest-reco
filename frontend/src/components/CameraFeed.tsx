@@ -92,84 +92,27 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             lastVideoTime = -1;
             requestRef.current = requestAnimationFrame(renderLoop);
 
-            // Set up WebRTC signaling
-            if (cameraId && videoStream) {
-              const signalUrl = `${WS_BASE}/ws/camera-signal?key=${apiKey || ''}`;
-              const signalWs = new WebSocket(signalUrl);
-              const peerConnections = new Map<number, RTCPeerConnection>();
+            // Set up MJPEG frame streaming to server
+            if (cameraId) {
+              const streamWsUrl = `${WS_BASE}/ws/camera-stream?key=${apiKey || ''}`;
+              const streamWs = new WebSocket(streamWsUrl);
+              const streamCanvas = document.createElement('canvas');
+              streamCanvas.width = 320;
+              streamCanvas.height = 240;
+              const streamCtx = streamCanvas.getContext('2d');
 
-              const rtcConfig: RTCConfiguration = {
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-              };
-
-              signalWs.onopen = () => {
-                signalWs.send(JSON.stringify({ type: 'camera-register', camera_id: cameraId }));
-              };
-
-              signalWs.onmessage = async (event) => {
-                try {
-                  const msg = JSON.parse(event.data);
-
-                  if (msg.type === 'offer') {
-                    // Viewer wants to connect — create peer connection
-                    const viewerId = msg.viewer_id;
-                    const pc = new RTCPeerConnection(rtcConfig);
-                    peerConnections.set(viewerId, pc);
-
-                    // Add local video track
-                    videoStream.getTracks().forEach(track => pc.addTrack(track, videoStream));
-
-                    // Send ICE candidates to viewer
-                    pc.onicecandidate = (e) => {
-                      if (e.candidate && signalWs.readyState === WebSocket.OPEN) {
-                        signalWs.send(JSON.stringify({
-                          type: 'ice-candidate',
-                          viewer_id: viewerId,
-                          data: e.candidate.toJSON()
-                        }));
-                      }
-                    };
-
-                    pc.onconnectionstatechange = () => {
-                      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                        pc.close();
-                        peerConnections.delete(viewerId);
-                      }
-                    };
-
-                    // Set remote offer and create answer
-                    await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-
-                    signalWs.send(JSON.stringify({
-                      type: 'answer',
-                      viewer_id: viewerId,
-                      data: pc.localDescription?.toJSON()
-                    }));
-                  }
-
-                  if (msg.type === 'ice-candidate') {
-                    const pc = peerConnections.get(msg.viewer_id);
-                    if (pc) {
-                      await pc.addIceCandidate(new RTCIceCandidate(msg.data));
-                    }
-                  }
-                } catch (e) {
-                  console.error('WebRTC signaling error:', e);
+              const streamInterval = window.setInterval(() => {
+                const videoEl = videoRef.current;
+                if (streamWs.readyState === WebSocket.OPEN && videoEl && videoEl.videoWidth > 0 && streamCtx) {
+                  streamCtx.drawImage(videoEl, 0, 0, 320, 240);
+                  const frame = streamCanvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+                  streamWs.send(JSON.stringify({ camera_id: cameraId, frame }));
                 }
-              };
+              }, 200); // 5 fps
 
-              signalWs.onclose = () => {
-                peerConnections.forEach(pc => pc.close());
-                peerConnections.clear();
-              };
-
-              // Store cleanup
-              (videoRef.current as any)._rtcCleanup = () => {
-                peerConnections.forEach(pc => pc.close());
-                peerConnections.clear();
-                signalWs.close();
+              (videoRef.current as any)._streamCleanup = () => {
+                clearInterval(streamInterval);
+                streamWs.close();
               };
             }
           };
@@ -306,8 +249,8 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
     initializeSystem();
 
     return () => {
-      if ((videoRef.current as any)?._rtcCleanup) {
-        (videoRef.current as any)._rtcCleanup();
+      if ((videoRef.current as any)?._streamCleanup) {
+        (videoRef.current as any)._streamCleanup();
       }
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
       if (faceDetector) faceDetector.close();
