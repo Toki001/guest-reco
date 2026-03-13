@@ -10,19 +10,6 @@ export default defineConfig({
     host: '0.0.0.0',
     https: {},
     proxy: {
-      // go2rtc WebSocket — MUST be before /api so it matches first.
-      // go2rtc serves at /api/ws, backend doesn't use that path.
-      // No path rewrite needed — passes through as-is.
-      '/api/ws': {
-        target: 'http://localhost:1984',
-        ws: true,
-        configure: (proxy) => {
-          proxy.on('error', () => {});
-          proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
-            socket.on('error', () => {});
-          });
-        },
-      },
       '/api': {
         target: 'http://localhost:5001',
         changeOrigin: true,

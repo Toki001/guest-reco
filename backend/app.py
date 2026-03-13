@@ -4,9 +4,10 @@ import os
 import uuid
 import time
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, WebSocket, Depends, Header, Query
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, WebSocket, Depends, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from starlette.websockets import WebSocketDisconnect
 import uvicorn
 
@@ -41,6 +42,10 @@ app.add_middleware(
 # --- LOCAL STORAGE DIRECTORIES ---
 os.makedirs("avatars", exist_ok=True)
 os.makedirs("snapshots", exist_ok=True)
+
+# --- MJPEG LIVE STREAM RELAY ---
+# Camera browsers POST frames here; dashboard GETs an MJPEG stream.
+_camera_frames: dict[str, tuple[bytes, asyncio.Event]] = {}  # camera_id -> (jpeg_bytes, new_frame_event)
 
 def secure_filename(filename: str) -> str:
     return os.path.basename(filename).replace(" ", "_")
@@ -356,6 +361,49 @@ async def get_dashboard_stats(user=Depends(require_admin)):
 @app.get('/api/stats/today')
 async def get_today_dashboard_stats(user=Depends(require_admin)):
     return await asyncio.to_thread(get_today_stats)
+
+# --- MJPEG STREAMING ENDPOINTS ---
+@app.post('/api/camera-frame/{camera_id}')
+async def post_camera_frame(camera_id: str, request: Request):
+    """Camera browser POSTs JPEG frames here at ~10fps."""
+    body = await request.body()
+    if not body:
+        raise HTTPException(400, "Empty body")
+    if camera_id in _camera_frames:
+        _, event = _camera_frames[camera_id]
+        _camera_frames[camera_id] = (body, event)
+        event.set()
+    else:
+        event = asyncio.Event()
+        _camera_frames[camera_id] = (body, event)
+        event.set()
+    return {"ok": True}
+
+@app.get('/api/camera-stream/{camera_id}')
+async def get_camera_stream(camera_id: str):
+    """Dashboard shows this as <img src=...> — serves MJPEG multipart stream."""
+    async def generate():
+        while True:
+            if camera_id not in _camera_frames:
+                await asyncio.sleep(0.5)
+                continue
+            frame_data, event = _camera_frames[camera_id]
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n"
+                b"Content-Length: " + str(len(frame_data)).encode() + b"\r\n"
+                b"\r\n" + frame_data + b"\r\n"
+            )
+            event.clear()
+            try:
+                await asyncio.wait_for(event.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                continue  # Send last frame again if no new one
+
+    return StreamingResponse(
+        generate(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
 
 # --- API: CAMERA MANAGEMENT ---
 @app.post('/api/camera/register')

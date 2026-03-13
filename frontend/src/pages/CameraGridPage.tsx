@@ -12,120 +12,7 @@ function CameraGridPage() {
   const [fullscreen, setFullscreen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
 
-  const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
-  const streamsRef = useRef<Map<string, MediaStream>>(new Map());
-  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const mountedRef = useRef(true);
-  const retryTimersRef = useRef<Map<string, number>>(new Map());
-
-  const attachStream = useCallback((cameraId: string, stream: MediaStream) => {
-    streamsRef.current.set(cameraId, stream);
-    const el = videoRefs.current.get(cameraId);
-    if (el && el.srcObject !== stream) el.srcObject = stream;
-  }, []);
-
-  const clearRetry = useCallback((cameraId: string) => {
-    const t = retryTimersRef.current.get(cameraId);
-    if (t) { clearTimeout(t); retryTimersRef.current.delete(cameraId); }
-  }, []);
-
-  // Subscribe to a camera stream via go2rtc WebSocket signaling.
-  const subscribeCamera = useCallback((cameraId: string) => {
-    if (!mountedRef.current) return;
-
-    // Close existing
-    const existing = pcsRef.current.get(cameraId);
-    if (existing) { existing.close(); pcsRef.current.delete(cameraId); }
-    clearRetry(cameraId);
-
-    setCameras(prev => {
-      const next = new Map(prev);
-      next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
-      return next;
-    });
-
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    });
-    pcsRef.current.set(cameraId, pc);
-
-    // Receive video + audio
-    pc.addTransceiver('video', { direction: 'recvonly' });
-    pc.addTransceiver('audio', { direction: 'recvonly' });
-
-    pc.ontrack = (event) => {
-      const stream = event.streams[0];
-      if (stream) {
-        console.log(`[Viewer] Got stream for ${cameraId}`);
-        clearRetry(cameraId);
-        setCameras(prev => {
-          const next = new Map(prev);
-          next.set(cameraId, { camera_id: cameraId, status: 'live' });
-          return next;
-        });
-        attachStream(cameraId, stream);
-      }
-    };
-
-    const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl = `${wsProto}://${location.host}/api/ws?src=${encodeURIComponent(cameraId)}`;
-    console.log(`[Viewer] Subscribing via go2rtc: ${wsUrl}`);
-    const ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      // Guard: React StrictMode may have closed the PC during WS handshake
-      if (pc.signalingState === 'closed') { ws.close(); return; }
-
-      pc.onicecandidate = (ev) => {
-        if (ev.candidate && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'webrtc/candidate', value: ev.candidate.candidate }));
-        }
-      };
-
-      pc.createOffer().then(offer => pc.setLocalDescription(offer)).then(() => {
-        ws.send(JSON.stringify({ type: 'webrtc/offer', value: pc.localDescription!.sdp }));
-      });
-    };
-
-    ws.onmessage = (ev) => {
-      if (pc.signalingState === 'closed') return;
-      const msg = JSON.parse(ev.data);
-      if (msg.type === 'webrtc/candidate') {
-        pc.addIceCandidate({ candidate: msg.value, sdpMid: '0' }).catch(() => {});
-      } else if (msg.type === 'webrtc/answer') {
-        pc.setRemoteDescription({ type: 'answer', sdp: msg.value });
-        console.log(`[Viewer] WebRTC connected for ${cameraId}`);
-      }
-    };
-
-    ws.onclose = () => {
-      pc.close();
-      pcsRef.current.delete(cameraId);
-      if (mountedRef.current) {
-        setCameras(prev => {
-          const next = new Map(prev);
-          if (next.has(cameraId)) {
-            next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
-          }
-          return next;
-        });
-        const timer = window.setTimeout(() => {
-          retryTimersRef.current.delete(cameraId);
-          subscribeCamera(cameraId);
-        }, 5000);
-        retryTimersRef.current.set(cameraId, timer);
-      }
-    };
-
-    ws.onerror = () => ws.close();
-
-    pc.oniceconnectionstatechange = () => {
-      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-        console.log(`[Viewer] ICE ${pc.iceConnectionState} for ${cameraId}`);
-        ws.close();
-      }
-    };
-  }, [attachStream, clearRetry]);
 
   const connect = useCallback(async () => {
     if (!mountedRef.current) return;
@@ -142,18 +29,16 @@ function CameraGridPage() {
       const next = new Map(prev);
       for (const cam of allCameras) {
         if (!next.has(cam.camera_id)) {
-          next.set(cam.camera_id, { camera_id: cam.camera_id, status: cam.is_online ? 'connecting' : 'offline' });
+          next.set(cam.camera_id, {
+            camera_id: cam.camera_id,
+            status: cam.is_online ? 'live' : 'offline',
+          });
         }
       }
       return next;
     });
 
     setIsConnected(true);
-
-    // Subscribe to all online cameras
-    for (const cam of allCameras) {
-      if (cam.is_online) subscribeCamera(cam.camera_id);
-    }
 
     // Dashboard WS for camera online/offline events
     const dashWs = new WebSocket(getAuthWsUrl('/ws/dashboard'));
@@ -162,32 +47,19 @@ function CameraGridPage() {
       try {
         const msg = JSON.parse(event.data);
         if (msg.event === 'camera_online' && msg.data?.camera_id) {
-          const cameraId = msg.data.camera_id;
           setCameras(prev => {
             const next = new Map(prev);
-            next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
+            next.set(msg.data.camera_id, { camera_id: msg.data.camera_id, status: 'live' });
             return next;
           });
-          // Delay to let camera publish via WHIP first
-          clearRetry(cameraId);
-          const timer = window.setTimeout(() => {
-            retryTimersRef.current.delete(cameraId);
-            subscribeCamera(cameraId);
-          }, 3000);
-          retryTimersRef.current.set(cameraId, timer);
         }
         if (msg.event === 'camera_offline' && msg.data?.camera_id) {
-          const cameraId = msg.data.camera_id;
-          clearRetry(cameraId);
-          const pc = pcsRef.current.get(cameraId);
-          if (pc) { pc.close(); pcsRef.current.delete(cameraId); }
-          streamsRef.current.delete(cameraId);
           if (msg.data.removed) {
-            setCameras(prev => { const next = new Map(prev); next.delete(cameraId); return next; });
+            setCameras(prev => { const next = new Map(prev); next.delete(msg.data.camera_id); return next; });
           } else {
             setCameras(prev => {
               const next = new Map(prev);
-              next.set(cameraId, { camera_id: cameraId, status: 'offline' });
+              next.set(msg.data.camera_id, { camera_id: msg.data.camera_id, status: 'offline' });
               return next;
             });
           }
@@ -201,20 +73,16 @@ function CameraGridPage() {
     };
     dashWs.onerror = () => dashWs.close();
 
-    mountedRef.current && ((window as any).__dashWs = dashWs);
-  }, [subscribeCamera, clearRetry]);
+    return dashWs;
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
-    connect();
+    let dashWs: WebSocket | undefined;
+    connect().then(ws => { dashWs = ws; });
     return () => {
       mountedRef.current = false;
-      retryTimersRef.current.forEach(t => clearTimeout(t));
-      retryTimersRef.current.clear();
-      pcsRef.current.forEach(pc => pc.close());
-      pcsRef.current.clear();
-      const dashWs = (window as any).__dashWs;
-      if (dashWs) dashWs.close();
+      dashWs?.close();
     };
   }, [connect]);
 
@@ -229,9 +97,6 @@ function CameraGridPage() {
     setRemoving(cameraId);
     try {
       await authFetch(`/api/cameras/${encodeURIComponent(cameraId)}`, { method: 'DELETE' });
-      clearRetry(cameraId);
-      const pc = pcsRef.current.get(cameraId);
-      if (pc) { pc.close(); pcsRef.current.delete(cameraId); }
       setCameras(prev => { const next = new Map(prev); next.delete(cameraId); return next; });
       if (fullscreen === cameraId) setFullscreen(null);
     } catch (e) {
@@ -240,15 +105,8 @@ function CameraGridPage() {
     setRemoving(null);
   };
 
-  const setVideoRef = useCallback((cameraId: string, el: HTMLVideoElement | null) => {
-    if (el) {
-      videoRefs.current.set(cameraId, el);
-      const stream = streamsRef.current.get(cameraId);
-      if (stream && el.srcObject !== stream) el.srcObject = stream;
-    } else {
-      videoRefs.current.delete(cameraId);
-    }
-  }, []);
+  // MJPEG stream URL for a camera
+  const streamUrl = (cameraId: string) => `/api/camera-stream/${encodeURIComponent(cameraId)}`;
 
   const cameraList = Array.from(cameras.values());
 
@@ -285,7 +143,30 @@ function CameraGridPage() {
                 'border-slate-700 animate-pulse'
               }`}>
               <div className="cursor-pointer w-full h-full" onClick={() => setFullscreen(cam.camera_id)}>
-                <video ref={(el) => setVideoRef(cam.camera_id, el)} autoPlay playsInline muted className="w-full h-full object-cover" />
+                {cam.status === 'live' ? (
+                  <img
+                    src={streamUrl(cam.camera_id)}
+                    alt={cam.camera_id}
+                    className="w-full h-full object-cover"
+                    onLoad={(e) => {
+                      // Mark as live once first frame loads
+                      setCameras(prev => {
+                        const next = new Map(prev);
+                        next.set(cam.camera_id, { camera_id: cam.camera_id, status: 'live' });
+                        return next;
+                      });
+                    }}
+                    onError={() => {
+                      setCameras(prev => {
+                        const next = new Map(prev);
+                        next.set(cam.camera_id, { camera_id: cam.camera_id, status: 'connecting' });
+                        return next;
+                      });
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full" />
+                )}
               </div>
 
               <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -341,14 +222,10 @@ function CameraGridPage() {
 
       {fullscreen && cameras.has(fullscreen) && (
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center" onClick={() => setFullscreen(null)}>
-          <video
-            ref={(el) => {
-              if (el) {
-                const stream = streamsRef.current.get(fullscreen);
-                if (stream && el.srcObject !== stream) el.srcObject = stream;
-              }
-            }}
-            autoPlay playsInline muted className="max-w-full max-h-full object-contain"
+          <img
+            src={streamUrl(fullscreen)}
+            alt={fullscreen}
+            className="max-w-full max-h-full object-contain"
           />
           <div className="absolute top-4 left-4 flex items-center gap-3">
             <span className="text-white font-bold text-lg capitalize">{fullscreen.replace(/-/g, ' ')}</span>

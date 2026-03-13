@@ -92,75 +92,42 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             lastVideoTime = -1;
             requestRef.current = requestAnimationFrame(renderLoop);
 
-            // Publish video to go2rtc via WebSocket signaling.
-            // Camera sends video track, go2rtc handles WebRTC negotiation.
+            // Stream video to dashboard via MJPEG relay through backend.
+            // Capture frames from video element and POST as JPEG.
             if (cameraId && videoStream) {
-              let pc: RTCPeerConnection | null = null;
-              let ws: WebSocket | null = null;
               let destroyed = false;
+              const streamCanvas = document.createElement('canvas');
 
-              const publish = () => {
-                if (destroyed) return;
-
-                pc = new RTCPeerConnection({
-                  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-                });
-
-                // Add camera tracks as send-only
-                videoStream.getTracks().forEach(track => {
-                  pc!.addTransceiver(track, { direction: 'sendonly' });
-                });
-
-                const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
-                const wsUrl = `${wsProto}://${location.host}/api/ws?src=${encodeURIComponent(cameraId)}`;
-                console.log(`[Camera] Connecting to go2rtc: ${wsUrl}`);
-                ws = new WebSocket(wsUrl);
-
-                ws.onopen = () => {
-                  pc!.onicecandidate = (ev) => {
-                    if (ev.candidate && ws?.readyState === WebSocket.OPEN) {
-                      ws.send(JSON.stringify({ type: 'webrtc/candidate', value: ev.candidate.candidate }));
+              const postFrames = async () => {
+                while (!destroyed) {
+                  try {
+                    const v = videoRef.current;
+                    if (v && v.videoWidth > 0) {
+                      streamCanvas.width = v.videoWidth;
+                      streamCanvas.height = v.videoHeight;
+                      streamCanvas.getContext('2d')!.drawImage(v, 0, 0);
+                      const blob = await new Promise<Blob | null>(r =>
+                        streamCanvas.toBlob(r, 'image/jpeg', 0.6)
+                      );
+                      if (blob && !destroyed) {
+                        const headers: HeadersInit = apiKey ? { 'X-API-Key': apiKey } : {};
+                        await fetch(`${API_BASE}/api/camera-frame/${encodeURIComponent(cameraId)}`, {
+                          method: 'POST',
+                          headers: { ...headers, 'Content-Type': 'image/jpeg' },
+                          body: blob,
+                        }).catch(() => {});
+                      }
                     }
-                  };
-
-                  pc!.createOffer().then(offer => pc!.setLocalDescription(offer)).then(() => {
-                    ws!.send(JSON.stringify({ type: 'webrtc/offer', value: pc!.localDescription!.sdp }));
-                    console.log(`[Camera] SDP offer sent for ${cameraId}`);
-                  });
-                };
-
-                ws.onmessage = (ev) => {
-                  const msg = JSON.parse(ev.data);
-                  if (msg.type === 'webrtc/candidate') {
-                    pc!.addIceCandidate({ candidate: msg.value, sdpMid: '0' });
-                  } else if (msg.type === 'webrtc/answer') {
-                    pc!.setRemoteDescription({ type: 'answer', sdp: msg.value });
-                    console.log(`[Camera] Published to go2rtc: ${cameraId}`);
-                  }
-                };
-
-                ws.onclose = () => {
-                  console.log('[Camera] go2rtc WS closed, reconnecting...');
-                  pc?.close();
-                  if (!destroyed) setTimeout(publish, 3000);
-                };
-
-                ws.onerror = () => ws?.close();
-
-                pc.oniceconnectionstatechange = () => {
-                  if (pc?.iceConnectionState === 'failed') {
-                    console.log('[Camera] ICE failed, reconnecting...');
-                    ws?.close();
-                  }
-                };
+                  } catch {}
+                  // ~10fps
+                  await new Promise(r => setTimeout(r, 100));
+                }
               };
 
-              publish();
+              postFrames();
 
               (videoRef.current as any)._rtcCleanup = () => {
                 destroyed = true;
-                ws?.close();
-                pc?.close();
               };
             }
           };
