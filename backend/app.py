@@ -380,7 +380,27 @@ async def camera_heartbeat_endpoint(
     x_api_key: str | None = Header(None, alias="X-API-Key"),
     auth=Depends(require_camera_or_admin)
 ):
+    # Check if camera was offline before this heartbeat
+    cameras = await asyncio.to_thread(get_all_cameras)
+    was_offline = True
+    department = camera_id
+    for cam in cameras:
+        if cam["camera_id"] == camera_id:
+            was_offline = not cam["is_online"]
+            department = cam.get("department", camera_id)
+            break
+
     await asyncio.to_thread(update_camera_heartbeat, camera_id)
+
+    # Broadcast camera_online if it just came back
+    if was_offline:
+        await manager.broadcast({
+            "event": "camera_online",
+            "data": {"camera_id": camera_id, "department": department,
+                     "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+        })
+        await manager.broadcast({"event": "stats_update", "data": await asyncio.to_thread(get_stats)})
+
     return {"status": "ok"}
 
 @app.get('/api/cameras')
