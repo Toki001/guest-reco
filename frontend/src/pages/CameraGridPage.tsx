@@ -29,7 +29,7 @@ function CameraGridPage() {
   }, []);
 
   const callCamera = useCallback((peer: Peer, cameraId: string) => {
-    const peerId = `cam-${cameraId}`;
+    const peerId = `gr-cam-${cameraId}`;
 
     // Close existing call
     const existingCall = callsRef.current.get(cameraId);
@@ -121,14 +121,10 @@ function CameraGridPage() {
       return next;
     });
 
-    // Create PeerJS viewer with explicit ID (avoids HTTP request to /peer/peerjs/id
-    // which Vite's SPA fallback intercepts and returns index.html)
-    const viewerId = `viewer-${Math.random().toString(36).substr(2, 10)}`;
+    // PeerJS Cloud handles signaling — no self-hosted server needed.
+    // Video stream is still P2P on LAN, only tiny signaling goes through cloud.
+    const viewerId = `gr-viewer-${Math.random().toString(36).substr(2, 10)}`;
     const peer = new Peer(viewerId, {
-      host: window.location.hostname,
-      port: Number(window.location.port) || 443,
-      path: '/peer',
-      secure: window.location.protocol === 'https:',
       config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
     });
     peerRef.current = peer;
@@ -155,7 +151,7 @@ function CameraGridPage() {
       console.error('[PeerJS Viewer] Error:', err.type);
       if (err.type === 'peer-unavailable') {
         // Camera not registered yet — extract ID and retry call after 3s
-        const match = err.message.match(/peer\s+cam-(.+)$/);
+        const match = err.message.match(/peer\s+gr-cam-(.+)$/);
         if (match) {
           const camId = match[1];
           console.log(`[PeerJS Viewer] Camera ${camId} not ready, retrying in 3s...`);

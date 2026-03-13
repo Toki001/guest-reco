@@ -3,7 +3,6 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
-import { ExpressPeerServer } from 'peer';
 
 export default defineConfig({
   server: {
@@ -46,28 +45,6 @@ export default defineConfig({
     tailwindcss(),
     react(),
     basicSsl(),
-    {
-      name: 'peerjs-server',
-      configureServer(server) {
-        if (!server.httpServer) return;
-        // ExpressPeerServer attaches a WebSocket upgrade handler directly
-        // to httpServer as a side effect. We DON'T use its Express middleware
-        // for HTTP routes — Vite's SPA fallback intercepts those. Instead,
-        // both camera and viewer use explicit peer IDs, so no HTTP ID
-        // generation request is ever made. Only WebSocket signaling is needed.
-        const _peerServer = ExpressPeerServer(server.httpServer as any, {
-          path: '/peer',
-          allow_discovery: true,
-        });
-        (_peerServer as any).on('connection', (client: any) => {
-          console.log(`[PeerJS] Connected: ${client.getId()}`);
-        });
-        (_peerServer as any).on('disconnect', (client: any) => {
-          console.log(`[PeerJS] Disconnected: ${client.getId()}`);
-        });
-        console.log('[PeerJS] WebSocket signaling attached to Vite HTTPS server');
-      },
-    },
   ],
   resolve: {
     alias: {

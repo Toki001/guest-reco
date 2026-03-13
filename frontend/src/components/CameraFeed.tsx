@@ -95,11 +95,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             // Set up PeerJS for video streaming to dashboard viewers
             if (cameraId && videoStream) {
               import('peerjs').then(({ Peer }) => {
-                const peer = new Peer(`cam-${cameraId}`, {
-                  host: window.location.hostname,
-                  port: Number(window.location.port) || 443,
-                  path: '/peer',
-                  secure: window.location.protocol === 'https:',
+                const peer = new Peer(`gr-cam-${cameraId}`, {
                   config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
                 });
 
