@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Peer, { MediaConnection } from 'peerjs';
+import { WebRTCVideo } from 'mediamtx-webrtc-react';
 import { getAuthWsUrl, authFetch } from '../auth';
 
 interface CameraDisplay {
@@ -7,110 +7,16 @@ interface CameraDisplay {
   status: 'connecting' | 'live' | 'offline';
 }
 
-const PEER_CONFIG = {
-  host: window.location.hostname,
-  port: Number(window.location.port) || 443,
-  path: '/peer',
-  secure: window.location.protocol === 'https:',
-  config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
-};
-
-// Singleton dummy stream — 1x1 canvas so the SDP offer has a video track
-let _dummyStream: MediaStream | null = null;
-function getDummyStream(): MediaStream {
-  if (!_dummyStream) {
-    const c = document.createElement('canvas');
-    c.width = 1; c.height = 1;
-    c.getContext('2d')!.fillRect(0, 0, 1, 1);
-    _dummyStream = c.captureStream(0);
-  }
-  return _dummyStream;
-}
-
 function CameraGridPage() {
   const [cameras, setCameras] = useState<Map<string, CameraDisplay>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
   const [fullscreen, setFullscreen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
-
-  const peerRef = useRef<Peer | null>(null);
-  const callsRef = useRef<Map<string, MediaConnection>>(new Map());
-  const streamsRef = useRef<Map<string, MediaStream>>(new Map());
-  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const mountedRef = useRef(true);
-  const retryTimersRef = useRef<Map<string, number>>(new Map());
-  const liveRef = useRef<Set<string>>(new Set());
 
-  const attachStream = useCallback((cameraId: string, stream: MediaStream) => {
-    streamsRef.current.set(cameraId, stream);
-    const el = videoRefs.current.get(cameraId);
-    if (el && el.srcObject !== stream) el.srcObject = stream;
-  }, []);
-
-  const clearRetry = useCallback((cameraId: string) => {
-    const t = retryTimersRef.current.get(cameraId);
-    if (t) { clearTimeout(t); retryTimersRef.current.delete(cameraId); }
-  }, []);
-
-  const callCamera = useCallback((peer: Peer, cameraId: string) => {
-    if (peer.destroyed || peer.disconnected) return;
-    if (liveRef.current.has(cameraId)) return; // already streaming
-
-    const existing = callsRef.current.get(cameraId);
-    if (existing) { existing.close(); callsRef.current.delete(cameraId); }
-    clearRetry(cameraId);
-
-    setCameras(prev => {
-      const next = new Map(prev);
-      next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
-      return next;
-    });
-
-    const peerId = `cam-${cameraId}`;
-    console.log(`[Viewer] Calling ${peerId}`);
-    const call = peer.call(peerId, getDummyStream());
-    if (!call) return;
-    callsRef.current.set(cameraId, call);
-
-    call.on('stream', (remoteStream) => {
-      console.log(`[Viewer] Got stream from ${cameraId}`);
-      clearRetry(cameraId);
-      liveRef.current.add(cameraId);
-      setCameras(prev => {
-        const next = new Map(prev);
-        next.set(cameraId, { camera_id: cameraId, status: 'live' });
-        return next;
-      });
-      attachStream(cameraId, remoteStream);
-    });
-
-    call.on('close', () => {
-      console.log(`[Viewer] Call closed: ${cameraId}`);
-      const wasLive = liveRef.current.has(cameraId);
-      liveRef.current.delete(cameraId);
-      callsRef.current.delete(cameraId);
-      streamsRef.current.delete(cameraId);
-
-      if (!mountedRef.current) return;
-      setCameras(prev => {
-        const next = new Map(prev);
-        if (next.has(cameraId)) next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
-        return next;
-      });
-
-      // Retry: 2s if was live (genuine drop), 5s if never connected
-      if (peerRef.current && !peerRef.current.destroyed) {
-        const delay = wasLive ? 2000 : 5000;
-        const timer = window.setTimeout(() => {
-          retryTimersRef.current.delete(cameraId);
-          if (peerRef.current && !peerRef.current.destroyed) callCamera(peerRef.current, cameraId);
-        }, delay);
-        retryTimersRef.current.set(cameraId, timer);
-      }
-    });
-
-    call.on('error', (err) => console.error(`[Viewer] Call error (${cameraId}):`, err.message));
-  }, [attachStream, clearRetry]);
+  // MediaMTX WHEP URL for a camera stream
+  const whepUrl = (cameraId: string) =>
+    `${location.origin}/mtx/${encodeURIComponent(cameraId)}/whep`;
 
   const connect = useCallback(async () => {
     if (!mountedRef.current) return;
@@ -132,111 +38,48 @@ function CameraGridPage() {
       return next;
     });
 
-    const viewerId = `viewer-${Math.random().toString(36).substr(2, 10)}`;
-    const peer = new Peer(viewerId, PEER_CONFIG);
-    peerRef.current = peer;
-
-    peer.on('open', () => {
-      console.log('[Viewer] Connected to PeerJS signaling');
-      setIsConnected(true);
-      for (const cam of allCameras) {
-        if (cam.is_online) callCamera(peer, cam.camera_id);
-      }
-    });
-
-    peer.on('disconnected', () => {
-      console.log('[Viewer] Disconnected, reconnecting...');
-      setIsConnected(false);
-      if (!peer.destroyed) peer.reconnect();
-    });
-
-    peer.on('error', (err) => {
-      if (err.type === 'peer-unavailable') {
-        const match = err.message.match(/peer\s+cam-(.+)$/);
-        if (match) {
-          const camId = match[1];
-          console.log(`[Viewer] ${camId} not ready, retry in 5s`);
-          clearRetry(camId);
-          const timer = window.setTimeout(() => {
-            retryTimersRef.current.delete(camId);
-            if (peer && !peer.destroyed) callCamera(peer, camId);
-          }, 5000);
-          retryTimersRef.current.set(camId, timer);
-        }
-        return;
-      }
-      console.error('[Viewer] Error:', err.type);
-      if (['network', 'server-error', 'socket-error'].includes(err.type)) {
-        setIsConnected(false);
-        setTimeout(() => { if (mountedRef.current && !peer.destroyed) peer.reconnect(); }, 3000);
-      }
-    });
-
-    peer.on('close', () => {
-      setIsConnected(false);
-      if (mountedRef.current) setTimeout(connect, 5000);
-    });
+    setIsConnected(true);
 
     const dashWs = new WebSocket(getAuthWsUrl('/ws/dashboard'));
-    (peer as any)._dashWs = dashWs;
 
     dashWs.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
         if (msg.event === 'camera_online' && msg.data?.camera_id) {
-          const cameraId = msg.data.camera_id;
           setCameras(prev => {
             const next = new Map(prev);
-            next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
+            next.set(msg.data.camera_id, { camera_id: msg.data.camera_id, status: 'connecting' });
             return next;
           });
-          if (peer && !peer.destroyed) {
-            clearRetry(cameraId);
-            const timer = window.setTimeout(() => {
-              retryTimersRef.current.delete(cameraId);
-              callCamera(peer, cameraId);
-            }, 3000);
-            retryTimersRef.current.set(cameraId, timer);
-          }
         }
         if (msg.event === 'camera_offline' && msg.data?.camera_id) {
-          const cameraId = msg.data.camera_id;
-          clearRetry(cameraId);
-          liveRef.current.delete(cameraId);
-          const call = callsRef.current.get(cameraId);
-          if (call) { call.close(); callsRef.current.delete(cameraId); }
-          streamsRef.current.delete(cameraId);
           if (msg.data.removed) {
-            setCameras(prev => { const next = new Map(prev); next.delete(cameraId); return next; });
+            setCameras(prev => { const next = new Map(prev); next.delete(msg.data.camera_id); return next; });
           } else {
             setCameras(prev => {
               const next = new Map(prev);
-              next.set(cameraId, { camera_id: cameraId, status: 'offline' });
+              next.set(msg.data.camera_id, { camera_id: msg.data.camera_id, status: 'offline' });
               return next;
             });
           }
         }
       } catch {}
     };
+
+    dashWs.onclose = () => {
+      setIsConnected(false);
+      if (mountedRef.current) setTimeout(connect, 5000);
+    };
     dashWs.onerror = () => dashWs.close();
-  }, [callCamera, clearRetry]);
+
+    return dashWs;
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
-    connect();
-    return () => {
-      mountedRef.current = false;
-      retryTimersRef.current.forEach(t => clearTimeout(t));
-      retryTimersRef.current.clear();
-      liveRef.current.clear();
-      callsRef.current.forEach(c => c.close());
-      callsRef.current.clear();
-      if (peerRef.current) {
-        const dashWs = (peerRef.current as any)?._dashWs;
-        if (dashWs) dashWs.close();
-        peerRef.current.destroy();
-      }
-    };
+    let ws: WebSocket | undefined;
+    connect().then(w => { ws = w; });
+    return () => { mountedRef.current = false; ws?.close(); };
   }, [connect]);
 
   useEffect(() => {
@@ -250,10 +93,6 @@ function CameraGridPage() {
     setRemoving(cameraId);
     try {
       await authFetch(`/api/cameras/${encodeURIComponent(cameraId)}`, { method: 'DELETE' });
-      clearRetry(cameraId);
-      liveRef.current.delete(cameraId);
-      const call = callsRef.current.get(cameraId);
-      if (call) { call.close(); callsRef.current.delete(cameraId); }
       setCameras(prev => { const next = new Map(prev); next.delete(cameraId); return next; });
       if (fullscreen === cameraId) setFullscreen(null);
     } catch (e) {
@@ -261,16 +100,6 @@ function CameraGridPage() {
     }
     setRemoving(null);
   };
-
-  const setVideoRef = useCallback((cameraId: string, el: HTMLVideoElement | null) => {
-    if (el) {
-      videoRefs.current.set(cameraId, el);
-      const stream = streamsRef.current.get(cameraId);
-      if (stream && el.srcObject !== stream) el.srcObject = stream;
-    } else {
-      videoRefs.current.delete(cameraId);
-    }
-  }, []);
 
   const cameraList = Array.from(cameras.values());
 
@@ -307,7 +136,24 @@ function CameraGridPage() {
                 'border-slate-700 animate-pulse'
               }`}>
               <div className="cursor-pointer w-full h-full" onClick={() => setFullscreen(cam.camera_id)}>
-                <video ref={(el) => setVideoRef(cam.camera_id, el)} autoPlay playsInline muted className="w-full h-full object-cover" />
+                {cam.status !== 'offline' ? (
+                  <WebRTCVideo
+                    url={whepUrl(cam.camera_id)}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                    onPlaying={() => {
+                      setCameras(prev => {
+                        const next = new Map(prev);
+                        next.set(cam.camera_id, { camera_id: cam.camera_id, status: 'live' });
+                        return next;
+                      });
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full" />
+                )}
               </div>
 
               <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -363,14 +209,12 @@ function CameraGridPage() {
 
       {fullscreen && cameras.has(fullscreen) && (
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center" onClick={() => setFullscreen(null)}>
-          <video
-            ref={(el) => {
-              if (el) {
-                const stream = streamsRef.current.get(fullscreen);
-                if (stream && el.srcObject !== stream) el.srcObject = stream;
-              }
-            }}
-            autoPlay playsInline muted className="max-w-full max-h-full object-contain"
+          <WebRTCVideo
+            url={whepUrl(fullscreen)}
+            autoPlay
+            muted
+            playsInline
+            className="max-w-full max-h-full object-contain"
           />
           <div className="absolute top-4 left-4 flex items-center gap-3">
             <span className="text-white font-bold text-lg capitalize">{fullscreen.replace(/-/g, ' ')}</span>

@@ -30,3 +30,4 @@ venv
 backend/cert.pem
 backend/key.pem
 go2rtc
+mediamtx
