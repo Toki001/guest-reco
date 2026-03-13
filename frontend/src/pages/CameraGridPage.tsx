@@ -1,32 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Peer, { MediaConnection } from 'peerjs';
 import { getAuthWsUrl, authFetch } from '../auth';
 
 interface CameraDisplay {
   camera_id: string;
   status: 'connecting' | 'live' | 'offline';
-}
-
-const PEER_CONFIG = {
-  host: window.location.hostname,
-  port: Number(window.location.port) || 443,
-  path: '/peer',
-  secure: window.location.protocol === 'https:',
-  config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
-};
-
-// Reusable dummy stream for the caller side (1x1 canvas, 0fps, ~zero bandwidth).
-// PeerJS needs at least one video track in the offer SDP so the answerer's
-// video can be negotiated back.
-let _dummyStream: MediaStream | null = null;
-function getDummyStream(): MediaStream {
-  if (!_dummyStream) {
-    const c = document.createElement('canvas');
-    c.width = 1; c.height = 1;
-    c.getContext('2d')!.fillRect(0, 0, 1, 1);
-    _dummyStream = c.captureStream(0);
-  }
-  return _dummyStream;
 }
 
 function CameraGridPage() {
@@ -35,21 +12,16 @@ function CameraGridPage() {
   const [fullscreen, setFullscreen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
 
-  const peerRef = useRef<Peer | null>(null);
-  const callsRef = useRef<Map<string, MediaConnection>>(new Map());
+  const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const streamsRef = useRef<Map<string, MediaStream>>(new Map());
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const mountedRef = useRef(true);
   const retryTimersRef = useRef<Map<string, number>>(new Map());
-  // Track which cameras have a live stream — prevents retry storm
-  const liveRef = useRef<Set<string>>(new Set());
 
   const attachStream = useCallback((cameraId: string, stream: MediaStream) => {
     streamsRef.current.set(cameraId, stream);
     const el = videoRefs.current.get(cameraId);
-    if (el && el.srcObject !== stream) {
-      el.srcObject = stream;
-    }
+    if (el && el.srcObject !== stream) el.srcObject = stream;
   }, []);
 
   const clearRetry = useCallback((cameraId: string) => {
@@ -57,18 +29,14 @@ function CameraGridPage() {
     if (t) { clearTimeout(t); retryTimersRef.current.delete(cameraId); }
   }, []);
 
-  const callCamera = useCallback((peer: Peer, cameraId: string) => {
-    if (peer.destroyed || peer.disconnected) return;
+  // Subscribe to a camera stream via WHEP (WebRTC HTTP Egress Protocol).
+  // Single HTTP POST — no signaling WS, no PeerJS, no peer discovery.
+  const subscribeCamera = useCallback(async (cameraId: string) => {
+    if (!mountedRef.current) return;
 
-    const peerId = `gr-cam-${cameraId}`;
-
-    // If there's already a live stream for this camera, don't create a new call
-    if (liveRef.current.has(cameraId)) return;
-
-    // Clean up any existing call
-    const existing = callsRef.current.get(cameraId);
-    if (existing) { existing.close(); callsRef.current.delete(cameraId); }
-
+    // Close existing connection
+    const existing = pcsRef.current.get(cameraId);
+    if (existing) { existing.close(); pcsRef.current.delete(cameraId); }
     clearRetry(cameraId);
 
     setCameras(prev => {
@@ -77,58 +45,91 @@ function CameraGridPage() {
       return next;
     });
 
-    console.log(`[Viewer] Calling ${peerId}`);
-    const call = peer.call(peerId, getDummyStream(), { metadata: { viewer: true } });
-    if (!call) return; // peer.call returns null if peer is disconnected
-    callsRef.current.set(cameraId, call);
-
-    call.on('stream', (remoteStream) => {
-      console.log(`[Viewer] Got stream from ${cameraId}`);
-      clearRetry(cameraId);
-      liveRef.current.add(cameraId);
-      setCameras(prev => {
-        const next = new Map(prev);
-        next.set(cameraId, { camera_id: cameraId, status: 'live' });
-        return next;
+    try {
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
       });
-      attachStream(cameraId, remoteStream);
-    });
+      pcsRef.current.set(cameraId, pc);
 
-    call.on('close', () => {
-      console.log(`[Viewer] Call closed: ${cameraId}`);
-      const wasLive = liveRef.current.has(cameraId);
-      liveRef.current.delete(cameraId);
-      callsRef.current.delete(cameraId);
-      streamsRef.current.delete(cameraId);
+      // Receive-only: need a transceiver to get video
+      pc.addTransceiver('video', { direction: 'recvonly' });
+      pc.addTransceiver('audio', { direction: 'recvonly' });
 
-      if (!mountedRef.current) return;
-
-      setCameras(prev => {
-        const next = new Map(prev);
-        if (next.has(cameraId)) {
-          next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
+      pc.ontrack = (event) => {
+        const stream = event.streams[0];
+        if (stream) {
+          console.log(`[Viewer] Got stream for ${cameraId}`);
+          clearRetry(cameraId);
+          setCameras(prev => {
+            const next = new Map(prev);
+            next.set(cameraId, { camera_id: cameraId, status: 'live' });
+            return next;
+          });
+          attachStream(cameraId, stream);
         }
-        return next;
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+          console.log(`[Viewer] ICE ${pc.iceConnectionState} for ${cameraId}, reconnecting...`);
+          pc.close();
+          pcsRef.current.delete(cameraId);
+          if (mountedRef.current) {
+            const timer = window.setTimeout(() => {
+              retryTimersRef.current.delete(cameraId);
+              subscribeCamera(cameraId);
+            }, 3000);
+            retryTimersRef.current.set(cameraId, timer);
+          }
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      // Wait for ICE gathering
+      await new Promise<void>(resolve => {
+        if (pc.iceGatheringState === 'complete') return resolve();
+        pc.onicegatheringstatechange = () => {
+          if (pc.iceGatheringState === 'complete') resolve();
+        };
       });
 
-      // Only auto-retry if the stream was previously live (genuine drop)
-      // or if the call was never answered (initial connection attempt failed).
-      // Use a longer delay to avoid hammering.
-      if (peerRef.current && !peerRef.current.destroyed) {
-        const delay = wasLive ? 2000 : 5000;
+      const whepUrl = `/rtc/api/webrtc?src=${encodeURIComponent(cameraId)}`;
+      console.log(`[Viewer] Subscribing via WHEP: ${whepUrl}`);
+
+      const res = await fetch(whepUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/sdp' },
+        body: pc.localDescription!.sdp,
+      });
+
+      if (!res.ok) {
+        throw new Error(`WHEP ${res.status}: ${await res.text()}`);
+      }
+
+      const answerSdp = await res.text();
+      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+      console.log(`[Viewer] WHEP connected for ${cameraId}`);
+
+    } catch (err: any) {
+      console.error(`[Viewer] WHEP failed for ${cameraId}:`, err.message);
+      // Retry — camera might not be publishing yet
+      if (mountedRef.current) {
+        setCameras(prev => {
+          const next = new Map(prev);
+          if (next.has(cameraId)) {
+            next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
+          }
+          return next;
+        });
         const timer = window.setTimeout(() => {
           retryTimersRef.current.delete(cameraId);
-          if (peerRef.current && !peerRef.current.destroyed) {
-            callCamera(peerRef.current, cameraId);
-          }
-        }, delay);
+          subscribeCamera(cameraId);
+        }, 5000);
         retryTimersRef.current.set(cameraId, timer);
       }
-    });
-
-    call.on('error', (err) => {
-      console.error(`[Viewer] Call error (${cameraId}):`, err.message);
-    });
+    }
   }, [attachStream, clearRetry]);
 
   const connect = useCallback(async () => {
@@ -152,57 +153,15 @@ function CameraGridPage() {
       return next;
     });
 
-    // Self-hosted PeerJS on same server — offline-first, no cloud dependency
-    const viewerId = `gr-viewer-${Math.random().toString(36).substr(2, 10)}`;
-    const peer = new Peer(viewerId, PEER_CONFIG);
-    peerRef.current = peer;
+    setIsConnected(true);
 
-    peer.on('open', () => {
-      console.log('[Viewer] Connected to PeerJS signaling');
-      setIsConnected(true);
-      for (const cam of allCameras) {
-        if (cam.is_online) callCamera(peer, cam.camera_id);
-      }
-    });
-
-    peer.on('disconnected', () => {
-      console.log('[Viewer] PeerJS disconnected, reconnecting...');
-      setIsConnected(false);
-      if (!peer.destroyed) peer.reconnect();
-    });
-
-    peer.on('error', (err) => {
-      if (err.type === 'peer-unavailable') {
-        const match = err.message.match(/peer\s+gr-cam-(.+)$/);
-        if (match) {
-          const camId = match[1];
-          console.log(`[Viewer] Camera ${camId} not ready, will retry in 5s`);
-          clearRetry(camId);
-          const timer = window.setTimeout(() => {
-            retryTimersRef.current.delete(camId);
-            if (peer && !peer.destroyed) callCamera(peer, camId);
-          }, 5000);
-          retryTimersRef.current.set(camId, timer);
-        }
-        return;
-      }
-      console.error('[Viewer] PeerJS error:', err.type);
-      if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
-        setIsConnected(false);
-        setTimeout(() => {
-          if (mountedRef.current && !peer.destroyed) peer.reconnect();
-        }, 3000);
-      }
-    });
-
-    peer.on('close', () => {
-      setIsConnected(false);
-      if (mountedRef.current) setTimeout(connect, 5000);
-    });
+    // Subscribe to all online cameras
+    for (const cam of allCameras) {
+      if (cam.is_online) subscribeCamera(cam.camera_id);
+    }
 
     // Dashboard WS for camera online/offline events
     const dashWs = new WebSocket(getAuthWsUrl('/ws/dashboard'));
-    (peer as any)._dashWs = dashWs;
 
     dashWs.onmessage = (event) => {
       try {
@@ -214,22 +173,19 @@ function CameraGridPage() {
             next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
             return next;
           });
-          // Delay to let camera's PeerJS peer register
-          if (peer && !peer.destroyed) {
-            clearRetry(cameraId);
-            const timer = window.setTimeout(() => {
-              retryTimersRef.current.delete(cameraId);
-              callCamera(peer, cameraId);
-            }, 3000);
-            retryTimersRef.current.set(cameraId, timer);
-          }
+          // Delay to let camera publish via WHIP first
+          clearRetry(cameraId);
+          const timer = window.setTimeout(() => {
+            retryTimersRef.current.delete(cameraId);
+            subscribeCamera(cameraId);
+          }, 3000);
+          retryTimersRef.current.set(cameraId, timer);
         }
         if (msg.event === 'camera_offline' && msg.data?.camera_id) {
           const cameraId = msg.data.camera_id;
           clearRetry(cameraId);
-          liveRef.current.delete(cameraId);
-          const call = callsRef.current.get(cameraId);
-          if (call) { call.close(); callsRef.current.delete(cameraId); }
+          const pc = pcsRef.current.get(cameraId);
+          if (pc) { pc.close(); pcsRef.current.delete(cameraId); }
           streamsRef.current.delete(cameraId);
           if (msg.data.removed) {
             setCameras(prev => { const next = new Map(prev); next.delete(cameraId); return next; });
@@ -243,8 +199,15 @@ function CameraGridPage() {
         }
       } catch {}
     };
+
+    dashWs.onclose = () => {
+      setIsConnected(false);
+      if (mountedRef.current) setTimeout(connect, 5000);
+    };
     dashWs.onerror = () => dashWs.close();
-  }, [callCamera, clearRetry]);
+
+    mountedRef.current && ((window as any).__dashWs = dashWs);
+  }, [subscribeCamera, clearRetry]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -253,14 +216,10 @@ function CameraGridPage() {
       mountedRef.current = false;
       retryTimersRef.current.forEach(t => clearTimeout(t));
       retryTimersRef.current.clear();
-      liveRef.current.clear();
-      callsRef.current.forEach(c => c.close());
-      callsRef.current.clear();
-      if (peerRef.current) {
-        const dashWs = (peerRef.current as any)?._dashWs;
-        if (dashWs) dashWs.close();
-        peerRef.current.destroy();
-      }
+      pcsRef.current.forEach(pc => pc.close());
+      pcsRef.current.clear();
+      const dashWs = (window as any).__dashWs;
+      if (dashWs) dashWs.close();
     };
   }, [connect]);
 
@@ -276,9 +235,8 @@ function CameraGridPage() {
     try {
       await authFetch(`/api/cameras/${encodeURIComponent(cameraId)}`, { method: 'DELETE' });
       clearRetry(cameraId);
-      liveRef.current.delete(cameraId);
-      const call = callsRef.current.get(cameraId);
-      if (call) { call.close(); callsRef.current.delete(cameraId); }
+      const pc = pcsRef.current.get(cameraId);
+      if (pc) { pc.close(); pcsRef.current.delete(cameraId); }
       setCameras(prev => { const next = new Map(prev); next.delete(cameraId); return next; });
       if (fullscreen === cameraId) setFullscreen(null);
     } catch (e) {

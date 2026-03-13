@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
-import Peer from 'peerjs';
 import { API_BASE } from '../config';
 
 interface CameraFeedProps {
@@ -93,44 +92,66 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             lastVideoTime = -1;
             requestRef.current = requestAnimationFrame(renderLoop);
 
-            // Set up PeerJS for video streaming to dashboard viewers
+            // Publish video to go2rtc via WHIP (WebRTC HTTP Ingestion Protocol).
+            // Single HTTP POST for signaling — no PeerJS, no WebSocket, no peer discovery.
             if (cameraId && videoStream) {
-              const peerId = `gr-cam-${cameraId}`;
-              console.log(`[Camera] Creating peer ${peerId}`);
-              const peer = new Peer(peerId, {
-                host: window.location.hostname,
-                port: Number(window.location.port) || 443,
-                path: '/peer',
-                secure: window.location.protocol === 'https:',
-                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
-              });
+              let pc: RTCPeerConnection | null = null;
+              let destroyed = false;
 
-              peer.on('open', (id) => {
-                console.log(`[Camera] Registered as ${id}`);
-              });
+              const publishWHIP = async () => {
+                if (destroyed) return;
+                try {
+                  pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+                  });
+                  videoStream.getTracks().forEach(track => pc!.addTrack(track, videoStream));
 
-              peer.on('call', (call) => {
-                console.log(`[Camera] Answering call from ${call.peer}`);
-                call.answer(videoStream);
-              });
+                  const offer = await pc.createOffer();
+                  await pc.setLocalDescription(offer);
 
-              peer.on('disconnected', () => {
-                console.log('[Camera] Disconnected, reconnecting...');
-                if (!peer.destroyed) peer.reconnect();
-              });
+                  // Wait for ICE gathering to finish
+                  await new Promise<void>(resolve => {
+                    if (pc!.iceGatheringState === 'complete') return resolve();
+                    pc!.onicegatheringstatechange = () => {
+                      if (pc!.iceGatheringState === 'complete') resolve();
+                    };
+                  });
 
-              peer.on('error', (err) => {
-                console.error('[Camera] Error:', err.type);
-                if (err.type === 'unavailable-id') {
-                  // Stale session — wait for PeerJS server to expire it, then reconnect
-                  setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 5000);
-                } else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
-                  setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 3000);
+                  const whipUrl = `/rtc/api/webrtc?src=${encodeURIComponent(cameraId)}`;
+                  console.log(`[Camera] Publishing via WHIP to ${whipUrl}`);
+
+                  const res = await fetch(whipUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/sdp' },
+                    body: pc.localDescription!.sdp,
+                  });
+
+                  if (!res.ok) throw new Error(`WHIP ${res.status}: ${await res.text()}`);
+
+                  const answerSdp = await res.text();
+                  await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+                  console.log(`[Camera] WHIP published successfully for ${cameraId}`);
+
+                  // Auto-reconnect on ICE failure
+                  pc.oniceconnectionstatechange = () => {
+                    if (pc?.iceConnectionState === 'failed' || pc?.iceConnectionState === 'disconnected') {
+                      console.log('[Camera] ICE connection lost, republishing...');
+                      pc?.close();
+                      if (!destroyed) setTimeout(publishWHIP, 2000);
+                    }
+                  };
+                } catch (err) {
+                  console.error('[Camera] WHIP publish failed:', err);
+                  pc?.close();
+                  if (!destroyed) setTimeout(publishWHIP, 3000);
                 }
-              });
+              };
+
+              publishWHIP();
 
               (videoRef.current as any)._rtcCleanup = () => {
-                peer.destroy();
+                destroyed = true;
+                pc?.close();
               };
             }
           };
