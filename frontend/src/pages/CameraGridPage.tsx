@@ -101,40 +101,61 @@ function CameraGridPage() {
     pcsRef.current.clear();
   }, []);
 
+  // Subscribe to a single camera for WebRTC
+  const subscribeCamera = useCallback((ws: WebSocket, cameraId: string) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'subscribe', camera_id: cameraId }));
+    }
+  }, []);
+
   const connect = useCallback(async () => {
     if (!mountedRef.current) return;
 
-    let onlineCameras: string[] = [];
+    // Fetch ALL cameras (online and offline) to populate the grid
+    let allCameras: { camera_id: string; is_online: number }[] = [];
     try {
       const res = await authFetch('/api/cameras');
       if (res.ok) {
-        const list = await res.json();
-        onlineCameras = list.filter((c: any) => c.is_online).map((c: any) => c.camera_id);
+        allCameras = await res.json();
       }
     } catch {}
 
     if (!mountedRef.current) return;
 
-    const ws = new WebSocket(getAuthWsUrl('/ws/viewer-signal'));
-    wsRef.current = ws;
+    // Populate camera grid with all registered cameras
+    setCameras(prev => {
+      const next = new Map(prev);
+      for (const cam of allCameras) {
+        if (!next.has(cam.camera_id)) {
+          next.set(cam.camera_id, { camera_id: cam.camera_id, status: cam.is_online ? 'connecting' : 'offline' });
+        }
+      }
+      return next;
+    });
 
-    ws.onopen = () => {
+    // Connect to viewer signaling WS
+    const viewerWs = new WebSocket(getAuthWsUrl('/ws/viewer-signal'));
+    wsRef.current = viewerWs;
+
+    viewerWs.onopen = () => {
       setIsConnected(true);
-      for (const cameraId of onlineCameras) {
-        ws.send(JSON.stringify({ type: 'subscribe', camera_id: cameraId }));
+      // Subscribe only to online cameras for WebRTC
+      for (const cam of allCameras) {
+        if (cam.is_online) {
+          subscribeCamera(viewerWs, cam.camera_id);
+        }
       }
     };
 
-    ws.onmessage = async (event) => {
+    viewerWs.onmessage = async (event) => {
       try {
         const msg = JSON.parse(event.data);
 
         if (msg.type === 'subscribed') {
-          setupPeerConnection(ws, msg.camera_id);
+          setupPeerConnection(viewerWs, msg.camera_id);
         }
 
         if (msg.type === 'answer') {
-          // Use ref directly — NOT inside setCameras
           const pc = pcsRef.current.get(msg.camera_id);
           if (pc && pc.signalingState !== 'closed') {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
@@ -150,15 +171,8 @@ function CameraGridPage() {
 
         if (msg.type === 'camera-removed') {
           const pc = pcsRef.current.get(msg.camera_id);
-          if (pc) {
-            pc.close();
-            pcsRef.current.delete(msg.camera_id);
-          }
-          setCameras(prev => {
-            const next = new Map(prev);
-            next.delete(msg.camera_id);
-            return next;
-          });
+          if (pc) { pc.close(); pcsRef.current.delete(msg.camera_id); }
+          setCameras(prev => { const next = new Map(prev); next.delete(msg.camera_id); return next; });
           setFullscreen(f => f === msg.camera_id ? null : f);
         }
       } catch (e) {
@@ -166,7 +180,7 @@ function CameraGridPage() {
       }
     };
 
-    ws.onclose = () => {
+    viewerWs.onclose = () => {
       setIsConnected(false);
       wsRef.current = null;
       closeAllPCs();
@@ -176,8 +190,50 @@ function CameraGridPage() {
       }
     };
 
-    ws.onerror = () => ws.close();
-  }, [setupPeerConnection, closeAllPCs]);
+    viewerWs.onerror = () => viewerWs.close();
+
+    // Also listen to dashboard WS for camera online/offline events
+    const dashWs = new WebSocket(getAuthWsUrl('/ws/dashboard'));
+    const dashWsRef = { current: dashWs };
+
+    dashWs.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.event === 'camera_online' && msg.data?.camera_id) {
+          const cameraId = msg.data.camera_id;
+          // Add camera to grid and try WebRTC
+          setCameras(prev => {
+            const next = new Map(prev);
+            next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
+            return next;
+          });
+          if (viewerWs.readyState === WebSocket.OPEN) {
+            subscribeCamera(viewerWs, cameraId);
+          }
+        }
+        if (msg.event === 'camera_offline' && msg.data?.camera_id) {
+          if (msg.data.removed) {
+            const pc = pcsRef.current.get(msg.data.camera_id);
+            if (pc) { pc.close(); pcsRef.current.delete(msg.data.camera_id); }
+            setCameras(prev => { const next = new Map(prev); next.delete(msg.data.camera_id); return next; });
+          } else {
+            const pc = pcsRef.current.get(msg.data.camera_id);
+            if (pc) { pc.close(); pcsRef.current.delete(msg.data.camera_id); }
+            setCameras(prev => {
+              const next = new Map(prev);
+              next.set(msg.data.camera_id, { camera_id: msg.data.camera_id, status: 'offline' });
+              return next;
+            });
+          }
+        }
+      } catch {}
+    };
+
+    dashWs.onerror = () => dashWs.close();
+
+    // Store dashboard WS for cleanup
+    (viewerWs as any)._dashWs = dashWsRef.current;
+  }, [setupPeerConnection, closeAllPCs, subscribeCamera]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -185,7 +241,12 @@ function CameraGridPage() {
     return () => {
       mountedRef.current = false;
       closeAllPCs();
-      if (wsRef.current) wsRef.current.close();
+      if (wsRef.current) {
+        // Close dashboard WS too
+        const dashWs = (wsRef.current as any)?._dashWs;
+        if (dashWs) dashWs.close();
+        wsRef.current.close();
+      }
     };
   }, [connect, closeAllPCs]);
 
