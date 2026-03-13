@@ -92,84 +92,102 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             lastVideoTime = -1;
             requestRef.current = requestAnimationFrame(renderLoop);
 
-            // Set up WebRTC signaling
+            // Set up WebRTC signaling with auto-reconnect
             if (cameraId && videoStream) {
               const signalUrl = `${WS_BASE}/ws/camera-signal?key=${apiKey || ''}`;
-              const signalWs = new WebSocket(signalUrl);
               const peerConnections = new Map<number, RTCPeerConnection>();
+              let destroyed = false;
+              let currentSignalWs: WebSocket | null = null;
 
               const rtcConfig: RTCConfiguration = {
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
               };
 
-              signalWs.onopen = () => {
-                signalWs.send(JSON.stringify({ type: 'camera-register', camera_id: cameraId }));
-              };
+              const connectSignaling = () => {
+                if (destroyed) return;
+                const signalWs = new WebSocket(signalUrl);
+                currentSignalWs = signalWs;
 
-              signalWs.onmessage = async (event) => {
-                try {
-                  const msg = JSON.parse(event.data);
+                signalWs.onopen = () => {
+                  console.log(`[Camera ${cameraId}] Signaling connected`);
+                  signalWs.send(JSON.stringify({ type: 'camera-register', camera_id: cameraId }));
+                };
 
-                  if (msg.type === 'offer') {
-                    // Viewer wants to connect — create peer connection
-                    const viewerId = msg.viewer_id;
-                    const pc = new RTCPeerConnection(rtcConfig);
-                    peerConnections.set(viewerId, pc);
+                signalWs.onmessage = async (event) => {
+                  try {
+                    const msg = JSON.parse(event.data);
 
-                    // Add local video track
-                    videoStream.getTracks().forEach(track => pc.addTrack(track, videoStream));
+                    if (msg.type === 'offer') {
+                      const viewerId = msg.viewer_id;
+                      // Close existing PC for this viewer if any
+                      const existingPc = peerConnections.get(viewerId);
+                      if (existingPc) { existingPc.close(); peerConnections.delete(viewerId); }
 
-                    // Send ICE candidates to viewer
-                    pc.onicecandidate = (e) => {
-                      if (e.candidate && signalWs.readyState === WebSocket.OPEN) {
-                        signalWs.send(JSON.stringify({
-                          type: 'ice-candidate',
-                          viewer_id: viewerId,
-                          data: e.candidate.toJSON()
-                        }));
-                      }
-                    };
+                      const pc = new RTCPeerConnection(rtcConfig);
+                      peerConnections.set(viewerId, pc);
 
-                    pc.onconnectionstatechange = () => {
-                      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                        pc.close();
-                        peerConnections.delete(viewerId);
-                      }
-                    };
+                      videoStream.getTracks().forEach(track => pc.addTrack(track, videoStream));
 
-                    // Set remote offer and create answer
-                    await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
+                      pc.onicecandidate = (e) => {
+                        if (e.candidate && signalWs.readyState === WebSocket.OPEN) {
+                          signalWs.send(JSON.stringify({
+                            type: 'ice-candidate',
+                            viewer_id: viewerId,
+                            data: e.candidate.toJSON()
+                          }));
+                        }
+                      };
 
-                    signalWs.send(JSON.stringify({
-                      type: 'answer',
-                      viewer_id: viewerId,
-                      data: pc.localDescription?.toJSON()
-                    }));
-                  }
+                      pc.onconnectionstatechange = () => {
+                        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                          pc.close();
+                          peerConnections.delete(viewerId);
+                        }
+                      };
 
-                  if (msg.type === 'ice-candidate') {
-                    const pc = peerConnections.get(msg.viewer_id);
-                    if (pc) {
-                      await pc.addIceCandidate(new RTCIceCandidate(msg.data));
+                      await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+                      const answer = await pc.createAnswer();
+                      await pc.setLocalDescription(answer);
+
+                      signalWs.send(JSON.stringify({
+                        type: 'answer',
+                        viewer_id: viewerId,
+                        data: pc.localDescription?.toJSON()
+                      }));
                     }
+
+                    if (msg.type === 'ice-candidate') {
+                      const pc = peerConnections.get(msg.viewer_id);
+                      if (pc && pc.signalingState !== 'closed') {
+                        await pc.addIceCandidate(new RTCIceCandidate(msg.data));
+                      }
+                    }
+                  } catch (e) {
+                    console.error('WebRTC signaling error:', e);
                   }
-                } catch (e) {
-                  console.error('WebRTC signaling error:', e);
-                }
+                };
+
+                signalWs.onclose = () => {
+                  console.log(`[Camera ${cameraId}] Signaling disconnected`);
+                  peerConnections.forEach(pc => pc.close());
+                  peerConnections.clear();
+                  currentSignalWs = null;
+                  // Auto-reconnect after 3s
+                  if (!destroyed) {
+                    setTimeout(connectSignaling, 3000);
+                  }
+                };
+
+                signalWs.onerror = () => signalWs.close();
               };
 
-              signalWs.onclose = () => {
-                peerConnections.forEach(pc => pc.close());
-                peerConnections.clear();
-              };
+              connectSignaling();
 
-              // Store cleanup
               (videoRef.current as any)._rtcCleanup = () => {
+                destroyed = true;
                 peerConnections.forEach(pc => pc.close());
                 peerConnections.clear();
-                signalWs.close();
+                if (currentSignalWs) currentSignalWs.close();
               };
             }
           };

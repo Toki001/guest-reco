@@ -13,16 +13,37 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5001',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.log('[proxy] API error (suppressed):', err.message);
+          });
+        },
       },
       '/ws': {
         target: 'ws://localhost:5001',
         ws: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.log('[proxy] WS error (suppressed):', err.message);
+          });
+          proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
+            socket.on('error', (err: Error) => {
+              console.log('[proxy] WS socket error (suppressed):', err.message);
+            });
+          });
+        },
       },
       '/avatars': {
         target: 'http://localhost:5001',
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        },
       },
       '/snapshots': {
         target: 'http://localhost:5001',
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        },
       },
     },
   },

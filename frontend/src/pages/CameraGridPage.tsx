@@ -74,12 +74,26 @@ function CameraGridPage() {
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      const state = pc.connectionState;
+      if (state === 'disconnected' || state === 'failed') {
+        console.log(`[WebRTC] ${cameraId}: ${state} — will auto-reconnect`);
         setCameras(prev => {
           const next = new Map(prev);
-          next.set(cameraId, { camera_id: cameraId, status: 'offline' });
+          next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
           return next;
         });
+        // Clean up dead PC
+        pc.close();
+        pcsRef.current.delete(cameraId);
+        // Auto-reconnect after 2s
+        const timer = window.setTimeout(() => {
+          retryTimersRef.current.delete(cameraId);
+          if (mountedRef.current && ws.readyState === WebSocket.OPEN) {
+            console.log(`[WebRTC] ${cameraId}: reconnecting...`);
+            ws.send(JSON.stringify({ type: 'subscribe', camera_id: cameraId }));
+          }
+        }, 2000);
+        retryTimersRef.current.set(cameraId, timer);
       }
     };
 
