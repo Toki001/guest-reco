@@ -29,12 +29,11 @@ function CameraGridPage() {
     if (t) { clearTimeout(t); retryTimersRef.current.delete(cameraId); }
   }, []);
 
-  // Subscribe to a camera stream via WHEP (WebRTC HTTP Egress Protocol).
-  // Single HTTP POST — no signaling WS, no PeerJS, no peer discovery.
-  const subscribeCamera = useCallback(async (cameraId: string) => {
+  // Subscribe to a camera stream via go2rtc WebSocket signaling.
+  const subscribeCamera = useCallback((cameraId: string) => {
     if (!mountedRef.current) return;
 
-    // Close existing connection
+    // Close existing
     const existing = pcsRef.current.get(cameraId);
     if (existing) { existing.close(); pcsRef.current.delete(cameraId); }
     clearRetry(cameraId);
@@ -45,76 +44,59 @@ function CameraGridPage() {
       return next;
     });
 
-    try {
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      });
-      pcsRef.current.set(cameraId, pc);
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    });
+    pcsRef.current.set(cameraId, pc);
 
-      // Receive-only: need a transceiver to get video
-      pc.addTransceiver('video', { direction: 'recvonly' });
-      pc.addTransceiver('audio', { direction: 'recvonly' });
+    // Receive video + audio
+    pc.addTransceiver('video', { direction: 'recvonly' });
+    pc.addTransceiver('audio', { direction: 'recvonly' });
 
-      pc.ontrack = (event) => {
-        const stream = event.streams[0];
-        if (stream) {
-          console.log(`[Viewer] Got stream for ${cameraId}`);
-          clearRetry(cameraId);
-          setCameras(prev => {
-            const next = new Map(prev);
-            next.set(cameraId, { camera_id: cameraId, status: 'live' });
-            return next;
-          });
-          attachStream(cameraId, stream);
-        }
-      };
-
-      pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-          console.log(`[Viewer] ICE ${pc.iceConnectionState} for ${cameraId}, reconnecting...`);
-          pc.close();
-          pcsRef.current.delete(cameraId);
-          if (mountedRef.current) {
-            const timer = window.setTimeout(() => {
-              retryTimersRef.current.delete(cameraId);
-              subscribeCamera(cameraId);
-            }, 3000);
-            retryTimersRef.current.set(cameraId, timer);
-          }
-        }
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      // Wait for ICE gathering
-      await new Promise<void>(resolve => {
-        if (pc.iceGatheringState === 'complete') return resolve();
-        pc.onicegatheringstatechange = () => {
-          if (pc.iceGatheringState === 'complete') resolve();
-        };
-      });
-
-      const whepUrl = `/rtc/api/webrtc?src=${encodeURIComponent(cameraId)}`;
-      console.log(`[Viewer] Subscribing via WHEP: ${whepUrl}`);
-
-      const res = await fetch(whepUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/sdp' },
-        body: pc.localDescription!.sdp,
-      });
-
-      if (!res.ok) {
-        throw new Error(`WHEP ${res.status}: ${await res.text()}`);
+    pc.ontrack = (event) => {
+      const stream = event.streams[0];
+      if (stream) {
+        console.log(`[Viewer] Got stream for ${cameraId}`);
+        clearRetry(cameraId);
+        setCameras(prev => {
+          const next = new Map(prev);
+          next.set(cameraId, { camera_id: cameraId, status: 'live' });
+          return next;
+        });
+        attachStream(cameraId, stream);
       }
+    };
 
-      const answerSdp = await res.text();
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
-      console.log(`[Viewer] WHEP connected for ${cameraId}`);
+    const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${wsProto}://${location.host}/rtc/api/ws?src=${encodeURIComponent(cameraId)}`;
+    console.log(`[Viewer] Subscribing via go2rtc: ${wsUrl}`);
+    const ws = new WebSocket(wsUrl);
 
-    } catch (err: any) {
-      console.error(`[Viewer] WHEP failed for ${cameraId}:`, err.message);
-      // Retry — camera might not be publishing yet
+    ws.onopen = () => {
+      pc.onicecandidate = (ev) => {
+        if (ev.candidate && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'webrtc/candidate', value: ev.candidate.candidate }));
+        }
+      };
+
+      pc.createOffer().then(offer => pc.setLocalDescription(offer)).then(() => {
+        ws.send(JSON.stringify({ type: 'webrtc/offer', value: pc.localDescription!.sdp }));
+      });
+    };
+
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'webrtc/candidate') {
+        pc.addIceCandidate({ candidate: msg.value, sdpMid: '0' });
+      } else if (msg.type === 'webrtc/answer') {
+        pc.setRemoteDescription({ type: 'answer', sdp: msg.value });
+        console.log(`[Viewer] WebRTC connected for ${cameraId}`);
+      }
+    };
+
+    ws.onclose = () => {
+      pc.close();
+      pcsRef.current.delete(cameraId);
       if (mountedRef.current) {
         setCameras(prev => {
           const next = new Map(prev);
@@ -129,7 +111,16 @@ function CameraGridPage() {
         }, 5000);
         retryTimersRef.current.set(cameraId, timer);
       }
-    }
+    };
+
+    ws.onerror = () => ws.close();
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        console.log(`[Viewer] ICE ${pc.iceConnectionState} for ${cameraId}`);
+        ws.close();
+      }
+    };
   }, [attachStream, clearRetry]);
 
   const connect = useCallback(async () => {

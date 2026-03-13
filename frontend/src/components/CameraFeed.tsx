@@ -92,65 +92,74 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             lastVideoTime = -1;
             requestRef.current = requestAnimationFrame(renderLoop);
 
-            // Publish video to go2rtc via WHIP (WebRTC HTTP Ingestion Protocol).
-            // Single HTTP POST for signaling — no PeerJS, no WebSocket, no peer discovery.
+            // Publish video to go2rtc via WebSocket signaling.
+            // Camera sends video track, go2rtc handles WebRTC negotiation.
             if (cameraId && videoStream) {
               let pc: RTCPeerConnection | null = null;
+              let ws: WebSocket | null = null;
               let destroyed = false;
 
-              const publishWHIP = async () => {
+              const publish = () => {
                 if (destroyed) return;
-                try {
-                  pc = new RTCPeerConnection({
-                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-                  });
-                  videoStream.getTracks().forEach(track => pc!.addTrack(track, videoStream));
 
-                  const offer = await pc.createOffer();
-                  await pc.setLocalDescription(offer);
+                pc = new RTCPeerConnection({
+                  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+                });
 
-                  // Wait for ICE gathering to finish
-                  await new Promise<void>(resolve => {
-                    if (pc!.iceGatheringState === 'complete') return resolve();
-                    pc!.onicegatheringstatechange = () => {
-                      if (pc!.iceGatheringState === 'complete') resolve();
-                    };
-                  });
+                // Add camera tracks as send-only
+                videoStream.getTracks().forEach(track => {
+                  pc!.addTransceiver(track, { direction: 'sendonly' });
+                });
 
-                  const whipUrl = `/rtc/api/webrtc?src=${encodeURIComponent(cameraId)}`;
-                  console.log(`[Camera] Publishing via WHIP to ${whipUrl}`);
+                const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+                const wsUrl = `${wsProto}://${location.host}/rtc/api/ws?src=${encodeURIComponent(cameraId)}`;
+                console.log(`[Camera] Connecting to go2rtc: ${wsUrl}`);
+                ws = new WebSocket(wsUrl);
 
-                  const res = await fetch(whipUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/sdp' },
-                    body: pc.localDescription!.sdp,
-                  });
-
-                  if (!res.ok) throw new Error(`WHIP ${res.status}: ${await res.text()}`);
-
-                  const answerSdp = await res.text();
-                  await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
-                  console.log(`[Camera] WHIP published successfully for ${cameraId}`);
-
-                  // Auto-reconnect on ICE failure
-                  pc.oniceconnectionstatechange = () => {
-                    if (pc?.iceConnectionState === 'failed' || pc?.iceConnectionState === 'disconnected') {
-                      console.log('[Camera] ICE connection lost, republishing...');
-                      pc?.close();
-                      if (!destroyed) setTimeout(publishWHIP, 2000);
+                ws.onopen = () => {
+                  pc!.onicecandidate = (ev) => {
+                    if (ev.candidate && ws?.readyState === WebSocket.OPEN) {
+                      ws.send(JSON.stringify({ type: 'webrtc/candidate', value: ev.candidate.candidate }));
                     }
                   };
-                } catch (err) {
-                  console.error('[Camera] WHIP publish failed:', err);
+
+                  pc!.createOffer().then(offer => pc!.setLocalDescription(offer)).then(() => {
+                    ws!.send(JSON.stringify({ type: 'webrtc/offer', value: pc!.localDescription!.sdp }));
+                    console.log(`[Camera] SDP offer sent for ${cameraId}`);
+                  });
+                };
+
+                ws.onmessage = (ev) => {
+                  const msg = JSON.parse(ev.data);
+                  if (msg.type === 'webrtc/candidate') {
+                    pc!.addIceCandidate({ candidate: msg.value, sdpMid: '0' });
+                  } else if (msg.type === 'webrtc/answer') {
+                    pc!.setRemoteDescription({ type: 'answer', sdp: msg.value });
+                    console.log(`[Camera] Published to go2rtc: ${cameraId}`);
+                  }
+                };
+
+                ws.onclose = () => {
+                  console.log('[Camera] go2rtc WS closed, reconnecting...');
                   pc?.close();
-                  if (!destroyed) setTimeout(publishWHIP, 3000);
-                }
+                  if (!destroyed) setTimeout(publish, 3000);
+                };
+
+                ws.onerror = () => ws?.close();
+
+                pc.oniceconnectionstatechange = () => {
+                  if (pc?.iceConnectionState === 'failed') {
+                    console.log('[Camera] ICE failed, reconnecting...');
+                    ws?.close();
+                  }
+                };
               };
 
-              publishWHIP();
+              publish();
 
               (videoRef.current as any)._rtcCleanup = () => {
                 destroyed = true;
+                ws?.close();
                 pc?.close();
               };
             }

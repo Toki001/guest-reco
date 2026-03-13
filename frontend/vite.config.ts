@@ -39,12 +39,18 @@ export default defineConfig({
           });
         },
       },
-      // go2rtc media server — WHIP/WHEP WebRTC signaling + API
+      // go2rtc media server — WebRTC signaling via WebSocket + API
       '/rtc': {
         target: 'http://localhost:1984',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/rtc/, ''),
-        configure: (proxy) => { proxy.on('error', () => {}); },
+        ws: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+          proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
+            socket.on('error', () => {});
+          });
+        },
       },
     },
   },
