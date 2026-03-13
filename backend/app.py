@@ -25,7 +25,7 @@ from auth import (
     check_login, require_admin, require_camera_or_admin,
     verify_ws_auth, get_camera_api_key
 )
-from signaling import signaling_manager
+# PeerJS handles WebRTC signaling (runs as separate server on port 9000)
 
 # --- FASTAPI SETUP ---
 app = FastAPI(title="SecureSight Edge Recognition API")
@@ -410,7 +410,7 @@ async def list_cameras(user=Depends(require_admin)):
 @app.delete('/api/cameras/{camera_id}')
 async def remove_camera(camera_id: str, user=Depends(require_admin)):
     await asyncio.to_thread(delete_camera, camera_id)
-    await signaling_manager.drop_camera(camera_id)
+    # PeerJS handles signaling — camera peer auto-disconnects when removed
     await manager.broadcast({
         "event": "camera_offline",
         "data": {"camera_id": camera_id, "removed": True,
@@ -509,20 +509,8 @@ async def attendance_log(
         get_attendance_logs, page, per_page, date_from, date_to, camera_id, user_id, status
     )
 
-# --- WEBSOCKET: WEBRTC SIGNALING ---
-@app.websocket("/ws/camera-signal")
-async def ws_camera_signal(websocket: WebSocket, key: str | None = Query(None)):
-    if not verify_ws_auth(key=key):
-        await websocket.close(code=4001, reason="Unauthorized")
-        return
-    await signaling_manager.handle_camera_signal(websocket)
-
-@app.websocket("/ws/viewer-signal")
-async def ws_viewer_signal(websocket: WebSocket, token: str | None = Query(None)):
-    if not verify_ws_auth(token=token):
-        await websocket.close(code=4001, reason="Unauthorized")
-        return
-    await signaling_manager.handle_viewer_signal(websocket)
+# --- NOTE: WebRTC signaling is handled by PeerJS server (port 9000, proxied via Vite) ---
+# The /ws/camera-signal and /ws/viewer-signal endpoints are no longer needed.
 
 # --- STATIC FILE MOUNTS (must be AFTER all API routes) ---
 app.mount("/avatars", StaticFiles(directory="avatars"), name="avatars")
