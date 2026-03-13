@@ -3,113 +3,166 @@ from fastapi import WebSocket
 from starlette.websockets import WebSocketDisconnect
 
 
-class StreamManager:
-    """MJPEG frame relay + camera lifecycle management.
-
-    Cameras send base64 JPEG frames over WebSocket.
-    Server relays frames to all connected viewers.
-    Simple, reliable, no WebRTC complexity.
-    """
+class SignalingManager:
+    """WebRTC signaling relay for camera-to-viewer peer connections."""
 
     def __init__(self):
-        self.latest_frames: dict[str, str] = {}  # camera_id -> base64 jpeg
-        self.viewers: list[WebSocket] = []
-        self.camera_streams: dict[str, WebSocket] = {}  # camera_id -> ws
+        # camera_id -> WebSocket (one per camera station)
+        self.cameras: dict[str, WebSocket] = {}
+        # camera_id -> list of viewer WebSockets
+        self.viewers: dict[str, list[WebSocket]] = {}
+        # Removed cameras that should reject reconnection
         self.removed_cameras: set[str] = set()
 
-    async def handle_camera_stream(self, ws: WebSocket):
-        """Handle incoming MJPEG frames from a camera station."""
+    def get_camera_ids(self) -> list[str]:
+        """Return list of currently connected camera IDs."""
+        return list(self.cameras.keys())
+
+    async def handle_camera_signal(self, ws: WebSocket):
+        """Handle signaling WebSocket from a camera station."""
         await ws.accept()
         camera_id = None
         try:
             while True:
-                data = await ws.receive_text()
-                msg = json.loads(data)
-                cid = msg.get("camera_id")
-                if not cid:
-                    continue
+                raw = await ws.receive_text()
+                msg = json.loads(raw)
+                msg_type = msg.get("type")
 
-                # Track camera
-                if cid not in self.camera_streams:
-                    self.camera_streams[cid] = ws
-                    self.removed_cameras.discard(cid)
-                    camera_id = cid
+                if msg_type == "camera-register":
+                    camera_id = msg["camera_id"]
+                    if camera_id in self.removed_cameras:
+                        await ws.close(code=1000, reason="Camera removed by admin")
+                        return
+                    self.cameras[camera_id] = ws
+                    self.removed_cameras.discard(camera_id)
+                    if camera_id not in self.viewers:
+                        self.viewers[camera_id] = []
+                    print(f"Camera registered for signaling: {camera_id}")
 
-                # Reject removed cameras
-                if cid in self.removed_cameras:
-                    await ws.close(code=1000, reason="Camera removed by admin")
-                    break
+                elif msg_type == "answer" and camera_id:
+                    # Camera sends SDP answer back to a specific viewer
+                    viewer_id = msg.get("viewer_id")
+                    viewers = self.viewers.get(camera_id, [])
+                    if viewer_id is not None and 0 <= viewer_id < len(viewers):
+                        try:
+                            await viewers[viewer_id].send_text(json.dumps({
+                                "type": "answer",
+                                "camera_id": camera_id,
+                                "data": msg["data"]
+                            }))
+                        except Exception:
+                            pass
 
-                # Store and relay frame
-                frame = msg.get("frame")
-                if frame:
-                    self.latest_frames[cid] = frame
-                    await self._relay_frame(cid, frame)
+                elif msg_type == "ice-candidate" and camera_id:
+                    # Camera sends ICE candidate to a specific viewer
+                    viewer_id = msg.get("viewer_id")
+                    viewers = self.viewers.get(camera_id, [])
+                    if viewer_id is not None and 0 <= viewer_id < len(viewers):
+                        try:
+                            await viewers[viewer_id].send_text(json.dumps({
+                                "type": "ice-candidate",
+                                "camera_id": camera_id,
+                                "data": msg["data"]
+                            }))
+                        except Exception:
+                            pass
 
         except WebSocketDisconnect:
             pass
         except Exception as e:
-            print(f"Stream error: {e}")
+            print(f"Camera signaling error: {e}")
         finally:
             if camera_id:
-                self.camera_streams.pop(camera_id, None)
+                self.cameras.pop(camera_id, None)
+                print(f"Camera disconnected from signaling: {camera_id}")
 
-    async def handle_camera_view(self, ws: WebSocket):
-        """Handle a dashboard viewer connection."""
+    async def handle_viewer_signal(self, ws: WebSocket):
+        """Handle signaling WebSocket from a dashboard viewer."""
         await ws.accept()
-        self.viewers.append(ws)
-
-        # Send all current frames on connect
-        for cid, frame in self.latest_frames.items():
-            try:
-                await ws.send_json({"camera_id": cid, "frame": frame})
-            except Exception:
-                pass
-
+        # Track which cameras this viewer subscribed to and their viewer_id per camera
+        subscriptions: dict[str, int] = {}  # camera_id -> viewer_index
         try:
             while True:
-                await ws.receive_text()  # keep alive
+                raw = await ws.receive_text()
+                msg = json.loads(raw)
+                msg_type = msg.get("type")
+
+                if msg_type == "subscribe":
+                    camera_id = msg["camera_id"]
+                    if camera_id not in self.viewers:
+                        self.viewers[camera_id] = []
+                    viewer_id = len(self.viewers[camera_id])
+                    self.viewers[camera_id].append(ws)
+                    subscriptions[camera_id] = viewer_id
+
+                    # Notify viewer of their viewer_id
+                    await ws.send_text(json.dumps({
+                        "type": "subscribed",
+                        "camera_id": camera_id,
+                        "viewer_id": viewer_id
+                    }))
+
+                elif msg_type == "offer":
+                    # Viewer sends SDP offer to a camera
+                    camera_id = msg["camera_id"]
+                    viewer_id = subscriptions.get(camera_id)
+                    cam_ws = self.cameras.get(camera_id)
+                    if cam_ws and viewer_id is not None:
+                        try:
+                            await cam_ws.send_text(json.dumps({
+                                "type": "offer",
+                                "viewer_id": viewer_id,
+                                "data": msg["data"]
+                            }))
+                        except Exception:
+                            pass
+
+                elif msg_type == "ice-candidate":
+                    # Viewer sends ICE candidate to a camera
+                    camera_id = msg["camera_id"]
+                    viewer_id = subscriptions.get(camera_id)
+                    cam_ws = self.cameras.get(camera_id)
+                    if cam_ws and viewer_id is not None:
+                        try:
+                            await cam_ws.send_text(json.dumps({
+                                "type": "ice-candidate",
+                                "viewer_id": viewer_id,
+                                "data": msg["data"]
+                            }))
+                        except Exception:
+                            pass
+
         except WebSocketDisconnect:
             pass
+        except Exception as e:
+            print(f"Viewer signaling error: {e}")
         finally:
-            if ws in self.viewers:
-                self.viewers.remove(ws)
-
-    async def _relay_frame(self, camera_id: str, frame: str):
-        """Relay a frame to all connected viewers."""
-        msg = {"camera_id": camera_id, "frame": frame}
-        disconnected = []
-        for viewer in self.viewers:
-            try:
-                await viewer.send_json(msg)
-            except Exception:
-                disconnected.append(viewer)
-        for v in disconnected:
-            if v in self.viewers:
-                self.viewers.remove(v)
+            # Remove viewer from all subscriptions
+            for camera_id, viewer_idx in subscriptions.items():
+                viewers = self.viewers.get(camera_id, [])
+                if viewer_idx < len(viewers) and viewers[viewer_idx] is ws:
+                    viewers[viewer_idx] = None  # type: ignore — mark as disconnected, don't shift indices
 
     async def drop_camera(self, camera_id: str):
-        """Remove a camera and close its stream."""
-        self.latest_frames.pop(camera_id, None)
+        """Remove a camera and close its signaling connection."""
         self.removed_cameras.add(camera_id)
-
-        ws = self.camera_streams.pop(camera_id, None)
+        ws = self.cameras.pop(camera_id, None)
         if ws:
             try:
                 await ws.close(code=1000, reason="Camera removed by admin")
             except Exception:
                 pass
 
-        # Notify viewers
-        disconnected = []
-        for viewer in self.viewers:
-            try:
-                await viewer.send_json({"camera_id": camera_id, "removed": True})
-            except Exception:
-                disconnected.append(viewer)
-        for v in disconnected:
-            if v in self.viewers:
-                self.viewers.remove(v)
+        # Notify all viewers watching this camera
+        for viewer_ws in self.viewers.pop(camera_id, []):
+            if viewer_ws:
+                try:
+                    await viewer_ws.send_text(json.dumps({
+                        "type": "camera-removed",
+                        "camera_id": camera_id
+                    }))
+                except Exception:
+                    pass
 
 
-signaling_manager = StreamManager()
+signaling_manager = SignalingManager()

@@ -1,95 +1,254 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuthWsUrl, authFetch } from '../auth';
 
-interface CameraFrame {
+interface CameraDisplay {
   camera_id: string;
-  frame: string;
-  lastUpdate: number;
-  fps: number;
-  frameCount: number;
+  status: 'connecting' | 'live' | 'offline';
 }
 
+const RTC_CONFIG: RTCConfiguration = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+};
+
 function CameraGridPage() {
-  const [cameras, setCameras] = useState<Map<string, CameraFrame>>(new Map());
+  const [cameras, setCameras] = useState<Map<string, CameraDisplay>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
   const [fullscreen, setFullscreen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+
   const wsRef = useRef<WebSocket | null>(null);
   const mountedRef = useRef(true);
-  const fpsIntervalRef = useRef<number>(0);
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  // PeerConnections stored in ref (NOT in state) — async ops need stable references
+  const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
 
-  const connect = useCallback(() => {
-    if (!mountedRef.current) return;
+  const attachStream = useCallback((cameraId: string, stream: MediaStream) => {
+    const el = videoRefs.current.get(cameraId);
+    if (el && el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+  }, []);
 
-    const ws = new WebSocket(getAuthWsUrl('/ws/camera-view'));
-    wsRef.current = ws;
+  const setupPeerConnection = useCallback((ws: WebSocket, cameraId: string) => {
+    // Close existing PC if any
+    const existingPc = pcsRef.current.get(cameraId);
+    if (existingPc) {
+      existingPc.close();
+      pcsRef.current.delete(cameraId);
+    }
 
-    ws.onopen = () => setIsConnected(true);
+    const pc = new RTCPeerConnection(RTC_CONFIG);
+    pcsRef.current.set(cameraId, pc);
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.camera_id && msg.removed) {
-          setCameras(prev => {
-            const next = new Map(prev);
-            next.delete(msg.camera_id);
-            return next;
-          });
-          setFullscreen(f => f === msg.camera_id ? null : f);
-        } else if (msg.camera_id && msg.frame) {
-          setCameras(prev => {
-            const next = new Map(prev);
-            const existing = next.get(msg.camera_id);
-            next.set(msg.camera_id, {
-              camera_id: msg.camera_id,
-              frame: msg.frame,
-              lastUpdate: Date.now(),
-              fps: existing?.fps || 0,
-              frameCount: (existing?.frameCount || 0) + 1,
-            });
-            return next;
-          });
-        }
-      } catch {}
+    setCameras(prev => {
+      const next = new Map(prev);
+      next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
+      return next;
+    });
+
+    pc.ontrack = (event) => {
+      const stream = event.streams[0];
+      if (stream) {
+        setCameras(prev => {
+          const next = new Map(prev);
+          next.set(cameraId, { camera_id: cameraId, status: 'live' });
+          return next;
+        });
+        attachStream(cameraId, stream);
+      }
     };
 
-    ws.onclose = () => {
+    pc.onicecandidate = (event) => {
+      if (event.candidate && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'ice-candidate',
+          camera_id: cameraId,
+          data: event.candidate.toJSON()
+        }));
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        setCameras(prev => {
+          const next = new Map(prev);
+          next.set(cameraId, { camera_id: cameraId, status: 'offline' });
+          return next;
+        });
+      }
+    };
+
+    // Create receive-only offer
+    pc.addTransceiver('video', { direction: 'recvonly' });
+    pc.createOffer()
+      .then(offer => pc.setLocalDescription(offer))
+      .then(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'offer',
+            camera_id: cameraId,
+            data: pc.localDescription
+          }));
+        }
+      })
+      .catch(e => console.error('Failed to create offer:', e));
+
+    return pc;
+  }, [attachStream]);
+
+  const closeAllPCs = useCallback(() => {
+    pcsRef.current.forEach(pc => pc.close());
+    pcsRef.current.clear();
+  }, []);
+
+  // Subscribe to a single camera for WebRTC
+  const subscribeCamera = useCallback((ws: WebSocket, cameraId: string) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'subscribe', camera_id: cameraId }));
+    }
+  }, []);
+
+  const connect = useCallback(async () => {
+    if (!mountedRef.current) return;
+
+    // Fetch ALL cameras (online and offline) to populate the grid
+    let allCameras: { camera_id: string; is_online: number }[] = [];
+    try {
+      const res = await authFetch('/api/cameras');
+      if (res.ok) {
+        allCameras = await res.json();
+      }
+    } catch {}
+
+    if (!mountedRef.current) return;
+
+    // Populate camera grid with all registered cameras
+    setCameras(prev => {
+      const next = new Map(prev);
+      for (const cam of allCameras) {
+        if (!next.has(cam.camera_id)) {
+          next.set(cam.camera_id, { camera_id: cam.camera_id, status: cam.is_online ? 'connecting' : 'offline' });
+        }
+      }
+      return next;
+    });
+
+    // Connect to viewer signaling WS
+    const viewerWs = new WebSocket(getAuthWsUrl('/ws/viewer-signal'));
+    wsRef.current = viewerWs;
+
+    viewerWs.onopen = () => {
+      setIsConnected(true);
+      // Subscribe only to online cameras for WebRTC
+      for (const cam of allCameras) {
+        if (cam.is_online) {
+          subscribeCamera(viewerWs, cam.camera_id);
+        }
+      }
+    };
+
+    viewerWs.onmessage = async (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+
+        if (msg.type === 'subscribed') {
+          setupPeerConnection(viewerWs, msg.camera_id);
+        }
+
+        if (msg.type === 'answer') {
+          const pc = pcsRef.current.get(msg.camera_id);
+          if (pc && pc.signalingState !== 'closed') {
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+          }
+        }
+
+        if (msg.type === 'ice-candidate') {
+          const pc = pcsRef.current.get(msg.camera_id);
+          if (pc && pc.signalingState !== 'closed') {
+            await pc.addIceCandidate(new RTCIceCandidate(msg.data));
+          }
+        }
+
+        if (msg.type === 'camera-removed') {
+          const pc = pcsRef.current.get(msg.camera_id);
+          if (pc) { pc.close(); pcsRef.current.delete(msg.camera_id); }
+          setCameras(prev => { const next = new Map(prev); next.delete(msg.camera_id); return next; });
+          setFullscreen(f => f === msg.camera_id ? null : f);
+        }
+      } catch (e) {
+        console.error('Viewer signaling error:', e);
+      }
+    };
+
+    viewerWs.onclose = () => {
       setIsConnected(false);
       wsRef.current = null;
+      closeAllPCs();
+      setCameras(new Map());
       if (mountedRef.current) {
         setTimeout(connect, 3000);
       }
     };
 
-    ws.onerror = () => ws.close();
-  }, []);
+    viewerWs.onerror = () => viewerWs.close();
 
-  // FPS counter
-  useEffect(() => {
-    const prevCounts = new Map<string, number>();
-    fpsIntervalRef.current = window.setInterval(() => {
-      setCameras(prev => {
-        const next = new Map(prev);
-        for (const [id, cam] of next) {
-          const prevCount = prevCounts.get(id) || 0;
-          const fps = cam.frameCount - prevCount;
-          prevCounts.set(id, cam.frameCount);
-          next.set(id, { ...cam, fps });
+    // Also listen to dashboard WS for camera online/offline events
+    const dashWs = new WebSocket(getAuthWsUrl('/ws/dashboard'));
+    const dashWsRef = { current: dashWs };
+
+    dashWs.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.event === 'camera_online' && msg.data?.camera_id) {
+          const cameraId = msg.data.camera_id;
+          // Add camera to grid and try WebRTC
+          setCameras(prev => {
+            const next = new Map(prev);
+            next.set(cameraId, { camera_id: cameraId, status: 'connecting' });
+            return next;
+          });
+          if (viewerWs.readyState === WebSocket.OPEN) {
+            subscribeCamera(viewerWs, cameraId);
+          }
         }
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(fpsIntervalRef.current);
-  }, []);
+        if (msg.event === 'camera_offline' && msg.data?.camera_id) {
+          if (msg.data.removed) {
+            const pc = pcsRef.current.get(msg.data.camera_id);
+            if (pc) { pc.close(); pcsRef.current.delete(msg.data.camera_id); }
+            setCameras(prev => { const next = new Map(prev); next.delete(msg.data.camera_id); return next; });
+          } else {
+            const pc = pcsRef.current.get(msg.data.camera_id);
+            if (pc) { pc.close(); pcsRef.current.delete(msg.data.camera_id); }
+            setCameras(prev => {
+              const next = new Map(prev);
+              next.set(msg.data.camera_id, { camera_id: msg.data.camera_id, status: 'offline' });
+              return next;
+            });
+          }
+        }
+      } catch {}
+    };
+
+    dashWs.onerror = () => dashWs.close();
+
+    // Store dashboard WS for cleanup
+    (viewerWs as any)._dashWs = dashWsRef.current;
+  }, [setupPeerConnection, closeAllPCs, subscribeCamera]);
 
   useEffect(() => {
     mountedRef.current = true;
     connect();
     return () => {
       mountedRef.current = false;
-      if (wsRef.current) wsRef.current.close();
+      closeAllPCs();
+      if (wsRef.current) {
+        // Close dashboard WS too
+        const dashWs = (wsRef.current as any)?._dashWs;
+        if (dashWs) dashWs.close();
+        wsRef.current.close();
+      }
     };
-  }, [connect]);
+  }, [connect, closeAllPCs]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -104,6 +263,8 @@ function CameraGridPage() {
     setRemoving(cameraId);
     try {
       await authFetch(`/api/cameras/${encodeURIComponent(cameraId)}`, { method: 'DELETE' });
+      const pc = pcsRef.current.get(cameraId);
+      if (pc) { pc.close(); pcsRef.current.delete(cameraId); }
       setCameras(prev => {
         const next = new Map(prev);
         next.delete(cameraId);
@@ -116,8 +277,15 @@ function CameraGridPage() {
     setRemoving(null);
   };
 
+  const setVideoRef = useCallback((cameraId: string, el: HTMLVideoElement | null) => {
+    if (el) {
+      videoRefs.current.set(cameraId, el);
+    } else {
+      videoRefs.current.delete(cameraId);
+    }
+  }, []); // No deps — refs are stable
+
   const cameraList = Array.from(cameras.values());
-  const isStale = (lastUpdate: number) => Date.now() - lastUpdate > 5000;
 
   return (
     <div className="flex flex-col h-full w-full bg-slate-50/50 dark:bg-slate-900 overflow-y-auto pb-10">
@@ -146,70 +314,86 @@ function CameraGridPage() {
         </div>
       ) : (
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gridAutoRows: 'minmax(200px, auto)' }}>
-          {cameraList.map(cam => {
-            const stale = isStale(cam.lastUpdate);
-            return (
-              <div
-                key={cam.camera_id}
-                className={`relative bg-slate-900 rounded-xl overflow-hidden border-2 transition-all group ${
-                  stale ? 'border-amber-500/50' : 'border-slate-700 hover:border-blue-500/50'
-                }`}
-              >
-                <div className="cursor-pointer w-full h-full" onClick={() => setFullscreen(cam.camera_id)}>
-                  <img
-                    src={`data:image/jpeg;base64,${cam.frame}`}
-                    alt={cam.camera_id}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setFullscreen(cam.camera_id); }}
-                    className="w-8 h-8 rounded-lg bg-black/60 hover:bg-blue-600 flex items-center justify-center transition-colors backdrop-blur-sm"
-                    title="Fullscreen"
-                  >
-                    <span className="material-symbols-outlined text-white text-base">fullscreen</span>
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleRemove(cam.camera_id); }}
-                    disabled={removing === cam.camera_id}
-                    className="w-8 h-8 rounded-lg bg-black/60 hover:bg-red-600 flex items-center justify-center transition-colors backdrop-blur-sm disabled:opacity-50"
-                    title="Remove camera"
-                  >
-                    <span className="material-symbols-outlined text-white text-base">
-                      {removing === cam.camera_id ? 'hourglass_empty' : 'delete'}
-                    </span>
-                  </button>
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${stale ? 'bg-amber-500' : 'bg-green-500 animate-pulse'}`} />
-                      <span className="text-white text-sm font-bold capitalize">
-                        {cam.camera_id.replace(/-/g, ' ')}
-                      </span>
-                    </div>
-                    <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                      stale ? 'bg-amber-500/20 text-amber-400' : 'bg-green-500/20 text-green-400'
-                    }`}>
-                      {stale ? 'OFFLINE' : `${cam.fps} fps`}
-                    </span>
-                  </div>
-                </div>
-
-                {stale && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
-                    <div className="text-center">
-                      <span className="material-symbols-outlined text-amber-500 text-3xl">videocam_off</span>
-                      <p className="text-amber-400 text-xs mt-1 font-bold">Stream Lost</p>
-                    </div>
-                  </div>
-                )}
+          {cameraList.map(cam => (
+            <div
+              key={cam.camera_id}
+              className={`relative bg-slate-900 rounded-xl overflow-hidden border-2 transition-all group ${
+                cam.status === 'offline' ? 'border-amber-500/50' :
+                cam.status === 'live' ? 'border-slate-700 hover:border-blue-500/50' :
+                'border-slate-700 animate-pulse'
+              }`}
+            >
+              <div className="cursor-pointer w-full h-full" onClick={() => setFullscreen(cam.camera_id)}>
+                <video
+                  ref={(el) => setVideoRef(cam.camera_id, el)}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
               </div>
-            );
-          })}
+
+              <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setFullscreen(cam.camera_id); }}
+                  className="w-8 h-8 rounded-lg bg-black/60 hover:bg-blue-600 flex items-center justify-center transition-colors backdrop-blur-sm"
+                  title="Fullscreen"
+                >
+                  <span className="material-symbols-outlined text-white text-base">fullscreen</span>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleRemove(cam.camera_id); }}
+                  disabled={removing === cam.camera_id}
+                  className="w-8 h-8 rounded-lg bg-black/60 hover:bg-red-600 flex items-center justify-center transition-colors backdrop-blur-sm disabled:opacity-50"
+                  title="Remove camera"
+                >
+                  <span className="material-symbols-outlined text-white text-base">
+                    {removing === cam.camera_id ? 'hourglass_empty' : 'delete'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${
+                      cam.status === 'live' ? 'bg-green-500 animate-pulse' :
+                      cam.status === 'connecting' ? 'bg-blue-500 animate-pulse' :
+                      'bg-amber-500'
+                    }`} />
+                    <span className="text-white text-sm font-bold capitalize">
+                      {cam.camera_id.replace(/-/g, ' ')}
+                    </span>
+                  </div>
+                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
+                    cam.status === 'live' ? 'bg-green-500/20 text-green-400' :
+                    cam.status === 'connecting' ? 'bg-blue-500/20 text-blue-400' :
+                    'bg-amber-500/20 text-amber-400'
+                  }`}>
+                    {cam.status === 'live' ? 'LIVE' : cam.status === 'connecting' ? 'CONNECTING' : 'OFFLINE'}
+                  </span>
+                </div>
+              </div>
+
+              {cam.status === 'offline' && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <span className="material-symbols-outlined text-amber-500 text-3xl">videocam_off</span>
+                    <p className="text-amber-400 text-xs mt-1 font-bold">Stream Lost</p>
+                  </div>
+                </div>
+              )}
+
+              {cam.status === 'connecting' && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <div className="w-8 h-8 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-2" />
+                    <p className="text-blue-400 text-xs font-bold">Connecting...</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -218,15 +402,29 @@ function CameraGridPage() {
           className="fixed inset-0 z-50 bg-black flex items-center justify-center"
           onClick={() => setFullscreen(null)}
         >
-          <img
-            src={`data:image/jpeg;base64,${cameras.get(fullscreen)!.frame}`}
-            alt={fullscreen}
+          <video
+            ref={(el) => {
+              if (el) {
+                const pc = pcsRef.current.get(fullscreen);
+                if (pc) {
+                  const receivers = pc.getReceivers();
+                  const videoReceiver = receivers.find(r => r.track?.kind === 'video');
+                  if (videoReceiver?.track) {
+                    const stream = new MediaStream([videoReceiver.track]);
+                    if (el.srcObject !== stream) el.srcObject = stream;
+                  }
+                }
+              }
+            }}
+            autoPlay
+            playsInline
+            muted
             className="max-w-full max-h-full object-contain"
           />
           <div className="absolute top-4 left-4 flex items-center gap-3">
             <span className="text-white font-bold text-lg capitalize">{fullscreen.replace(/-/g, ' ')}</span>
             <span className="bg-green-500/20 text-green-400 text-xs font-mono px-2 py-1 rounded">
-              {cameras.get(fullscreen)!.fps} fps
+              WebRTC
             </span>
           </div>
           <div className="absolute top-4 right-4 flex items-center gap-2">
