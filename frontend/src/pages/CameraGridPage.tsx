@@ -41,8 +41,18 @@ function CameraGridPage() {
       return next;
     });
 
+    // Must send a stream with at least one video track — an empty MediaStream
+    // produces an SDP offer with no media sections, so the camera's video
+    // can't be negotiated. A 1x1 canvas at 0fps uses zero bandwidth.
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.fillRect(0, 0, 1, 1);
+    const dummyStream = canvas.captureStream(0);
+
     console.log(`[PeerJS Viewer] Calling ${peerId}`);
-    const call = peer.call(peerId, new MediaStream(), { metadata: { viewer: true } });
+    const call = peer.call(peerId, dummyStream, { metadata: { viewer: true } });
     callsRef.current.set(cameraId, call);
 
     call.on('stream', (remoteStream) => {
