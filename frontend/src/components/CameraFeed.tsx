@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
+import Peer from 'peerjs';
 import { API_BASE } from '../config';
 
 interface CameraFeedProps {
@@ -94,43 +95,64 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
 
             // Set up PeerJS for video streaming to dashboard viewers
             if (cameraId && videoStream) {
-              import('peerjs').then(({ Peer }) => {
-                const peer = new Peer(`gr-cam-${cameraId}`, {
-                  config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
-                });
-
-                peer.on('open', (id) => {
-                  console.log(`[PeerJS Camera] Registered as ${id}`);
-                });
-
-                peer.on('call', (call) => {
-                  console.log(`[PeerJS Camera] Answering call from ${call.peer}`);
-                  call.answer(videoStream);
-
-                  call.on('close', () => {
-                    console.log(`[PeerJS Camera] Call ended with ${call.peer}`);
-                  });
-                });
-
-                peer.on('disconnected', () => {
-                  console.log('[PeerJS Camera] Disconnected, reconnecting...');
-                  peer.reconnect();
-                });
-
-                peer.on('error', (err) => {
-                  console.error('[PeerJS Camera] Error:', err.type, err.message);
-                  if (err.type === 'unavailable-id') {
-                    // Old session still alive on PeerJS server — wait for it to expire
-                    setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 5000);
-                  } else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
-                    setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 3000);
-                  }
-                });
-
-                (videoRef.current as any)._rtcCleanup = () => {
-                  peer.destroy();
-                };
+              const peerId = `gr-cam-${cameraId}`;
+              console.log(`[PeerJS Camera] Creating peer ${peerId}...`);
+              const peer = new Peer(peerId, {
+                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
               });
+
+              peer.on('open', (id) => {
+                console.log(`[PeerJS Camera] Registered as ${id} on PeerJS Cloud`);
+              });
+
+              peer.on('call', (call) => {
+                console.log(`[PeerJS Camera] Answering call from ${call.peer}`);
+                call.answer(videoStream);
+
+                call.on('stream', () => {
+                  console.log(`[PeerJS Camera] Stream flowing to ${call.peer}`);
+                });
+
+                call.on('close', () => {
+                  console.log(`[PeerJS Camera] Call ended with ${call.peer}`);
+                });
+
+                call.on('error', (err) => {
+                  console.error(`[PeerJS Camera] Call error with ${call.peer}:`, err);
+                });
+              });
+
+              peer.on('disconnected', () => {
+                console.log('[PeerJS Camera] Disconnected, reconnecting...');
+                if (!peer.destroyed) peer.reconnect();
+              });
+
+              peer.on('error', (err) => {
+                console.error('[PeerJS Camera] Error:', err.type, err.message);
+                if (err.type === 'unavailable-id') {
+                  // Old session still alive — destroy and recreate with suffix
+                  console.log('[PeerJS Camera] ID taken, retrying with new ID...');
+                  peer.destroy();
+                  const retryPeer = new Peer(`${peerId}-${Date.now() % 10000}`, {
+                    config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
+                  });
+                  retryPeer.on('open', (id) => console.log(`[PeerJS Camera] Re-registered as ${id}`));
+                  retryPeer.on('call', (call) => {
+                    console.log(`[PeerJS Camera] Answering call from ${call.peer}`);
+                    call.answer(videoStream);
+                  });
+                  retryPeer.on('error', (e) => console.error('[PeerJS Camera] Retry error:', e.type));
+                  if (videoRef.current) {
+                    (videoRef.current as any)._rtcCleanup = () => retryPeer.destroy();
+                  }
+                } else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
+                  setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 3000);
+                }
+              });
+
+              (videoRef.current as any)._rtcCleanup = () => {
+                peer.destroy();
+              };
             }
           };
         }
