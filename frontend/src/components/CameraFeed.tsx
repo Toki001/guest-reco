@@ -97,15 +97,12 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             if (cameraId && videoStream) {
               let pc: RTCPeerConnection | null = null;
               let destroyed = false;
-              let keepaliveInterval: ReturnType<typeof setInterval>;
 
               const publishWHIP = async () => {
                 if (destroyed) return;
-                // Close previous PC if any
                 if (pc) { pc.close(); pc = null; }
-                clearInterval(keepaliveInterval);
 
-                // Check tracks are still alive (StrictMode may have stopped them)
+                // Check tracks alive
                 const liveTracks = videoStream.getTracks().filter(t => t.readyState === 'live');
                 if (liveTracks.length === 0) {
                   console.log('[Camera] No live tracks, skipping WHIP');
@@ -122,7 +119,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                   const offer = await pc.createOffer();
                   await pc.setLocalDescription(offer);
 
-                  // Wait for ICE gathering with 10s timeout
+                  // Wait for ICE gathering (10s max)
                   await Promise.race([
                     new Promise<void>(resolve => {
                       if (pc!.iceGatheringState === 'complete') return resolve();
@@ -146,33 +143,22 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                   await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
                   console.log(`[Camera] WHIP published: ${cameraId}`);
 
-                  // Monitor connection — only republish on true failure.
-                  // 'disconnected' is transient and often recovers on its own.
+                  // Only republish on ICE 'failed' — nothing else.
+                  // No keepalive, no 'disconnected' handling. Let ICE do its thing.
                   pc.oniceconnectionstatechange = () => {
                     const state = pc?.iceConnectionState;
                     console.log(`[Camera] ICE: ${state}`);
                     if (state === 'failed') {
-                      console.log('[Camera] ICE failed, republishing...');
-                      clearInterval(keepaliveInterval);
+                      console.log('[Camera] ICE failed, republishing in 5s...');
                       pc?.close();
-                      if (!destroyed) setTimeout(publishWHIP, 2000);
+                      if (!destroyed) setTimeout(publishWHIP, 5000);
                     }
                   };
-
-                  // Keepalive: check every 5s
-                  keepaliveInterval = setInterval(() => {
-                    if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
-                      console.log('[Camera] Keepalive: dead connection, republishing...');
-                      clearInterval(keepaliveInterval);
-                      pc?.close();
-                      if (!destroyed) publishWHIP();
-                    }
-                  }, 5000);
 
                 } catch (err) {
                   console.error('[Camera] WHIP failed:', (err as Error).message);
                   pc?.close();
-                  if (!destroyed) setTimeout(publishWHIP, 2000);
+                  if (!destroyed) setTimeout(publishWHIP, 3000);
                 }
               };
 
@@ -180,7 +166,6 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
 
               (videoRef.current as any)._rtcCleanup = () => {
                 destroyed = true;
-                clearInterval(keepaliveInterval);
                 pc?.close();
               };
             }
