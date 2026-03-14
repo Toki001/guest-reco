@@ -78,7 +78,8 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
       } catch (err) {
         console.log(`[Viewer] WHEP retry for ${cameraId}:`, (err as Error).message);
         pc?.close();
-        if (mountedRef.current) retryTimer = setTimeout(subscribe, 1500);
+        // Fast retry — camera might be in the middle of republishing
+        if (mountedRef.current) retryTimer = setTimeout(subscribe, 2000);
       }
     };
 

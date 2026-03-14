@@ -93,13 +93,17 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             requestRef.current = requestAnimationFrame(renderLoop);
 
             // Publish video to MediaMTX via WHIP (WebRTC HTTP Ingestion).
-            // Single HTTP POST with SDP — no WebSocket, no signaling server.
             if (cameraId && videoStream) {
               let pc: RTCPeerConnection | null = null;
               let destroyed = false;
+              let keepaliveInterval: ReturnType<typeof setInterval>;
 
               const publishWHIP = async () => {
                 if (destroyed) return;
+                // Close previous PC if any
+                if (pc) { pc.close(); pc = null; }
+                clearInterval(keepaliveInterval);
+
                 try {
                   pc = new RTCPeerConnection({
                     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -110,12 +114,16 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                   const offer = await pc.createOffer();
                   await pc.setLocalDescription(offer);
 
-                  // Wait for ICE gathering to complete
-                  await new Promise<void>(resolve => {
-                    if (pc!.iceGatheringState === 'complete') return resolve();
-                    const check = () => { if (pc!.iceGatheringState === 'complete') resolve(); };
-                    pc!.onicegatheringstatechange = check;
-                  });
+                  // Wait for ICE gathering (with 5s timeout)
+                  await Promise.race([
+                    new Promise<void>(resolve => {
+                      if (pc!.iceGatheringState === 'complete') return resolve();
+                      pc!.onicegatheringstatechange = () => {
+                        if (pc!.iceGatheringState === 'complete') resolve();
+                      };
+                    }),
+                    new Promise<void>((_, reject) => setTimeout(() => reject(new Error('ICE gather timeout')), 5000)),
+                  ]);
 
                   console.log(`[Camera] WHIP publishing: ${cameraId}`);
                   const res = await fetch(`/mtx/${encodeURIComponent(cameraId)}/whip`, {
@@ -130,17 +138,32 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                   await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
                   console.log(`[Camera] WHIP published: ${cameraId}`);
 
+                  // Monitor connection state — reconnect on any failure
                   pc.oniceconnectionstatechange = () => {
-                    if (pc?.iceConnectionState === 'failed' || pc?.iceConnectionState === 'disconnected') {
-                      console.log('[Camera] ICE lost, republishing...');
+                    const state = pc?.iceConnectionState;
+                    console.log(`[Camera] ICE state: ${state}`);
+                    if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+                      console.log('[Camera] Connection lost, republishing in 1s...');
+                      clearInterval(keepaliveInterval);
                       pc?.close();
-                      if (!destroyed) setTimeout(publishWHIP, 2000);
+                      if (!destroyed) setTimeout(publishWHIP, 1000);
                     }
                   };
+
+                  // Keepalive: check every 5s that the connection is still alive
+                  keepaliveInterval = setInterval(() => {
+                    if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
+                      console.log('[Camera] Keepalive detected dead connection, republishing...');
+                      clearInterval(keepaliveInterval);
+                      pc?.close();
+                      if (!destroyed) publishWHIP();
+                    }
+                  }, 5000);
+
                 } catch (err) {
-                  console.error('[Camera] WHIP failed:', err);
+                  console.error('[Camera] WHIP failed:', (err as Error).message);
                   pc?.close();
-                  if (!destroyed) setTimeout(publishWHIP, 3000);
+                  if (!destroyed) setTimeout(publishWHIP, 2000);
                 }
               };
 
@@ -148,6 +171,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
 
               (videoRef.current as any)._rtcCleanup = () => {
                 destroyed = true;
+                clearInterval(keepaliveInterval);
                 pc?.close();
               };
             }
