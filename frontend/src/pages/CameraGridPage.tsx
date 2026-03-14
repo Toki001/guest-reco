@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MediaMTXWebRTCReader } from 'mediamtx-webrtc-react';
+import { useMediaMTXWebRTC } from 'mediamtx-webrtc-react';
 import { getAuthWsUrl, authFetch } from '../auth';
 
 interface CameraDisplay {
@@ -7,50 +7,42 @@ interface CameraDisplay {
   status: 'connecting' | 'live' | 'offline';
 }
 
-// Use MediaMTXWebRTCReader class directly — no React component wrapper,
-// no render loops, no prop-change re-connections. Just a class instance
-// managed in useEffect with proper cleanup.
+// Use the official useMediaMTXWebRTC hook — it handles video element binding,
+// connection lifecycle, retry, and cleanup automatically.
 function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: () => void; className?: string }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const onLiveRef = useRef(onLive);
   onLiveRef.current = onLive;
 
+  // WHEP URL through Vite proxy (handles HTTPS→HTTP, /whep path matching)
+  const whepUrl = `${location.origin}/${encodeURIComponent(cameraId)}/whep`;
+
+  const { videoRef, isConnected, connectionState, error } = useMediaMTXWebRTC({
+    url: whepUrl,
+    onError: (err) => console.log(`[Viewer] ${cameraId}: ${err}`),
+  });
+
+  // Notify parent when connected
   useEffect(() => {
-    const whepUrl = `${location.origin}/${encodeURIComponent(cameraId)}/whep`;
-    let reader: MediaMTXWebRTCReader | null = null;
-
-    try {
-      reader = new MediaMTXWebRTCReader({
-        url: whepUrl,
-        onTrack: (evt: RTCTrackEvent) => {
-          if (videoRef.current && evt.streams[0]) {
-            videoRef.current.srcObject = evt.streams[0];
-            videoRef.current.play().catch(() => {});
-            onLiveRef.current();
-          }
-        },
-        onError: (err: string) => {
-          console.log(`[Viewer] ${cameraId}: ${err}`);
-        },
-      });
-    } catch (e) {
-      console.error(`[Viewer] Failed to create reader for ${cameraId}:`, e);
+    if (isConnected) {
+      onLiveRef.current();
     }
-
-    return () => {
-      if (reader) reader.close();
-    };
-  }, [cameraId]);
+  }, [isConnected]);
 
   return (
-    <video
-      ref={videoRef}
-      autoPlay
-      playsInline
-      muted
-      className={className}
-      style={{ minHeight: '180px', background: '#000' }}
-    />
+    <div className={className} style={{ minHeight: '180px', background: '#000', position: 'relative' }}>
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+      {error && !isConnected && (
+        <div style={{ position: 'absolute', bottom: 4, left: 4, color: '#666', fontSize: '10px' }}>
+          {connectionState}
+        </div>
+      )}
+    </div>
   );
 }
 
