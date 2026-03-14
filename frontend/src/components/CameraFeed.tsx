@@ -143,15 +143,30 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                   await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
                   console.log(`[Camera] WHIP published: ${cameraId}`);
 
-                  // Only republish on ICE 'failed' — nothing else.
-                  // No keepalive, no 'disconnected' handling. Let ICE do its thing.
+                  // Handle ICE state changes with grace period for 'disconnected'
+                  let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
                   pc.oniceconnectionstatechange = () => {
                     const state = pc?.iceConnectionState;
                     console.log(`[Camera] ICE: ${state}`);
-                    if (state === 'failed') {
-                      console.log('[Camera] ICE failed, republishing in 5s...');
+                    if (state === 'connected' || state === 'completed') {
+                      // Connection recovered — clear any pending disconnect timer
+                      if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
+                    } else if (state === 'disconnected') {
+                      // Give 10s grace period to recover before republishing
+                      if (!disconnectTimer) {
+                        disconnectTimer = setTimeout(() => {
+                          if (pc?.iceConnectionState === 'disconnected' || pc?.iceConnectionState === 'failed') {
+                            console.log('[Camera] ICE stuck disconnected, republishing...');
+                            pc?.close();
+                            if (!destroyed) publishWHIP();
+                          }
+                        }, 10000);
+                      }
+                    } else if (state === 'failed') {
+                      if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
+                      console.log('[Camera] ICE failed, republishing...');
                       pc?.close();
-                      if (!destroyed) setTimeout(publishWHIP, 5000);
+                      if (!destroyed) setTimeout(publishWHIP, 3000);
                     }
                   };
 

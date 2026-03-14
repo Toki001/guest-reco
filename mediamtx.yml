@@ -1,5 +1,9 @@
 logLevel: info
 
+# Enable API for diagnostics
+api: yes
+apiAddress: :9997
+
 # Only enable WebRTC (WHIP/WHEP)
 rtsp: no
 rtmp: no
