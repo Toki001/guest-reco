@@ -105,23 +105,33 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                 if (pc) { pc.close(); pc = null; }
                 clearInterval(keepaliveInterval);
 
+                // Check tracks are still alive (StrictMode may have stopped them)
+                const liveTracks = videoStream.getTracks().filter(t => t.readyState === 'live');
+                if (liveTracks.length === 0) {
+                  console.log('[Camera] No live tracks, skipping WHIP');
+                  return;
+                }
+
                 try {
                   pc = new RTCPeerConnection({
                     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
                   });
 
-                  videoStream.getTracks().forEach(track => pc!.addTrack(track, videoStream));
+                  liveTracks.forEach(track => pc!.addTrack(track, videoStream));
 
                   const offer = await pc.createOffer();
                   await pc.setLocalDescription(offer);
 
-                  // Wait for ICE gathering (no timeout — STUN can be slow on some networks)
-                  await new Promise<void>(resolve => {
-                    if (pc!.iceGatheringState === 'complete') return resolve();
-                    pc!.onicegatheringstatechange = () => {
-                      if (pc!.iceGatheringState === 'complete') resolve();
-                    };
-                  });
+                  // Wait for ICE gathering with 10s timeout
+                  await Promise.race([
+                    new Promise<void>(resolve => {
+                      if (pc!.iceGatheringState === 'complete') return resolve();
+                      pc!.onicegatheringstatechange = () => {
+                        if (pc!.iceGatheringState === 'complete') resolve();
+                      };
+                    }),
+                    new Promise<void>(resolve => setTimeout(resolve, 10000)),
+                  ]);
 
                   console.log(`[Camera] WHIP publishing: ${cameraId}`);
                   const res = await fetch(`/mtx/${encodeURIComponent(cameraId)}/whip`, {
@@ -136,22 +146,21 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                   await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
                   console.log(`[Camera] WHIP published: ${cameraId}`);
 
-                  // Monitor connection state — reconnect on any failure
+                  // Monitor connection — reconnect on failure
                   pc.oniceconnectionstatechange = () => {
                     const state = pc?.iceConnectionState;
-                    console.log(`[Camera] ICE state: ${state}`);
                     if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                      console.log('[Camera] Connection lost, republishing in 1s...');
+                      console.log(`[Camera] ICE ${state}, republishing in 1s...`);
                       clearInterval(keepaliveInterval);
                       pc?.close();
                       if (!destroyed) setTimeout(publishWHIP, 1000);
                     }
                   };
 
-                  // Keepalive: check every 5s that the connection is still alive
+                  // Keepalive: check every 5s
                   keepaliveInterval = setInterval(() => {
                     if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
-                      console.log('[Camera] Keepalive detected dead connection, republishing...');
+                      console.log('[Camera] Keepalive: dead connection, republishing...');
                       clearInterval(keepaliveInterval);
                       pc?.close();
                       if (!destroyed) publishWHIP();
