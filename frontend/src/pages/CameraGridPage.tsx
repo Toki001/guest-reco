@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useMediaMTXWebRTC } from 'mediamtx-webrtc-react';
+import { MediaMTXWebRTCReader } from 'mediamtx-webrtc-react';
 import { getAuthWsUrl, authFetch } from '../auth';
 
 interface CameraDisplay {
@@ -7,43 +7,50 @@ interface CameraDisplay {
   status: 'connecting' | 'live' | 'offline';
 }
 
-// Use the official useMediaMTXWebRTC hook — it handles video element binding,
-// connection lifecycle, retry, and cleanup automatically.
+// Minimal WHEP viewer — uses MediaMTXWebRTCReader with direct DOM manipulation.
+// No React state updates in callbacks, no hook re-renders.
 function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: () => void; className?: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const onLiveRef = useRef(onLive);
   onLiveRef.current = onLive;
 
-  // WHEP URL through Vite proxy (handles HTTPS→HTTP, /whep path matching)
-  const whepUrl = `${location.origin}/${encodeURIComponent(cameraId)}/whep`;
-
-  const { videoRef, isConnected, connectionState, error } = useMediaMTXWebRTC({
-    url: whepUrl,
-    onError: (err) => console.log(`[Viewer] ${cameraId}: ${err}`),
-  });
-
-  // Notify parent when connected
   useEffect(() => {
-    if (isConnected) {
-      onLiveRef.current();
-    }
-  }, [isConnected]);
+    if (!containerRef.current) return;
 
-  return (
-    <div className={className} style={{ minHeight: '180px', background: '#000', position: 'relative' }}>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      />
-      {error && !isConnected && (
-        <div style={{ position: 'absolute', bottom: 4, left: 4, color: '#666', fontSize: '10px' }}>
-          {connectionState}
-        </div>
-      )}
-    </div>
-  );
+    // Create video element directly in DOM — no React involvement
+    const video = document.createElement('video');
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+    video.style.cssText = 'width:100%;height:100%;object-fit:cover;background:#000';
+    containerRef.current.appendChild(video);
+
+    const whepUrl = `${location.origin}/${encodeURIComponent(cameraId)}/whep`;
+    console.log(`[Viewer] Creating reader for ${cameraId}: ${whepUrl}`);
+
+    const reader = new MediaMTXWebRTCReader({
+      url: whepUrl,
+      onTrack: (evt: RTCTrackEvent) => {
+        console.log(`[Viewer] ${cameraId}: got track ${evt.track.kind}, streams: ${evt.streams.length}`);
+        if (evt.streams[0]) {
+          video.srcObject = evt.streams[0];
+          video.play().catch(e => console.log(`[Viewer] ${cameraId}: play error:`, e));
+          onLiveRef.current();
+        }
+      },
+      onError: (err: string) => {
+        console.log(`[Viewer] ${cameraId}: ${err}`);
+      },
+    });
+
+    return () => {
+      reader.close();
+      video.srcObject = null;
+      video.remove();
+    };
+  }, [cameraId]);
+
+  return <div ref={containerRef} className={className} style={{ minHeight: '180px', background: '#000' }} />;
 }
 
 function CameraGridPage() {
