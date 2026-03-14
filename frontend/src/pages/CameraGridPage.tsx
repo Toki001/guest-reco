@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { WebRTCVideo } from 'mediamtx-webrtc-react';
 import { getAuthWsUrl, authFetch } from '../auth';
 
 interface CameraDisplay {
@@ -6,28 +7,28 @@ interface CameraDisplay {
   status: 'connecting' | 'live' | 'offline';
 }
 
-// Use MediaMTX's built-in player via iframe — proven to work, handles
-// all WebRTC/WHEP negotiation internally. No custom RTCPeerConnection needed.
+// Use mediamtx-webrtc-react library — handles WHEP negotiation, codec
+// detection, ICE trickle, and auto-reconnect internally.
 function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: () => void; className?: string }) {
   const onLiveRef = useRef(onLive);
   onLiveRef.current = onLive;
 
-  // MediaMTX serves a built-in WebRTC player at /{streamName}
-  // We proxy it through /mtx/ to avoid CORS issues
-  const playerUrl = `/mtx/${encodeURIComponent(cameraId)}`;
-
-  useEffect(() => {
-    // Mark as live after a short delay — if the iframe loads, the stream exists
-    const timer = setTimeout(() => onLiveRef.current(), 3000);
-    return () => clearTimeout(timer);
-  }, [cameraId]);
+  const whepUrl = `${location.origin}/mtx/${encodeURIComponent(cameraId)}/whep`;
 
   return (
-    <iframe
-      src={playerUrl}
+    <WebRTCVideo
+      url={whepUrl}
+      autoPlay
+      muted
+      playsInline
       className={className}
-      style={{ minHeight: '180px', border: 'none', background: '#000' }}
-      allow="autoplay"
+      style={{ minHeight: '180px', background: '#000' }}
+      onConnectionStateChange={(state) => {
+        if (state === 'running') onLiveRef.current();
+      }}
+      onError={(err) => {
+        console.log(`[Viewer] ${cameraId}: ${err}`);
+      }}
     />
   );
 }
