@@ -78,7 +78,7 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
       } catch (err) {
         console.log(`[Viewer] WHEP retry for ${cameraId}:`, (err as Error).message);
         pc?.close();
-        if (mountedRef.current) retryTimer = setTimeout(subscribe, 3000);
+        if (mountedRef.current) retryTimer = setTimeout(subscribe, 1500);
       }
     };
 
@@ -219,21 +219,19 @@ function CameraGridPage() {
                 'border-slate-700 animate-pulse'
               }`}>
               <div className="cursor-pointer w-full h-full" onClick={() => setFullscreen(cam.camera_id)}>
-                {cam.status !== 'offline' ? (
-                  <WHEPVideo
-                    cameraId={cam.camera_id}
-                    className="w-full h-full object-cover"
-                    onLive={() => {
-                      setCameras(prev => {
-                        const next = new Map(prev);
-                        next.set(cam.camera_id, { camera_id: cam.camera_id, status: 'live' });
-                        return next;
-                      });
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full" />
-                )}
+                {/* Always render WHEPVideo — it retries until the stream is available.
+                    Unmounting kills the retry loop and the viewer never reconnects. */}
+                <WHEPVideo
+                  cameraId={cam.camera_id}
+                  className="w-full h-full object-cover"
+                  onLive={() => {
+                    setCameras(prev => {
+                      const next = new Map(prev);
+                      next.set(cam.camera_id, { camera_id: cam.camera_id, status: 'live' });
+                      return next;
+                    });
+                  }}
+                />
               </div>
 
               <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
