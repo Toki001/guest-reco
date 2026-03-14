@@ -44,13 +44,9 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
-        // Wait for ICE gathering
-        await new Promise<void>(resolve => {
-          if (pc!.iceGatheringState === 'complete') return resolve();
-          pc!.onicegatheringstatechange = () => {
-            if (pc!.iceGatheringState === 'complete') resolve();
-          };
-        });
+        // Don't wait for ICE gathering — viewer is receive-only,
+        // MediaMTX provides its ICE candidates in the answer SDP.
+        // Sending immediately makes retries instant instead of 30s+.
 
         console.log(`[Viewer] WHEP POST /mtx/${cameraId}/whep`);
         const res = await fetch(`/mtx/${encodeURIComponent(cameraId)}/whep`, {
