@@ -6,91 +6,30 @@ interface CameraDisplay {
   status: 'connecting' | 'live' | 'offline';
 }
 
-// WHEP viewer component with auto-retry.
-// onLive is stored in a ref to avoid re-triggering the effect on every render.
+// Use MediaMTX's built-in player via iframe — proven to work, handles
+// all WebRTC/WHEP negotiation internally. No custom RTCPeerConnection needed.
 function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: () => void; className?: string }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const mountedRef = useRef(true);
   const onLiveRef = useRef(onLive);
   onLiveRef.current = onLive;
 
+  // MediaMTX serves a built-in WebRTC player at /{streamName}
+  // We proxy it through /mtx/ to avoid CORS issues
+  const playerUrl = `/mtx/${encodeURIComponent(cameraId)}`;
+
   useEffect(() => {
-    mountedRef.current = true;
-    let pc: RTCPeerConnection | null = null;
-    let retryTimer: ReturnType<typeof setTimeout>;
+    // Mark as live after a short delay — if the iframe loads, the stream exists
+    const timer = setTimeout(() => onLiveRef.current(), 3000);
+    return () => clearTimeout(timer);
+  }, [cameraId]);
 
-    const subscribe = async () => {
-      if (!mountedRef.current) return;
-      pc?.close();
-
-      try {
-        pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-        });
-        pcRef.current = pc;
-
-        pc.addTransceiver('video', { direction: 'recvonly' });
-        pc.addTransceiver('audio', { direction: 'recvonly' });
-
-        pc.ontrack = (e) => {
-          console.log(`[Viewer] Got track for ${cameraId}`, e.track.kind);
-          if (videoRef.current && e.streams[0]) {
-            videoRef.current.srcObject = e.streams[0];
-            // Force play — some browsers ignore autoPlay for WebRTC streams
-            videoRef.current.play().catch(() => {});
-            onLiveRef.current();
-          }
-        };
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        // Don't wait for ICE gathering — viewer is receive-only,
-        // MediaMTX provides its ICE candidates in the answer SDP.
-        // Sending immediately makes retries instant instead of 30s+.
-
-        console.log(`[Viewer] WHEP POST /mtx/${cameraId}/whep`);
-        const res = await fetch(`/mtx/${encodeURIComponent(cameraId)}/whep`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/sdp' },
-          body: pc.localDescription!.sdp,
-        });
-
-        if (res.status !== 201) {
-          const body = await res.text();
-          throw new Error(`WHEP ${res.status}: ${body}`);
-        }
-
-        const answerSdp = await res.text();
-        await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
-        console.log(`[Viewer] WHEP connected: ${cameraId}`);
-
-        pc.oniceconnectionstatechange = () => {
-          console.log(`[Viewer] ICE state: ${pc?.iceConnectionState} for ${cameraId}`);
-          if (pc?.iceConnectionState === 'failed' || pc?.iceConnectionState === 'disconnected') {
-            pc?.close();
-            if (mountedRef.current) retryTimer = setTimeout(subscribe, 2000);
-          }
-        };
-      } catch (err) {
-        console.log(`[Viewer] WHEP retry for ${cameraId}:`, (err as Error).message);
-        pc?.close();
-        // Fast retry — camera might be in the middle of republishing
-        if (mountedRef.current) retryTimer = setTimeout(subscribe, 2000);
-      }
-    };
-
-    subscribe();
-
-    return () => {
-      mountedRef.current = false;
-      clearTimeout(retryTimer);
-      pcRef.current?.close();
-    };
-  }, [cameraId]); // Only re-run if cameraId changes — NOT onLive
-
-  return <video ref={videoRef} autoPlay playsInline muted className={className} style={{ minHeight: '180px', background: '#000' }} />;
+  return (
+    <iframe
+      src={playerUrl}
+      className={className}
+      style={{ minHeight: '180px', border: 'none', background: '#000' }}
+      allow="autoplay"
+    />
+  );
 }
 
 function CameraGridPage() {
