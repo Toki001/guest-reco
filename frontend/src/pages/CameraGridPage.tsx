@@ -34,9 +34,11 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
         pc.addTransceiver('audio', { direction: 'recvonly' });
 
         pc.ontrack = (e) => {
-          console.log(`[Viewer] Got track for ${cameraId}`);
+          console.log(`[Viewer] Got track for ${cameraId}`, e.track.kind);
           if (videoRef.current && e.streams[0]) {
             videoRef.current.srcObject = e.streams[0];
+            // Force play — some browsers ignore autoPlay for WebRTC streams
+            videoRef.current.play().catch(() => {});
             onLiveRef.current();
           }
         };
@@ -88,7 +90,7 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
     };
   }, [cameraId]); // Only re-run if cameraId changes — NOT onLive
 
-  return <video ref={videoRef} autoPlay playsInline muted className={className} />;
+  return <video ref={videoRef} autoPlay playsInline muted className={className} style={{ minHeight: '180px', background: '#000' }} />;
 }
 
 function CameraGridPage() {
