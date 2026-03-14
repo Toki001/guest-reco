@@ -115,16 +115,13 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                   const offer = await pc.createOffer();
                   await pc.setLocalDescription(offer);
 
-                  // Wait for ICE gathering (with 5s timeout)
-                  await Promise.race([
-                    new Promise<void>(resolve => {
-                      if (pc!.iceGatheringState === 'complete') return resolve();
-                      pc!.onicegatheringstatechange = () => {
-                        if (pc!.iceGatheringState === 'complete') resolve();
-                      };
-                    }),
-                    new Promise<void>((_, reject) => setTimeout(() => reject(new Error('ICE gather timeout')), 5000)),
-                  ]);
+                  // Wait for ICE gathering (no timeout — STUN can be slow on some networks)
+                  await new Promise<void>(resolve => {
+                    if (pc!.iceGatheringState === 'complete') return resolve();
+                    pc!.onicegatheringstatechange = () => {
+                      if (pc!.iceGatheringState === 'complete') resolve();
+                    };
+                  });
 
                   console.log(`[Camera] WHIP publishing: ${cameraId}`);
                   const res = await fetch(`/mtx/${encodeURIComponent(cameraId)}/whip`, {
