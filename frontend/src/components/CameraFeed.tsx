@@ -82,7 +82,8 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
 
         if (videoRef.current) {
           videoRef.current.srcObject = videoStream;
-          videoRef.current.onloadedmetadata = () => {
+
+          const onVideoReady = () => {
             if (isScanningRef.current) {
               videoRef.current?.play();
             }
@@ -176,6 +177,14 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
               };
             }
           };
+
+          // On first mount: wait for metadata. On StrictMode remount: video
+          // is already loaded, so fire immediately.
+          if (videoRef.current.readyState >= 1) {
+            onVideoReady();
+          } else {
+            videoRef.current.onloadedmetadata = onVideoReady;
+          }
         }
       } catch (err) {
         console.error("Camera/MediaPipe Initialization Error:", err);
