@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { WebRTCVideo } from 'mediamtx-webrtc-react';
+import { MediaMTXWebRTCReader } from 'mediamtx-webrtc-react';
 import { getAuthWsUrl, authFetch } from '../auth';
 
 interface CameraDisplay {
@@ -7,28 +7,49 @@ interface CameraDisplay {
   status: 'connecting' | 'live' | 'offline';
 }
 
-// Use mediamtx-webrtc-react library — handles WHEP negotiation, codec
-// detection, ICE trickle, and auto-reconnect internally.
+// Use MediaMTXWebRTCReader class directly — no React component wrapper,
+// no render loops, no prop-change re-connections. Just a class instance
+// managed in useEffect with proper cleanup.
 function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: () => void; className?: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
   const onLiveRef = useRef(onLive);
   onLiveRef.current = onLive;
 
-  const whepUrl = `${location.origin}/mtx/${encodeURIComponent(cameraId)}/whep`;
+  useEffect(() => {
+    const whepUrl = `${location.origin}/mtx/${encodeURIComponent(cameraId)}/whep`;
+    let reader: MediaMTXWebRTCReader | null = null;
+
+    try {
+      reader = new MediaMTXWebRTCReader({
+        url: whepUrl,
+        onTrack: (evt: RTCTrackEvent) => {
+          if (videoRef.current && evt.streams[0]) {
+            videoRef.current.srcObject = evt.streams[0];
+            videoRef.current.play().catch(() => {});
+            onLiveRef.current();
+          }
+        },
+        onError: (err: string) => {
+          console.log(`[Viewer] ${cameraId}: ${err}`);
+        },
+      });
+    } catch (e) {
+      console.error(`[Viewer] Failed to create reader for ${cameraId}:`, e);
+    }
+
+    return () => {
+      if (reader) reader.close();
+    };
+  }, [cameraId]);
 
   return (
-    <WebRTCVideo
-      url={whepUrl}
+    <video
+      ref={videoRef}
       autoPlay
-      muted
       playsInline
+      muted
       className={className}
       style={{ minHeight: '180px', background: '#000' }}
-      onConnectionStateChange={(state) => {
-        if (state === 'running') onLiveRef.current();
-      }}
-      onError={(err) => {
-        console.log(`[Viewer] ${cameraId}: ${err}`);
-      }}
     />
   );
 }
