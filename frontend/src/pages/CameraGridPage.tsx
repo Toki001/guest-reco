@@ -22,6 +22,9 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
     video.style.cssText = 'width:100%;height:100%;object-fit:cover;background:#000';
     containerRef.current.appendChild(video);
 
+    // Mark as live when video actually starts playing visible frames
+    video.onplaying = () => onLiveRef.current();
+
     const whepUrl = `${location.origin}/${encodeURIComponent(cameraId)}/whep`;
     console.log(`[Viewer] Creating reader for ${cameraId}: ${whepUrl}`);
 
