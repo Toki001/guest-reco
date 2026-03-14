@@ -146,14 +146,16 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                   await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
                   console.log(`[Camera] WHIP published: ${cameraId}`);
 
-                  // Monitor connection — reconnect on failure
+                  // Monitor connection — only republish on true failure.
+                  // 'disconnected' is transient and often recovers on its own.
                   pc.oniceconnectionstatechange = () => {
                     const state = pc?.iceConnectionState;
-                    if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                      console.log(`[Camera] ICE ${state}, republishing in 1s...`);
+                    console.log(`[Camera] ICE: ${state}`);
+                    if (state === 'failed') {
+                      console.log('[Camera] ICE failed, republishing...');
                       clearInterval(keepaliveInterval);
                       pc?.close();
-                      if (!destroyed) setTimeout(publishWHIP, 1000);
+                      if (!destroyed) setTimeout(publishWHIP, 2000);
                     }
                   };
 

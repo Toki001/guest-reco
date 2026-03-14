@@ -179,23 +179,19 @@ function CameraGridPage() {
                 'border-slate-700 animate-pulse'
               }`}>
               <div className="cursor-pointer w-full h-full" onClick={() => setFullscreen(cam.camera_id)}>
-                {/* Only render WebRTCVideo for non-offline cameras to avoid
-                    creating PeerConnections for cameras with no stream */}
-                {cam.status !== 'offline' ? (
-                  <WHEPVideo
-                    cameraId={cam.camera_id}
-                    className="w-full h-full object-cover"
-                    onLive={() => {
-                      setCameras(prev => {
-                        const next = new Map(prev);
-                        next.set(cam.camera_id, { camera_id: cam.camera_id, status: 'live' });
-                        return next;
-                      });
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full" style={{ minHeight: '180px', background: '#000' }} />
-                )}
+                {/* Always render — MediaMTXWebRTCReader manages its own retry
+                    with exponential backoff. Won't exhaust PeerConnections. */}
+                <WHEPVideo
+                  cameraId={cam.camera_id}
+                  className="w-full h-full object-cover"
+                  onLive={() => {
+                    setCameras(prev => {
+                      const next = new Map(prev);
+                      next.set(cam.camera_id, { camera_id: cam.camera_id, status: 'live' });
+                      return next;
+                    });
+                  }}
+                />
               </div>
 
               <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
