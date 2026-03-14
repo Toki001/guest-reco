@@ -6,11 +6,14 @@ interface CameraDisplay {
   status: 'connecting' | 'live' | 'offline';
 }
 
-// WHEP viewer component with auto-retry
+// WHEP viewer component with auto-retry.
+// onLive is stored in a ref to avoid re-triggering the effect on every render.
 function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: () => void; className?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const mountedRef = useRef(true);
+  const onLiveRef = useRef(onLive);
+  onLiveRef.current = onLive;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -19,6 +22,8 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
 
     const subscribe = async () => {
       if (!mountedRef.current) return;
+      pc?.close();
+
       try {
         pc = new RTCPeerConnection({
           iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -29,9 +34,10 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
         pc.addTransceiver('audio', { direction: 'recvonly' });
 
         pc.ontrack = (e) => {
+          console.log(`[Viewer] Got track for ${cameraId}`);
           if (videoRef.current && e.streams[0]) {
             videoRef.current.srcObject = e.streams[0];
-            onLive();
+            onLiveRef.current();
           }
         };
 
@@ -46,26 +52,31 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
           };
         });
 
+        console.log(`[Viewer] WHEP POST /mtx/${cameraId}/whep`);
         const res = await fetch(`/mtx/${encodeURIComponent(cameraId)}/whep`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/sdp' },
           body: pc.localDescription!.sdp,
         });
 
-        if (res.status !== 201) throw new Error(`WHEP ${res.status}`);
+        if (res.status !== 201) {
+          const body = await res.text();
+          throw new Error(`WHEP ${res.status}: ${body}`);
+        }
 
         const answerSdp = await res.text();
         await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
         console.log(`[Viewer] WHEP connected: ${cameraId}`);
 
         pc.oniceconnectionstatechange = () => {
+          console.log(`[Viewer] ICE state: ${pc?.iceConnectionState} for ${cameraId}`);
           if (pc?.iceConnectionState === 'failed' || pc?.iceConnectionState === 'disconnected') {
             pc?.close();
             if (mountedRef.current) retryTimer = setTimeout(subscribe, 2000);
           }
         };
-      } catch {
-        // Stream not available yet — retry
+      } catch (err) {
+        console.log(`[Viewer] WHEP retry for ${cameraId}:`, (err as Error).message);
         pc?.close();
         if (mountedRef.current) retryTimer = setTimeout(subscribe, 3000);
       }
@@ -78,7 +89,7 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
       clearTimeout(retryTimer);
       pcRef.current?.close();
     };
-  }, [cameraId, onLive]);
+  }, [cameraId]); // Only re-run if cameraId changes — NOT onLive
 
   return <video ref={videoRef} autoPlay playsInline muted className={className} />;
 }
