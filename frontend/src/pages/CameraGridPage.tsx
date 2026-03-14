@@ -16,7 +16,7 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
   onLiveRef.current = onLive;
 
   useEffect(() => {
-    const whepUrl = `${location.origin}/mtx/${encodeURIComponent(cameraId)}/whep`;
+    const whepUrl = `${location.origin}/${encodeURIComponent(cameraId)}/whep`;
     let reader: MediaMTXWebRTCReader | null = null;
 
     try {

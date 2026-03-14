@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "0.10.32",
+    "@types/http-proxy": "^1.17.17",
+    "http-proxy": "^1.18.1",
     "mediamtx-webrtc-react": "^0.1.0",
     "peer": "^1.0.2",
     "peerjs": "^1.5.5",

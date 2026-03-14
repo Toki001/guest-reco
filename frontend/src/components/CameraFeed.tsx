@@ -134,7 +134,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                   ]);
 
                   console.log(`[Camera] WHIP publishing: ${cameraId}`);
-                  const res = await fetch(`/mtx/${encodeURIComponent(cameraId)}/whip`, {
+                  const res = await fetch(`/${encodeURIComponent(cameraId)}/whip`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/sdp' },
                     body: pc.localDescription!.sdp,

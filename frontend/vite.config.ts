@@ -3,6 +3,14 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
+import httpProxy from 'http-proxy';
+
+// Create a proxy instance for MediaMTX
+const mtxProxy = httpProxy.createProxyServer({
+  target: 'http://localhost:8889',
+  changeOrigin: true,
+});
+mtxProxy.on('error', () => {}); // suppress errors
 
 export default defineConfig({
   server: {
@@ -10,13 +18,6 @@ export default defineConfig({
     host: '0.0.0.0',
     https: {},
     proxy: {
-      // MediaMTX WHIP/WHEP — plain HTTP POST, no WebSocket needed
-      '/mtx': {
-        target: 'http://localhost:8889',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/mtx/, ''),
-        configure: (proxy) => { proxy.on('error', () => {}); },
-      },
       '/api': {
         target: 'http://localhost:5001',
         changeOrigin: true,
@@ -52,6 +53,22 @@ export default defineConfig({
     tailwindcss(),
     react(),
     basicSsl(),
+    {
+      name: 'mediamtx-proxy',
+      configureServer(server) {
+        // Intercept ALL requests containing /whep or /whip and proxy to MediaMTX.
+        // This catches both initial WHEP/WHIP POSTs AND the trickle ICE PATCH
+        // requests that MediaMTX's Location header points to (without /mtx/ prefix).
+        server.middlewares.use((req, res, next) => {
+          if (req.url && (req.url.includes('/whep') || req.url.includes('/whip'))) {
+            mtxProxy.web(req, res);
+          } else {
+            next();
+          }
+        });
+        console.log('[MediaMTX] WHIP/WHEP proxy active (catches /whep and /whip paths)');
+      },
+    },
   ],
   resolve: {
     alias: {
