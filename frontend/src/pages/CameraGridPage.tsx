@@ -16,10 +16,7 @@ function WHEPVideo({ cameraId, onLive, className }: { cameraId: string; onLive: 
   onLiveRef.current = onLive;
 
   useEffect(() => {
-    // Connect directly to MediaMTX — NOT through Vite proxy.
-    // The proxy causes issues with WHEP's trickle ICE PATCH requests
-    // (Location header doesn't include proxy prefix).
-    const whepUrl = `http://${location.hostname}:8889/${encodeURIComponent(cameraId)}/whep`;
+    const whepUrl = `${location.origin}/${encodeURIComponent(cameraId)}/whep`;
     let reader: MediaMTXWebRTCReader | null = null;
 
     try {

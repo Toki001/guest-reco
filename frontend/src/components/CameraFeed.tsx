@@ -130,9 +130,8 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                     new Promise<void>(resolve => setTimeout(resolve, 10000)),
                   ]);
 
-                  // Connect directly to MediaMTX — NOT through Vite proxy
-                  const whipUrl = `http://${location.hostname}:8889/${encodeURIComponent(cameraId)}/whip`;
-                  console.log(`[Camera] WHIP publishing: ${cameraId} → ${whipUrl}`);
+                  const whipUrl = `/${encodeURIComponent(cameraId)}/whip`;
+                  console.log(`[Camera] WHIP publishing: ${cameraId}`);
                   const res = await fetch(whipUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/sdp' },
