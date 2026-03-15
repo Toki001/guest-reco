@@ -59,6 +59,7 @@ function CameraGridPage() {
   const [fullscreen, setFullscreen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const deletedRef = useRef<Set<string>>(new Set());
 
   const connect = useCallback(async () => {
     if (!mountedRef.current) return;
@@ -88,6 +89,7 @@ function CameraGridPage() {
       try {
         const msg = JSON.parse(event.data);
         if (msg.event === 'camera_online' && msg.data?.camera_id) {
+          if (deletedRef.current.has(msg.data.camera_id)) return; // don't re-add deleted cameras
           setCameras(prev => {
             const next = new Map(prev);
             next.set(msg.data.camera_id, { camera_id: msg.data.camera_id, status: 'connecting' });
@@ -135,6 +137,7 @@ function CameraGridPage() {
     setRemoving(cameraId);
     try {
       await authFetch(`/api/cameras/${encodeURIComponent(cameraId)}`, { method: 'DELETE' });
+      deletedRef.current.add(cameraId);
       setCameras(prev => { const next = new Map(prev); next.delete(cameraId); return next; });
       if (fullscreen === cameraId) setFullscreen(null);
     } catch (e) {
@@ -185,6 +188,8 @@ function CameraGridPage() {
                   className="w-full h-full object-cover"
                   onLive={() => {
                     setCameras(prev => {
+                      const existing = prev.get(cam.camera_id);
+                      if (!existing || existing.status === 'live') return prev; // no-op if already live or deleted
                       const next = new Map(prev);
                       next.set(cam.camera_id, { camera_id: cam.camera_id, status: 'live' });
                       return next;
