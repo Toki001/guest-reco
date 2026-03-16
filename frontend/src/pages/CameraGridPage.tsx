@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MediaMTXWebRTCReader } from 'mediamtx-webrtc-react';
 import { getAuthWsUrl, authFetch } from '../auth';
+import CameraDetailPanel from '../components/CameraDetailPanel';
 
 interface CameraDisplay {
   camera_id: string;
@@ -58,6 +59,7 @@ function CameraGridPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [fullscreen, setFullscreen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [detailCamera, setDetailCamera] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const deletedRef = useRef<Set<string>>(new Set());
 
@@ -199,6 +201,10 @@ function CameraGridPage() {
               </div>
 
               <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <button onClick={(e) => { e.stopPropagation(); setDetailCamera(cam.camera_id); }}
+                  className="w-8 h-8 rounded-lg bg-black/60 hover:bg-purple-600 flex items-center justify-center transition-colors backdrop-blur-sm" title="View Faces">
+                  <span className="material-symbols-outlined text-white text-base">group</span>
+                </button>
                 <button onClick={(e) => { e.stopPropagation(); setFullscreen(cam.camera_id); }}
                   className="w-8 h-8 rounded-lg bg-black/60 hover:bg-blue-600 flex items-center justify-center transition-colors backdrop-blur-sm" title="Fullscreen">
                   <span className="material-symbols-outlined text-white text-base">fullscreen</span>
@@ -271,6 +277,11 @@ function CameraGridPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Camera Detail Panel — shows faces and activity for selected camera */}
+      {detailCamera && (
+        <CameraDetailPanel cameraId={detailCamera} onClose={() => setDetailCamera(null)} />
       )}
     </div>
   );

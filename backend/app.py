@@ -19,7 +19,8 @@ from database import (
     get_offline_cameras, delete_camera,
     delete_user, update_user, update_user_face, get_user_detail,
     get_users_with_last_seen, get_active_users, get_attendance_logs,
-    get_user_attendance, user_exists, get_visitors_aggregated, get_today_stats
+    get_user_attendance, user_exists, get_visitors_aggregated, get_today_stats,
+    get_faces_by_camera, get_camera_stats, get_camera_activity
 )
 from face_engine import index_face, search_face
 from auth import (
@@ -466,6 +467,22 @@ async def remove_camera(camera_id: str, user=Depends(require_admin)):
     })
     await manager.broadcast({"event": "stats_update", "data": await asyncio.to_thread(get_stats)})
     return {"status": "removed", "camera_id": camera_id}
+
+# --- API: PER-CAMERA FACE DATA ---
+@app.get('/api/cameras/{camera_id}/faces')
+async def get_camera_faces(camera_id: str, limit: int = Query(50), user=Depends(require_admin)):
+    """Get unique faces seen by a specific camera."""
+    return await asyncio.to_thread(get_faces_by_camera, camera_id, limit)
+
+@app.get('/api/cameras/{camera_id}/stats')
+async def get_camera_statistics(camera_id: str, user=Depends(require_admin)):
+    """Get stats for a specific camera."""
+    return await asyncio.to_thread(get_camera_stats, camera_id)
+
+@app.get('/api/cameras/{camera_id}/activity')
+async def get_camera_activity_feed(camera_id: str, limit: int = Query(20), user=Depends(require_admin)):
+    """Get recent recognition events for a specific camera."""
+    return await asyncio.to_thread(get_camera_activity, camera_id, limit)
 
 # --- API: EMPLOYEE MANAGEMENT ---
 @app.get('/api/employees')
