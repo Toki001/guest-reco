@@ -18,7 +18,8 @@ function MainApp() {
   const toggleDesktopCollapse = () => setSidebarCollapsed(!isSidebarCollapsed);
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 h-screen w-full flex flex-col md:flex-row overflow-hidden relative">
+    <div className="bg-[#0a0b1a] text-slate-100 h-screen w-full flex overflow-hidden">
+      {/* Sidebar — always on the LEFT */}
       <Sidebar
         isOpen={isSidebarOpen}
         isCollapsed={isSidebarCollapsed}
@@ -26,19 +27,20 @@ function MainApp() {
         toggleCollapse={toggleDesktopCollapse}
       />
 
-      <main className="flex-1 flex flex-col h-full relative overflow-hidden">
-        <div className="px-4 pt-4 md:px-6 md:pt-6 shrink-0">
+      {/* Main content */}
+      <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+        <div className="px-5 pt-4 shrink-0">
           <Header toggleSidebar={toggleMobileSidebar} />
         </div>
 
-        <div className="flex-1 p-4 md:p-6 min-h-0 overflow-hidden">
+        <div className="flex-1 px-5 pb-5 min-h-0 overflow-hidden">
           <Routes>
             <Route path="dashboard" element={<DashboardTab />} />
             <Route path="cameras" element={<CameraGridPage />} />
             <Route path="employees" element={<EmployeesPage />} />
-            <Route path="employees/:id" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>}><EmployeeProfilePage /></Suspense>} />
-            <Route path="visitors" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>}><VisitorsPage /></Suspense>} />
-            <Route path="attendance" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>}><AttendancePage /></Suspense>} />
+            <Route path="employees/:id" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" /></div>}><EmployeeProfilePage /></Suspense>} />
+            <Route path="visitors" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" /></div>}><VisitorsPage /></Suspense>} />
+            <Route path="attendance" element={<Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" /></div>}><AttendancePage /></Suspense>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>
