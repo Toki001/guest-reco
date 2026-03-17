@@ -179,8 +179,8 @@ function CameraGridPage() {
             <div key={cam.camera_id}
               className={`relative bg-[#0f1023] rounded-xl overflow-hidden border transition-all group ${
                 cam.status === 'live' ? 'border-cyan-500/30 shadow-lg shadow-cyan-500/5' :
-                cam.status === 'offline' ? 'border-white/[0.06]' :
-                'border-white/[0.06]'
+                cam.status === 'offline' ? 'border-[var(--border-color)]' :
+                'border-[var(--border-color)]'
               }`}>
               <div className="cursor-pointer w-full h-full" onClick={() => setFullscreen(cam.camera_id)}>
                 {/* Always render — MediaMTXWebRTCReader manages its own retry
@@ -203,16 +203,16 @@ function CameraGridPage() {
               <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <button onClick={(e) => { e.stopPropagation(); setDetailCamera(cam.camera_id); }}
                   className="w-8 h-8 rounded-lg bg-black/60 hover:bg-purple-600 flex items-center justify-center transition-colors backdrop-blur-sm" title="View Faces">
-                  <span className="material-symbols-outlined text-white text-base">group</span>
+                  <span className="material-symbols-outlined text-[var(--text-primary)] text-base">group</span>
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); setFullscreen(cam.camera_id); }}
                   className="w-8 h-8 rounded-lg bg-black/60 hover:bg-blue-600 flex items-center justify-center transition-colors backdrop-blur-sm" title="Fullscreen">
-                  <span className="material-symbols-outlined text-white text-base">fullscreen</span>
+                  <span className="material-symbols-outlined text-[var(--text-primary)] text-base">fullscreen</span>
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); handleRemove(cam.camera_id); }}
                   disabled={removing === cam.camera_id}
                   className="w-8 h-8 rounded-lg bg-black/60 hover:bg-red-600 flex items-center justify-center transition-colors backdrop-blur-sm disabled:opacity-50" title="Remove camera">
-                  <span className="material-symbols-outlined text-white text-base">{removing === cam.camera_id ? 'hourglass_empty' : 'delete'}</span>
+                  <span className="material-symbols-outlined text-[var(--text-primary)] text-base">{removing === cam.camera_id ? 'hourglass_empty' : 'delete'}</span>
                 </button>
               </div>
 
@@ -224,11 +224,11 @@ function CameraGridPage() {
                       cam.status === 'live' ? 'bg-cyan-400 animate-pulse' :
                       cam.status === 'connecting' ? 'bg-blue-400 animate-pulse' : 'bg-slate-600'
                     }`} />
-                    <span className="text-white text-xs font-semibold capitalize">{cam.camera_id.replace(/-/g, ' ')}</span>
+                    <span className="text-[var(--text-primary)] text-xs font-semibold capitalize">{cam.camera_id.replace(/-/g, ' ')}</span>
                   </div>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded font-mono ${
                     cam.status === 'live' ? 'bg-cyan-500/20 text-cyan-400' :
-                    cam.status === 'connecting' ? 'bg-blue-500/20 text-blue-400' : 'bg-white/[0.06] text-slate-500'
+                    cam.status === 'connecting' ? 'bg-blue-500/20 text-blue-400' : 'bg-[var(--bg-surface-hover)] text-slate-500'
                   }`}>
                     {cam.status === 'live' ? 'LIVE' : cam.status === 'connecting' ? 'CONNECTING' : 'OFFLINE'}
                   </span>
@@ -265,17 +265,17 @@ function CameraGridPage() {
             onLive={() => {}}
           />
           <div className="absolute top-4 left-4 flex items-center gap-3">
-            <span className="text-white font-semibold text-sm capitalize">{fullscreen.replace(/-/g, ' ')}</span>
+            <span className="text-[var(--text-primary)] font-semibold text-sm capitalize">{fullscreen.replace(/-/g, ' ')}</span>
             <span className="bg-cyan-500/20 text-cyan-400 text-[10px] font-mono font-bold px-2 py-1 rounded">LIVE</span>
           </div>
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button className="w-10 h-10 rounded-full bg-red-600/80 hover:bg-red-500 flex items-center justify-center transition-colors"
               onClick={(e) => { e.stopPropagation(); handleRemove(fullscreen); }}>
-              <span className="material-symbols-outlined text-white">delete</span>
+              <span className="material-symbols-outlined text-[var(--text-primary)]">delete</span>
             </button>
             <button className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
               onClick={() => setFullscreen(null)}>
-              <span className="material-symbols-outlined text-white">close</span>
+              <span className="material-symbols-outlined text-[var(--text-primary)]">close</span>
             </button>
           </div>
         </div>

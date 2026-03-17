@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { clearToken } from '../auth';
+import { useTheme } from '../ThemeContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { theme, toggle: toggleTheme } = useTheme();
 
   const handleLogout = () => { clearToken(); navigate('/login', { replace: true }); };
 
@@ -105,6 +107,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {!isCollapsed && (
               <h2 className="px-3 text-[10px] font-semibold text-slate-600 tracking-widest uppercase mb-2">System</h2>
             )}
+            <button
+              onClick={toggleTheme}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group text-slate-500 hover:bg-white/[0.04] hover:text-slate-300 ${isCollapsed ? 'justify-center' : 'justify-start'}`}
+              title={isCollapsed ? (theme === 'dark' ? 'Light mode' : 'Dark mode') : ""}
+            >
+              <span className="material-symbols-outlined text-[20px] text-slate-500 group-hover:text-slate-300">
+                {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+              </span>
+              {!isCollapsed && <span className="text-[13px] font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
+            </button>
             <button
               onClick={() => console.log('Settings not built yet')}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group text-slate-500 hover:bg-white/[0.04] hover:text-slate-300 ${isCollapsed ? 'justify-center' : 'justify-start'}`}

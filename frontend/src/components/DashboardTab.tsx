@@ -189,7 +189,7 @@ const DashboardTab = () => {
         <button
           onClick={refreshData}
           disabled={refreshing}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] text-slate-400 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-40"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-surface)] text-slate-400 border border-[var(--border-color)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)] transition-all disabled:opacity-40"
         >
           <span className={`material-symbols-outlined text-sm ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
           Refresh
@@ -204,7 +204,7 @@ const DashboardTab = () => {
           { label: 'Guests', value: stats.guest_alerts, icon: 'person_alert', color: 'amber' },
           { label: 'Cameras', value: stats.cameras_online, icon: 'videocam', color: 'violet', sub: `${cameras.filter(c => c.is_online).length} active` },
         ].map((card) => (
-          <div key={card.label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 group hover:bg-white/[0.05] transition-all">
+          <div key={card.label} className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl p-4 group hover:bg-[var(--bg-surface-hover)] transition-all">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{card.label}</span>
               <span className={`material-symbols-outlined text-base ${
@@ -213,7 +213,7 @@ const DashboardTab = () => {
                 card.color === 'amber' ? 'text-amber-500' : 'text-violet-500'
               }`}>{card.icon}</span>
             </div>
-            <div className="text-2xl font-bold text-white font-mono tracking-tight">{card.value.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-[var(--text-primary)] font-mono tracking-tight">{card.value.toLocaleString()}</div>
             {card.sub && <div className="text-[10px] text-emerald-500 font-medium mt-1">{card.sub}</div>}
           </div>
         ))}
@@ -238,17 +238,17 @@ const DashboardTab = () => {
       {/* ACTIVITY + CAMERAS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
         {/* Recent Activity */}
-        <div className="lg:col-span-2 bg-white/[0.03] border border-white/[0.06] rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white">Recent Activity</h3>
+        <div className="lg:col-span-2 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Recent Activity</h3>
             <span className="text-[10px] text-slate-600 font-mono">{allDetections.length} events</span>
           </div>
           {allDetections.length === 0 ? (
             <div className="p-8 text-center text-slate-600 text-sm">No activity yet</div>
           ) : (
-            <div className="divide-y divide-white/[0.04] max-h-[340px] overflow-y-auto">
+            <div className="divide-y divide-[var(--border-color)] max-h-[340px] overflow-y-auto">
               {allDetections.slice(0, 12).map((det, idx) => (
-                <div key={idx} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                <div key={idx} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--bg-surface)] transition-colors">
                   {det.image_url ? (
                     <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
                          alt={det.name}
@@ -261,7 +261,7 @@ const DashboardTab = () => {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{det.name}</p>
+                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">{det.name}</p>
                     <p className="text-[10px] text-slate-500">{det.camera_id || '—'} · {det.confidence}%</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -277,9 +277,9 @@ const DashboardTab = () => {
         </div>
 
         {/* Camera Stations */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl flex flex-col">
-          <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white">Cameras</h3>
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl flex flex-col">
+          <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Cameras</h3>
             <span className="text-[10px] text-slate-500">{cameras.length} registered</span>
           </div>
           {cameras.length === 0 ? (
@@ -292,13 +292,13 @@ const DashboardTab = () => {
                 <div key={cam.camera_id} className={`rounded-lg p-2.5 flex items-center gap-2 border transition-all ${
                   cam.is_online
                     ? 'bg-emerald-500/5 border-emerald-500/20'
-                    : 'bg-white/[0.02] border-white/[0.06]'
+                    : 'bg-[var(--bg-surface)] border-[var(--border-color)]'
                 }`}>
                   <span className={`material-symbols-outlined text-base ${cam.is_online ? 'text-emerald-400' : 'text-slate-600'}`}>
                     {cam.is_online ? 'videocam' : 'videocam_off'}
                   </span>
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-white truncate capitalize">{cam.department}</div>
+                    <div className="text-xs font-semibold text-[var(--text-primary)] truncate capitalize">{cam.department}</div>
                     <div className={`text-[9px] font-medium ${cam.is_online ? 'text-emerald-400' : 'text-slate-600'}`}>
                       {cam.is_online ? 'Online' : 'Offline'}
                     </div>
@@ -311,13 +311,13 @@ const DashboardTab = () => {
       </div>
 
       {/* DETECTIONS TABLE */}
-      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-white/[0.06]">
-          <h3 className="text-sm font-semibold text-white">Detection Log</h3>
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[var(--border-color)]">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Detection Log</h3>
         </div>
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-white/[0.02] text-slate-500 text-[10px] font-semibold uppercase tracking-wider">
+            <thead className="bg-[var(--bg-surface)] text-slate-500 text-[10px] font-semibold uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-3">Subject</th>
                 <th className="px-4 py-3">Type</th>
@@ -327,23 +327,23 @@ const DashboardTab = () => {
                 <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/[0.04]">
+            <tbody className="divide-y divide-[var(--border-color)]">
               {allDetections.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-600 text-xs">No detections yet</td></tr>
               ) : (
                 allDetections.slice(0, 20).map((det, idx) => (
-                  <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                  <tr key={idx} className="hover:bg-[var(--bg-surface)] transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         {det.image_url ? (
                           <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
                                alt={det.name} className="w-7 h-7 rounded-full object-cover border border-white/10 shrink-0" />
                         ) : (
-                          <div className="w-7 h-7 rounded-full bg-white/[0.06] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-[var(--bg-surface-hover)] flex items-center justify-center shrink-0">
                             <span className="material-symbols-outlined text-xs text-slate-500">person</span>
                           </div>
                         )}
-                        <span className="font-medium text-white text-xs">{det.name}</span>
+                        <span className="font-medium text-[var(--text-primary)] text-xs">{det.name}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -354,7 +354,7 @@ const DashboardTab = () => {
                     <td className="px-4 py-3 text-xs text-slate-500 capitalize">{det.camera_id || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 w-20">
-                        <div className="flex-1 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+                        <div className="flex-1 h-1 bg-[var(--bg-surface-hover)] rounded-full overflow-hidden">
                           <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${Math.min(det.confidence, 100)}%` }} />
                         </div>
                         <span className="text-[10px] font-mono text-slate-400">{det.confidence}%</span>

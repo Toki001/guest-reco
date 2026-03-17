@@ -150,12 +150,12 @@ function EmployeeProfilePage() {
       </button>
 
       {/* Profile Card */}
-      <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] p-6 mb-6">
+      <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] p-6 mb-6">
         <div className="flex items-start gap-6">
           {/* Avatar */}
           <div className="shrink-0">
             {getImageUrl(profile.image_url) ? (
-              <img src={getImageUrl(profile.image_url)!} alt={profile.name} className="w-24 h-24 rounded-2xl object-cover border-2 border-white/[0.1]" />
+              <img src={getImageUrl(profile.image_url)!} alt={profile.name} className="w-24 h-24 rounded-2xl object-cover border-2 border-[var(--border-color)]" />
             ) : (
               <div className="w-24 h-24 rounded-2xl bg-slate-700 flex items-center justify-center">
                 <span className="material-symbols-outlined text-slate-400 text-4xl">person</span>
@@ -166,7 +166,7 @@ function EmployeeProfilePage() {
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-1">
-              <h2 className="text-2xl font-bold text-white">{profile.name}</h2>
+              <h2 className="text-2xl font-bold text-[var(--text-primary)]">{profile.name}</h2>
               <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
                 profile.role === 'Guest' ? 'bg-amber-500/15 text-amber-400 '
                   : 'bg-cyan-500/15 text-cyan-400 '
@@ -218,18 +218,18 @@ function EmployeeProfilePage() {
       </div>
 
       {/* Attendance History */}
-      <h3 className="text-lg font-bold text-white mb-3">Attendance History</h3>
+      <h3 className="text-lg font-bold text-[var(--text-primary)] mb-3">Attendance History</h3>
       {attendance.length === 0 ? (
-        <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] p-8 text-center">
+        <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] p-8 text-center">
           <span className="material-symbols-outlined text-4xl text-slate-300 mb-2 block">event_busy</span>
           <p className="text-slate-400">No attendance records yet.</p>
         </div>
       ) : (
-        <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] overflow-hidden">
+        <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] overflow-hidden">
           <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
             <table className="w-full">
               <thead className="sticky top-0 bg-slate-50/80 backdrop-blur-sm">
-                <tr className="border-b border-white/[0.06]">
+                <tr className="border-b border-[var(--border-color)]">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Time In</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Time Out</th>
@@ -237,9 +237,9 @@ function EmployeeProfilePage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Duration</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.04]">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {attendance.map((session, i) => (
-                  <tr key={i} className="hover:bg-white/[0.03] transition-colors">
+                  <tr key={i} className="hover:bg-[var(--bg-surface)] transition-colors">
                     <td className="px-4 py-3 text-sm text-slate-300">{formatDate(session.time_in)}</td>
                     <td className="px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400 font-medium">{formatTime(session.time_in)}</td>
                     <td className="px-4 py-3 text-sm">

@@ -72,7 +72,7 @@ function VisitorsPage() {
     <div className="flex flex-col h-full w-full  overflow-y-auto pb-10">
       <div className="flex items-center justify-end mb-4">
         <button onClick={fetchVisitors}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] text-slate-400 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white transition-all">
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-surface)] text-slate-400 border border-[var(--border-color)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)] transition-all">
           <span className="material-symbols-outlined text-sm">refresh</span>
           Refresh
         </button>
@@ -81,10 +81,10 @@ function VisitorsPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="px-3 py-2 border border-white/[0.06] bg-white/[0.03] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
+          className="px-3 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
         <span className="text-slate-400 text-sm">to</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="px-3 py-2 border border-white/[0.06] bg-white/[0.03] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
+          className="px-3 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
       </div>
 
       {/* Table */}
@@ -100,11 +100,11 @@ function VisitorsPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] overflow-hidden">
+        <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Photo</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name/ID</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">First Seen</th>
@@ -113,12 +113,12 @@ function VisitorsPage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Last Camera</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.04]">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {visitors.map(visitor => (
-                  <tr key={visitor.id} className="hover:bg-white/[0.03] transition-colors">
+                  <tr key={visitor.id} className="hover:bg-[var(--bg-surface)] transition-colors">
                     <td className="px-4 py-3">
                       {getImageUrl(visitor.image_url) ? (
-                        <img src={getImageUrl(visitor.image_url)!} alt={visitor.name} className="w-10 h-10 rounded-full object-cover border border-white/[0.1]" />
+                        <img src={getImageUrl(visitor.image_url)!} alt={visitor.name} className="w-10 h-10 rounded-full object-cover border border-[var(--border-color)]" />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
                           <span className="material-symbols-outlined text-slate-400 text-sm">person</span>
@@ -127,7 +127,7 @@ function VisitorsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-white">{visitor.name}</span>
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{visitor.name}</span>
                         <span className="text-xs text-slate-400 font-mono">{visitor.id}</span>
                       </div>
                     </td>
@@ -146,16 +146,16 @@ function VisitorsPage() {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06]">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-color)]">
             <p className="text-sm text-slate-400">{total} total visitors</p>
             <div className="flex items-center gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-white/[0.05] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-[var(--bg-surface-hover)] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 Previous
               </button>
               <span className="text-sm text-slate-400">Page {page} of {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-                className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-white/[0.05] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-[var(--bg-surface-hover)] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 Next
               </button>
             </div>

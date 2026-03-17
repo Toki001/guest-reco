@@ -80,11 +80,11 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
         <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-700 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white">{departmentName}</h2>
+              <h2 className="text-lg font-bold text-[var(--text-primary)]">{departmentName}</h2>
               <p className="text-xs text-slate-400">Camera Department</p>
             </div>
             <button onClick={onClose} className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center">
-              <span className="material-symbols-outlined text-white text-sm">close</span>
+              <span className="material-symbols-outlined text-[var(--text-primary)] text-sm">close</span>
             </button>
           </div>
 
@@ -111,7 +111,7 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
             <button
               onClick={() => setTab('faces')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                tab === 'faces' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                tab === 'faces' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-[var(--text-primary)]'
               }`}
             >
               Faces ({faces.length})
@@ -119,7 +119,7 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
             <button
               onClick={() => setTab('activity')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                tab === 'activity' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                tab === 'activity' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-[var(--text-primary)]'
               }`}
             >
               Activity ({activity.length})
@@ -154,7 +154,7 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold text-white truncate">{face.name}</div>
+                      <div className="text-sm font-bold text-[var(--text-primary)] truncate">{face.name}</div>
                       <div className="text-xs text-slate-400">
                         {face.visit_count} visit{face.visit_count !== 1 ? 's' : ''} · Last: {timeAgo(face.last_seen)}
                       </div>
@@ -189,7 +189,7 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold text-white truncate">{item.name}</div>
+                      <div className="text-sm font-bold text-[var(--text-primary)] truncate">{item.name}</div>
                       <div className="text-xs text-slate-400">{timeAgo(item.timestamp)}</div>
                     </div>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${

@@ -130,7 +130,7 @@ function EmployeesPage() {
     <div className="flex flex-col h-full w-full  overflow-y-auto pb-10">
       <div className="flex items-center justify-end mb-4">
         <button onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium text-xs transition-colors">
+          className="flex items-center gap-2 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-[var(--text-primary)] rounded-lg font-medium text-xs transition-colors">
           <span className="material-symbols-outlined text-sm">person_add</span>
           Add Employee
         </button>
@@ -141,10 +141,10 @@ function EmployeesPage() {
         <div className="relative flex-1 max-w-sm">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
           <input type="text" placeholder="Search by name or ID..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-white/[0.06] bg-white/[0.03] rounded-xl text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+            className="w-full pl-10 pr-4 py-2.5 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-xl text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
         </div>
         <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
-          className="px-4 py-2.5 border border-white/[0.06] bg-white/[0.03] rounded-xl text-sm outline-none focus:border-blue-500 transition-all">
+          className="px-4 py-2.5 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-xl text-sm outline-none focus:border-blue-500 transition-all">
           <option value="All">All Roles</option>
           <option value="Employee">Employee</option>
           <option value="Guest">Guest</option>
@@ -164,11 +164,11 @@ function EmployeesPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] overflow-hidden">
+        <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Employee</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Role</th>
@@ -177,13 +177,13 @@ function EmployeesPage() {
                   <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.04]">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {filtered.map(emp => (
-                  <tr key={emp.id} className="hover:bg-white/[0.03] transition-colors">
+                  <tr key={emp.id} className="hover:bg-[var(--bg-surface)] transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         {getImageUrl(emp.image_url) ? (
-                          <img src={getImageUrl(emp.image_url)!} alt={emp.name} className="w-9 h-9 rounded-full object-cover border border-white/[0.1]" />
+                          <img src={getImageUrl(emp.image_url)!} alt={emp.name} className="w-9 h-9 rounded-full object-cover border border-[var(--border-color)]" />
                         ) : (
                           <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center">
                             <span className="material-symbols-outlined text-slate-400 text-sm">person</span>
@@ -191,9 +191,9 @@ function EmployeesPage() {
                         )}
                         {editingId === emp.id ? (
                           <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
-                            className="border border-blue-400 rounded-lg px-2 py-1 text-sm bg-white/[0.03] outline-none w-36" autoFocus />
+                            className="border border-blue-400 rounded-lg px-2 py-1 text-sm bg-[var(--bg-surface)] outline-none w-36" autoFocus />
                         ) : (
-                          <span className="text-sm font-medium text-white">{emp.name}</span>
+                          <span className="text-sm font-medium text-[var(--text-primary)]">{emp.name}</span>
                         )}
                       </div>
                     </td>
@@ -201,7 +201,7 @@ function EmployeesPage() {
                     <td className="px-4 py-3">
                       {editingId === emp.id ? (
                         <select value={editRole} onChange={e => setEditRole(e.target.value)}
-                          className="border border-blue-400 rounded-lg px-2 py-1 text-xs bg-white/[0.03] outline-none">
+                          className="border border-blue-400 rounded-lg px-2 py-1 text-xs bg-[var(--bg-surface)] outline-none">
                           <option value="Employee">Employee</option>
                           <option value="Guest">Guest</option>
                         </select>
@@ -233,7 +233,7 @@ function EmployeesPage() {
                             <button onClick={() => handleSaveEdit(emp.id)} className="p-1.5 hover:bg-emerald-100 rounded-lg transition-colors" title="Save">
                               <span className="material-symbols-outlined text-emerald-600 text-lg">check</span>
                             </button>
-                            <button onClick={() => setEditingId(null)} className="p-1.5 hover:bg-white/[0.05] rounded-lg transition-colors" title="Cancel">
+                            <button onClick={() => setEditingId(null)} className="p-1.5 hover:bg-[var(--bg-surface-hover)] rounded-lg transition-colors" title="Cancel">
                               <span className="material-symbols-outlined text-slate-400 text-lg">close</span>
                             </button>
                             <button onClick={() => handleReface(emp.id)} className="p-1.5 hover:bg-blue-100 rounded-lg transition-colors" title="Re-capture face">
@@ -242,10 +242,10 @@ function EmployeesPage() {
                           </>
                         ) : (
                           <>
-                            <button onClick={() => navigate(`/employees/${encodeURIComponent(emp.id)}`)} className="p-1.5 hover:bg-white/[0.05] rounded-lg transition-colors" title="View profile">
+                            <button onClick={() => navigate(`/employees/${encodeURIComponent(emp.id)}`)} className="p-1.5 hover:bg-[var(--bg-surface-hover)] rounded-lg transition-colors" title="View profile">
                               <span className="material-symbols-outlined text-slate-500 text-lg">visibility</span>
                             </button>
-                            <button onClick={() => handleEdit(emp)} className="p-1.5 hover:bg-white/[0.05] rounded-lg transition-colors" title="Edit">
+                            <button onClick={() => handleEdit(emp)} className="p-1.5 hover:bg-[var(--bg-surface-hover)] rounded-lg transition-colors" title="Edit">
                               <span className="material-symbols-outlined text-slate-500 text-lg">edit</span>
                             </button>
                             {emp.role === 'Guest' && (
