@@ -169,127 +169,106 @@ const DashboardTab = () => {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-50/50 dark:bg-slate-900 overflow-y-auto pb-10">
+    <div className="flex flex-col h-full w-full overflow-y-auto pb-10">
 
-      {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard Overview</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Real-time surveillance summary and facility status.</p>
-        </div>
-        <div className="flex items-center gap-3 mt-4 md:mt-0">
-          <button
-            onClick={refreshData}
-            disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-          >
-            <span className={`material-symbols-outlined text-sm ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
-            {refreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
-          <div className="flex items-center gap-3">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${isConnected ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-              {isConnected ? 'Live' : 'Disconnected'}
-            </div>
-            {lastUpdated && (
-              <span className="text-[10px] text-slate-400 font-medium">
-                Updated {formatTime(lastUpdated.toISOString())}
-              </span>
-            )}
+      {/* Top bar: status + refresh */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold ${
+            isConnected ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+            {isConnected ? 'System Online' : 'Disconnected'}
           </div>
+          {lastUpdated && (
+            <span className="text-[10px] text-slate-600 font-mono">
+              {formatTime(lastUpdated.toISOString())}
+            </span>
+          )}
         </div>
-      </div>
-
-      {/* Today Summary */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-full text-sm font-bold text-blue-600 dark:text-blue-400">
-          {todayStats.scans_today} scans today
-        </div>
-        <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-full text-sm font-bold text-emerald-600 dark:text-emerald-400">
-          {todayStats.unique_people_today} unique people
-        </div>
-        <div className="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 rounded-full text-sm font-bold text-purple-600 dark:text-purple-400">
-          {todayStats.currently_on_site} on site now
-        </div>
+        <button
+          onClick={refreshData}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] text-slate-400 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white transition-all disabled:opacity-40"
+        >
+          <span className={`material-symbols-outlined text-sm ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
+          Refresh
+        </button>
       </div>
 
       {/* 4 METRIC CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-          <div className="flex justify-between items-start mb-4">
-            <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Scans</h3>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center">
-              <span className="material-symbols-outlined text-sm">center_focus_strong</span>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        {[
+          { label: 'Total Scans', value: stats.total_scans, icon: 'center_focus_strong', color: 'cyan' },
+          { label: 'Employees', value: stats.employee_matches, icon: 'badge', color: 'emerald' },
+          { label: 'Guests', value: stats.guest_alerts, icon: 'person_alert', color: 'amber' },
+          { label: 'Cameras', value: stats.cameras_online, icon: 'videocam', color: 'violet', sub: `${cameras.filter(c => c.is_online).length} active` },
+        ].map((card) => (
+          <div key={card.label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 group hover:bg-white/[0.05] transition-all">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{card.label}</span>
+              <span className={`material-symbols-outlined text-base ${
+                card.color === 'cyan' ? 'text-cyan-500' :
+                card.color === 'emerald' ? 'text-emerald-500' :
+                card.color === 'amber' ? 'text-amber-500' : 'text-violet-500'
+              }`}>{card.icon}</span>
             </div>
+            <div className="text-2xl font-bold text-white font-mono tracking-tight">{card.value.toLocaleString()}</div>
+            {card.sub && <div className="text-[10px] text-emerald-500 font-medium mt-1">{card.sub}</div>}
           </div>
-          <div className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{stats.total_scans.toLocaleString()}</div>
-        </div>
+        ))}
+      </div>
 
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-          <div className="flex justify-between items-start mb-4">
-            <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Employee Matches</h3>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center">
-              <span className="material-symbols-outlined text-sm">badge</span>
-            </div>
-          </div>
-          <div className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{stats.employee_matches.toLocaleString()}</div>
+      {/* Quick stats pills */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-xs font-semibold text-cyan-400">
+          <span className="material-symbols-outlined text-xs">trending_up</span>
+          {todayStats.scans_today} today
         </div>
-
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-          <div className="flex justify-between items-start mb-4">
-            <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Guest Alerts</h3>
-            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center">
-              <span className="material-symbols-outlined text-sm">person_alert</span>
-            </div>
-          </div>
-          <div className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{stats.guest_alerts.toLocaleString()}</div>
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs font-semibold text-emerald-400">
+          <span className="material-symbols-outlined text-xs">people</span>
+          {todayStats.unique_people_today} unique
         </div>
-
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-          <div className="flex justify-between items-start mb-4">
-            <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Cameras Online</h3>
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-500 flex items-center justify-center">
-              <span className="material-symbols-outlined text-sm">videocam</span>
-            </div>
-          </div>
-          <div className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{stats.cameras_online}</div>
-          <div className="flex items-center text-xs">
-            <span className="text-emerald-500 font-bold flex items-center">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
-              {cameras.filter(c => c.is_online).length} active
-            </span>
-          </div>
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-lg text-xs font-semibold text-violet-400">
+          <span className="material-symbols-outlined text-xs">location_on</span>
+          {todayStats.currently_on_site} on site
         </div>
       </div>
 
-      {/* CAMERA STATUS + CHART ROW */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-          <h3 className="font-bold text-slate-900 dark:text-white mb-4">Recent Activity</h3>
+      {/* ACTIVITY + CAMERAS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+        {/* Recent Activity */}
+        <div className="lg:col-span-2 bg-white/[0.03] border border-white/[0.06] rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white">Recent Activity</h3>
+            <span className="text-[10px] text-slate-600 font-mono">{allDetections.length} events</span>
+          </div>
           {allDetections.length === 0 ? (
-            <p className="text-slate-500 text-sm">No activity recorded yet. Camera stations will appear here when they detect faces.</p>
+            <div className="p-8 text-center text-slate-600 text-sm">No activity yet</div>
           ) : (
-            <div className="space-y-3 max-h-[300px] overflow-y-auto">
-              {allDetections.slice(0, 10).map((det, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
+            <div className="divide-y divide-white/[0.04] max-h-[340px] overflow-y-auto">
+              {allDetections.slice(0, 12).map((det, idx) => (
+                <div key={idx} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
                   {det.image_url ? (
                     <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
                          alt={det.name}
-                         className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-600 shrink-0" />
+                         className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
                   ) : (
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${det.type === 'guest' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
-                      <span className="material-symbols-outlined text-lg">{det.type === 'guest' ? 'person_alert' : 'badge'}</span>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                      det.type === 'guest' ? 'bg-amber-500/20 text-amber-400' : 'bg-cyan-500/20 text-cyan-400'
+                    }`}>
+                      <span className="material-symbols-outlined text-sm">person</span>
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm text-slate-900 dark:text-white truncate">{det.name}</p>
-                    <p className="text-xs text-slate-500">{det.camera_id || 'Unknown camera'} &middot; {det.confidence}%</p>
+                    <p className="text-sm font-medium text-white truncate">{det.name}</p>
+                    <p className="text-[10px] text-slate-500">{det.camera_id || '—'} · {det.confidence}%</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-md ${det.type === 'guest' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
-                      {det.type === 'guest' ? 'Guest' : 'Employee'}
-                    </span>
-                    <p className="text-[10px] text-slate-400 mt-1">{det.timestamp ? formatTime(det.timestamp) : ''}</p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      det.status === 'in' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                    }`}>{det.status?.toUpperCase()}</span>
+                    <span className="text-[10px] text-slate-600 font-mono w-16 text-right">{det.timestamp ? formatTime(det.timestamp) : ''}</span>
                   </div>
                 </div>
               ))}
@@ -297,104 +276,95 @@ const DashboardTab = () => {
           )}
         </div>
 
-        {/* Camera Status Grid */}
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-bold text-slate-900 dark:text-white">Camera Stations</h3>
-            <div className={`flex items-center text-xs font-bold px-2 py-1 rounded-md ${isConnected ? 'text-emerald-500 bg-emerald-50' : 'text-red-500 bg-red-50'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
-              {isConnected ? 'Live' : 'Offline'}
-            </div>
+        {/* Camera Stations */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl flex flex-col">
+          <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white">Cameras</h3>
+            <span className="text-[10px] text-slate-500">{cameras.length} registered</span>
           </div>
-
           {cameras.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-slate-400 text-sm text-center">No cameras registered yet.<br />Open /camera/department-name on a device to connect.</p>
+            <div className="flex-1 flex items-center justify-center p-6">
+              <p className="text-slate-600 text-xs text-center">No cameras registered yet</p>
             </div>
           ) : (
-            <div className="flex-1 grid grid-cols-2 gap-2">
+            <div className="flex-1 p-3 grid grid-cols-2 gap-2 content-start">
               {cameras.map((cam) => (
-                <div key={cam.camera_id} className={`bg-slate-50 dark:bg-slate-900 rounded-lg p-3 flex flex-col items-center justify-center border ${cam.is_online ? 'border-emerald-200' : 'border-amber-200'}`}>
-                  <span className={`material-symbols-outlined text-lg mb-1 ${cam.is_online ? 'text-emerald-500' : 'text-amber-500'}`}>
+                <div key={cam.camera_id} className={`rounded-lg p-2.5 flex items-center gap-2 border transition-all ${
+                  cam.is_online
+                    ? 'bg-emerald-500/5 border-emerald-500/20'
+                    : 'bg-white/[0.02] border-white/[0.06]'
+                }`}>
+                  <span className={`material-symbols-outlined text-base ${cam.is_online ? 'text-emerald-400' : 'text-slate-600'}`}>
                     {cam.is_online ? 'videocam' : 'videocam_off'}
                   </span>
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 text-center truncate w-full">{cam.department}</span>
-                  <span className={`text-[10px] font-bold mt-0.5 ${cam.is_online ? 'text-emerald-500' : 'text-amber-500'}`}>
-                    {cam.is_online ? 'Online' : 'Offline'}
-                  </span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-white truncate capitalize">{cam.department}</div>
+                    <div className={`text-[9px] font-medium ${cam.is_online ? 'text-emerald-400' : 'text-slate-600'}`}>
+                      {cam.is_online ? 'Online' : 'Offline'}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           )}
-
-          <div className="flex justify-between items-center mt-4 text-xs font-medium">
-            <span className="text-slate-500">{cameras.length} Cameras</span>
-            <span className={cameras.some(c => !c.is_online) ? "text-amber-500 font-bold" : "text-emerald-500 font-bold"}>
-              {cameras.filter(c => !c.is_online).length > 0 ? `${cameras.filter(c => !c.is_online).length} Offline` : 'All Online'}
-            </span>
-          </div>
         </div>
       </div>
 
-      {/* RECENT DETECTIONS TABLE */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-          <h3 className="font-bold text-slate-900 dark:text-white">Recent Detections</h3>
+      {/* DETECTIONS TABLE */}
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-white/[0.06]">
+          <h3 className="text-sm font-semibold text-white">Detection Log</h3>
         </div>
-
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 text-xs font-bold uppercase tracking-wider">
+            <thead className="bg-white/[0.02] text-slate-500 text-[10px] font-semibold uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-4">Subject</th>
-                <th className="px-6 py-4">Type</th>
-                <th className="px-6 py-4">Camera / Department</th>
-                <th className="px-6 py-4">Confidence</th>
-                <th className="px-6 py-4">Timestamp</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="px-4 py-3">Subject</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Camera</th>
+                <th className="px-4 py-3">Confidence</th>
+                <th className="px-4 py-3">Time</th>
+                <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+            <tbody className="divide-y divide-white/[0.04]">
               {allDetections.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400">No detections yet</td>
-                </tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-600 text-xs">No detections yet</td></tr>
               ) : (
                 allDetections.slice(0, 20).map((det, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                    <td className="px-6 py-4 flex items-center gap-3">
-                      {det.image_url ? (
-                        <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
-                             alt={det.name}
-                             className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-600 shrink-0" />
-                      ) : (
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${det.type === 'guest' ? 'bg-amber-100' : 'bg-blue-100'}`}>
-                          <span className={`material-symbols-outlined text-sm ${det.type === 'guest' ? 'text-amber-600' : 'text-blue-600'}`}>person</span>
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-bold text-slate-900 dark:text-white">{det.name}</div>
+                  <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        {det.image_url ? (
+                          <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
+                               alt={det.name} className="w-7 h-7 rounded-full object-cover border border-white/10 shrink-0" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-white/[0.06] flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-xs text-slate-500">person</span>
+                          </div>
+                        )}
+                        <span className="font-medium text-white text-xs">{det.name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${det.type === 'guest' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>
-                        {det.type === 'guest' ? 'Guest' : 'Employee'}
-                      </span>
+                    <td className="px-4 py-3">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-cyan-500/15 text-cyan-400'
+                      }`}>{det.type === 'guest' ? 'Guest' : 'Employee'}</span>
                     </td>
-                    <td className="px-6 py-4 text-slate-500">{det.camera_id || 'N/A'}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1 w-24">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{det.confidence}%</span>
-                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(det.confidence, 100)}%` }}></div>
+                    <td className="px-4 py-3 text-xs text-slate-500 capitalize">{det.camera_id || '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 w-20">
+                        <div className="flex-1 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+                          <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${Math.min(det.confidence, 100)}%` }} />
                         </div>
+                        <span className="text-[10px] font-mono text-slate-400">{det.confidence}%</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-slate-500">{det.timestamp ? formatTime(det.timestamp) : 'N/A'}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-md text-xs font-bold ${det.status === 'in' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                        {det.status?.toUpperCase() || 'N/A'}
-                      </span>
+                    <td className="px-4 py-3 text-[10px] font-mono text-slate-500">{det.timestamp ? formatTime(det.timestamp) : '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        det.status === 'in' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                      }`}>{det.status?.toUpperCase() || '—'}</span>
                     </td>
                   </tr>
                 ))

@@ -151,36 +151,36 @@ function CameraGridPage() {
   const cameraList = Array.from(cameras.values());
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-50/50 dark:bg-slate-900 overflow-y-auto pb-10">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Camera Grid</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Live feeds from all connected camera stations.</p>
-        </div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
-          isConnected ? 'bg-green-50 text-green-600 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'
-        }`}>
-          <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-          {isConnected ? `Live \u2014 ${cameraList.filter(c => c.status === 'live').length} streaming` : 'Disconnected'}
+    <div className="flex flex-col h-full w-full overflow-y-auto pb-10">
+      {/* Top bar */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold ${
+            isConnected ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+            {isConnected ? `${cameraList.filter(c => c.status === 'live').length} streaming` : 'Disconnected'}
+          </div>
+          <span className="text-[10px] text-slate-600">{cameraList.length} cameras registered</span>
         </div>
       </div>
 
       {cameraList.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <span className="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-3 block">videocam_off</span>
-            <p className="text-slate-500 dark:text-slate-400">No camera streams active.</p>
-            <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Open /camera/department-name on a device to start streaming.</p>
+            <span className="material-symbols-outlined text-4xl text-slate-700 mb-3 block">videocam_off</span>
+            <p className="text-slate-500 text-sm">No camera streams active.</p>
+            <p className="text-slate-600 text-xs mt-1">Open /camera/department-name on a device to start streaming.</p>
           </div>
         </div>
       ) : (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gridAutoRows: 'minmax(200px, auto)' }}>
+        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gridAutoRows: 'minmax(220px, auto)' }}>
           {cameraList.map(cam => (
             <div key={cam.camera_id}
-              className={`relative bg-slate-900 rounded-xl overflow-hidden border-2 transition-all group ${
-                cam.status === 'offline' ? 'border-amber-500/50' :
-                cam.status === 'live' ? 'border-slate-700 hover:border-blue-500/50' :
-                'border-slate-700 animate-pulse'
+              className={`relative bg-[#0f1023] rounded-xl overflow-hidden border transition-all group ${
+                cam.status === 'live' ? 'border-cyan-500/30 shadow-lg shadow-cyan-500/5' :
+                cam.status === 'offline' ? 'border-white/[0.06]' :
+                'border-white/[0.06]'
               }`}>
               <div className="cursor-pointer w-full h-full" onClick={() => setFullscreen(cam.camera_id)}>
                 {/* Always render — MediaMTXWebRTCReader manages its own retry
@@ -216,37 +216,39 @@ function CameraGridPage() {
                 </button>
               </div>
 
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+              {/* Bottom bar */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 pt-8">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${
-                      cam.status === 'live' ? 'bg-green-500 animate-pulse' :
-                      cam.status === 'connecting' ? 'bg-blue-500 animate-pulse' : 'bg-amber-500'
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      cam.status === 'live' ? 'bg-cyan-400 animate-pulse' :
+                      cam.status === 'connecting' ? 'bg-blue-400 animate-pulse' : 'bg-slate-600'
                     }`} />
-                    <span className="text-white text-sm font-bold capitalize">{cam.camera_id.replace(/-/g, ' ')}</span>
+                    <span className="text-white text-xs font-semibold capitalize">{cam.camera_id.replace(/-/g, ' ')}</span>
                   </div>
-                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                    cam.status === 'live' ? 'bg-green-500/20 text-green-400' :
-                    cam.status === 'connecting' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded font-mono ${
+                    cam.status === 'live' ? 'bg-cyan-500/20 text-cyan-400' :
+                    cam.status === 'connecting' ? 'bg-blue-500/20 text-blue-400' : 'bg-white/[0.06] text-slate-500'
                   }`}>
                     {cam.status === 'live' ? 'LIVE' : cam.status === 'connecting' ? 'CONNECTING' : 'OFFLINE'}
                   </span>
                 </div>
               </div>
 
+              {/* Overlays */}
               {cam.status === 'offline' && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
                   <div className="text-center">
-                    <span className="material-symbols-outlined text-amber-500 text-3xl">videocam_off</span>
-                    <p className="text-amber-400 text-xs mt-1 font-bold">Offline</p>
+                    <span className="material-symbols-outlined text-slate-600 text-3xl">videocam_off</span>
+                    <p className="text-slate-500 text-[10px] mt-1 font-medium">No Signal</p>
                   </div>
                 </div>
               )}
               {cam.status === 'connecting' && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
                   <div className="text-center">
-                    <div className="w-8 h-8 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-2" />
-                    <p className="text-blue-400 text-xs font-bold">Connecting...</p>
+                    <div className="w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-2" />
+                    <p className="text-cyan-500/60 text-[10px] font-medium">Connecting</p>
                   </div>
                 </div>
               )}
@@ -263,8 +265,8 @@ function CameraGridPage() {
             onLive={() => {}}
           />
           <div className="absolute top-4 left-4 flex items-center gap-3">
-            <span className="text-white font-bold text-lg capitalize">{fullscreen.replace(/-/g, ' ')}</span>
-            <span className="bg-green-500/20 text-green-400 text-xs font-mono px-2 py-1 rounded">LIVE</span>
+            <span className="text-white font-semibold text-sm capitalize">{fullscreen.replace(/-/g, ' ')}</span>
+            <span className="bg-cyan-500/20 text-cyan-400 text-[10px] font-mono font-bold px-2 py-1 rounded">LIVE</span>
           </div>
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button className="w-10 h-10 rounded-full bg-red-600/80 hover:bg-red-500 flex items-center justify-center transition-colors"
