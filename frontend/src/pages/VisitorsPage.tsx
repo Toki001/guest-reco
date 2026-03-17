@@ -69,15 +69,11 @@ function VisitorsPage() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-50/50 dark:bg-slate-900 overflow-y-auto pb-10">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Visitors</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Read-only guest visit history and statistics.</p>
-        </div>
+    <div className="flex flex-col h-full w-full  overflow-y-auto pb-10">
+      <div className="flex items-center justify-end mb-4">
         <button onClick={fetchVisitors}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
-          <span className="material-symbols-outlined text-lg">refresh</span>
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] text-slate-400 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white transition-all">
+          <span className="material-symbols-outlined text-sm">refresh</span>
           Refresh
         </button>
       </div>
@@ -85,10 +81,10 @@ function VisitorsPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
+          className="px-3 py-2 border border-white/[0.06] bg-white/[0.03] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
         <span className="text-slate-400 text-sm">to</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
+          className="px-3 py-2 border border-white/[0.06] bg-white/[0.03] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
       </div>
 
       {/* Table */}
@@ -99,50 +95,50 @@ function VisitorsPage() {
       ) : visitors.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <span className="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-3 block">person_search</span>
-            <p className="text-slate-500 dark:text-slate-400">{dateFrom || dateTo ? 'No visitors found for selected date range.' : 'No visitors registered yet.'}</p>
+            <span className="material-symbols-outlined text-5xl text-slate-300 mb-3 block">person_search</span>
+            <p className="text-slate-400">{dateFrom || dateTo ? 'No visitors found for selected date range.' : 'No visitors registered yet.'}</p>
           </div>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+        <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Photo</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Name/ID</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">First Seen</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Last Seen</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Visits</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Last Camera</th>
+                <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Photo</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name/ID</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">First Seen</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Last Seen</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Visits</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Last Camera</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+              <tbody className="divide-y divide-white/[0.04]">
                 {visitors.map(visitor => (
-                  <tr key={visitor.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                  <tr key={visitor.id} className="hover:bg-white/[0.03] transition-colors">
                     <td className="px-4 py-3">
                       {getImageUrl(visitor.image_url) ? (
-                        <img src={getImageUrl(visitor.image_url)!} alt={visitor.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-600" />
+                        <img src={getImageUrl(visitor.image_url)!} alt={visitor.name} className="w-10 h-10 rounded-full object-cover border border-white/[0.1]" />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
                           <span className="material-symbols-outlined text-slate-400 text-sm">person</span>
                         </div>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-slate-900 dark:text-white">{visitor.name}</span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{visitor.id}</span>
+                        <span className="text-sm font-medium text-white">{visitor.name}</span>
+                        <span className="text-xs text-slate-400 font-mono">{visitor.id}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{formatDateTime(visitor.first_seen)}</td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{formatDateTime(visitor.last_seen)}</td>
+                    <td className="px-4 py-3 text-sm text-slate-400">{formatDateTime(visitor.first_seen)}</td>
+                    <td className="px-4 py-3 text-sm text-slate-400">{formatDateTime(visitor.last_seen)}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-500/15 text-cyan-400 ">
                         {visitor.total_visits}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 capitalize">{visitor.last_camera?.replace(/-/g, ' ') || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-400 capitalize">{visitor.last_camera?.replace(/-/g, ' ') || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -150,16 +146,16 @@ function VisitorsPage() {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-700">
-            <p className="text-sm text-slate-500 dark:text-slate-400">{total} total visitors</p>
+          <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06]">
+            <p className="text-sm text-slate-400">{total} total visitors</p>
             <div className="flex items-center gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                className="px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-white/[0.05] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 Previous
               </button>
-              <span className="text-sm text-slate-500 dark:text-slate-400">Page {page} of {totalPages}</span>
+              <span className="text-sm text-slate-400">Page {page} of {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-                className="px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-white/[0.05] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 Next
               </button>
             </div>

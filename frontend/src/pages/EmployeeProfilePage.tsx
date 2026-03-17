@@ -134,15 +134,15 @@ function EmployeeProfilePage() {
   if (!profile) {
     return (
       <div className="flex flex-col items-center justify-center h-full">
-        <span className="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-3">person_off</span>
-        <p className="text-slate-500 dark:text-slate-400 mb-4">Employee not found</p>
+        <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">person_off</span>
+        <p className="text-slate-400 mb-4">Employee not found</p>
         <button onClick={() => navigate('/employees')} className="text-blue-600 hover:text-blue-700 font-medium text-sm">Back to Employees</button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-50/50 dark:bg-slate-900 overflow-y-auto pb-10">
+    <div className="flex flex-col h-full w-full  overflow-y-auto pb-10">
       {/* Back button */}
       <button onClick={() => navigate('/employees')} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 mb-6 transition-colors w-fit">
         <span className="material-symbols-outlined text-lg">arrow_back</span>
@@ -150,14 +150,14 @@ function EmployeeProfilePage() {
       </button>
 
       {/* Profile Card */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm mb-6">
+      <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] p-6 mb-6">
         <div className="flex items-start gap-6">
           {/* Avatar */}
           <div className="shrink-0">
             {getImageUrl(profile.image_url) ? (
-              <img src={getImageUrl(profile.image_url)!} alt={profile.name} className="w-24 h-24 rounded-2xl object-cover border-2 border-slate-200 dark:border-slate-600" />
+              <img src={getImageUrl(profile.image_url)!} alt={profile.name} className="w-24 h-24 rounded-2xl object-cover border-2 border-white/[0.1]" />
             ) : (
-              <div className="w-24 h-24 rounded-2xl bg-slate-200 dark:bg-slate-600 flex items-center justify-center">
+              <div className="w-24 h-24 rounded-2xl bg-slate-700 flex items-center justify-center">
                 <span className="material-symbols-outlined text-slate-400 text-4xl">person</span>
               </div>
             )}
@@ -166,28 +166,28 @@ function EmployeeProfilePage() {
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-1">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{profile.name}</h2>
+              <h2 className="text-2xl font-bold text-white">{profile.name}</h2>
               <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                profile.role === 'Guest' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                profile.role === 'Guest' ? 'bg-amber-500/15 text-amber-400 '
+                  : 'bg-cyan-500/15 text-cyan-400 '
               }`}>{profile.role}</span>
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 font-mono mb-3">{profile.id}</p>
+            <p className="text-sm text-slate-400 font-mono mb-3">{profile.id}</p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
                 <p className="text-slate-400 dark:text-slate-500 text-xs font-semibold uppercase tracking-wider mb-0.5">First Seen</p>
-                <p className="text-slate-700 dark:text-slate-300">{formatDateTime(profile.first_seen)}</p>
+                <p className="text-slate-300">{formatDateTime(profile.first_seen)}</p>
               </div>
               <div>
                 <p className="text-slate-400 dark:text-slate-500 text-xs font-semibold uppercase tracking-wider mb-0.5">Last Seen</p>
-                <p className="text-slate-700 dark:text-slate-300">{formatDateTime(profile.last_seen)}</p>
+                <p className="text-slate-300">{formatDateTime(profile.last_seen)}</p>
               </div>
               <div>
                 <p className="text-slate-400 dark:text-slate-500 text-xs font-semibold uppercase tracking-wider mb-0.5">Current Status</p>
                 {profile.last_status ? (
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                    profile.last_status === 'in' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    profile.last_status === 'in' ? 'bg-emerald-100 text-emerald-700 dark:text-emerald-400'
                       : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${profile.last_status === 'in' ? 'bg-emerald-500' : 'bg-red-500'}`} />
@@ -197,7 +197,7 @@ function EmployeeProfilePage() {
               </div>
               <div>
                 <p className="text-slate-400 dark:text-slate-500 text-xs font-semibold uppercase tracking-wider mb-0.5">Last Camera</p>
-                <p className="text-slate-700 dark:text-slate-300 capitalize">{profile.last_camera?.replace(/-/g, ' ') || '—'}</p>
+                <p className="text-slate-300 capitalize">{profile.last_camera?.replace(/-/g, ' ') || '—'}</p>
               </div>
             </div>
           </div>
@@ -218,41 +218,41 @@ function EmployeeProfilePage() {
       </div>
 
       {/* Attendance History */}
-      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Attendance History</h3>
+      <h3 className="text-lg font-bold text-white mb-3">Attendance History</h3>
       {attendance.length === 0 ? (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center shadow-sm">
-          <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-2 block">event_busy</span>
-          <p className="text-slate-500 dark:text-slate-400">No attendance records yet.</p>
+        <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] p-8 text-center">
+          <span className="material-symbols-outlined text-4xl text-slate-300 mb-2 block">event_busy</span>
+          <p className="text-slate-400">No attendance records yet.</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+        <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] overflow-hidden">
           <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
             <table className="w-full">
-              <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/80 backdrop-blur-sm">
-                <tr className="border-b border-slate-200 dark:border-slate-700">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Time In</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Time Out</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Camera</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Duration</th>
+              <thead className="sticky top-0 bg-slate-50/80 backdrop-blur-sm">
+                <tr className="border-b border-white/[0.06]">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Time In</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Time Out</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Camera</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Duration</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+              <tbody className="divide-y divide-white/[0.04]">
                 {attendance.map((session, i) => (
-                  <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                    <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{formatDate(session.time_in)}</td>
+                  <tr key={i} className="hover:bg-white/[0.03] transition-colors">
+                    <td className="px-4 py-3 text-sm text-slate-300">{formatDate(session.time_in)}</td>
                     <td className="px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400 font-medium">{formatTime(session.time_in)}</td>
                     <td className="px-4 py-3 text-sm">
                       {session.time_out ? (
                         <span className="text-red-600 dark:text-red-400 font-medium">{formatTime(session.time_out)}</span>
                       ) : (
-                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Still In</span>
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:text-emerald-400">Still In</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 capitalize">
+                    <td className="px-4 py-3 text-sm text-slate-400 capitalize">
                       {session.camera_in?.replace(/-/g, ' ') || '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 font-mono">
+                    <td className="px-4 py-3 text-sm text-slate-300 font-mono">
                       {formatDuration(session.duration_seconds)}
                     </td>
                   </tr>

@@ -135,22 +135,18 @@ function AttendancePage() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-50/50 dark:bg-slate-900 overflow-y-auto pb-10">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Attendance</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Real-time attendance tracking and event history.</p>
-        </div>
+    <div className="flex flex-col h-full w-full  overflow-y-auto pb-10">
+      <div className="flex items-center justify-end mb-4">
         <button onClick={() => { fetchActive(); fetchEvents(); }}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
-          <span className="material-symbols-outlined text-lg">refresh</span>
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] text-slate-400 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white transition-all">
+          <span className="material-symbols-outlined text-sm">refresh</span>
           Refresh
         </button>
       </div>
 
       {/* Who's In Right Now */}
       <div className="mb-6">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+        <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
           <span className="material-symbols-outlined text-emerald-500">groups</span>
           Who's In Right Now
           <span className="text-sm font-normal text-slate-400">({activeUsers.length})</span>
@@ -161,27 +157,27 @@ function AttendancePage() {
             <div className="w-6 h-6 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
           </div>
         ) : activeUsers.length === 0 ? (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center shadow-sm">
-            <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-2 block">person_off</span>
-            <p className="text-slate-500 dark:text-slate-400">No one currently on site</p>
+          <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] p-8 text-center">
+            <span className="material-symbols-outlined text-4xl text-slate-300 mb-2 block">person_off</span>
+            <p className="text-slate-400">No one currently on site</p>
           </div>
         ) : (
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
             {activeUsers.map(user => (
-              <div key={user.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex items-center gap-3">
+              <div key={user.id} className="bg-white/[0.03] rounded-xl border border-white/[0.06] p-4 flex items-center gap-3">
                 {getImageUrl(user.image_url) ? (
-                  <img src={getImageUrl(user.image_url)!} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-600 shrink-0" />
+                  <img src={getImageUrl(user.image_url)!} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-white/[0.06] shrink-0" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
                     <span className="material-symbols-outlined text-slate-400 text-sm">person</span>
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{user.name}</p>
-                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-sm font-medium text-white truncate">{user.name}</p>
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
                     <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                      user.role === 'Guest' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-                        : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                      user.role === 'Guest' ? 'bg-amber-100 text-amber-600 '
+                        : 'bg-blue-100 text-blue-600 '
                     }`}>{user.role}</span>
                     <span>{formatTime(user.clock_in_time)}</span>
                   </div>
@@ -197,24 +193,24 @@ function AttendancePage() {
       </div>
 
       {/* Event Log */}
-      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Event Log</h3>
+      <h3 className="text-lg font-bold text-white mb-3">Event Log</h3>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
+          className="px-3 py-2 border border-white/[0.06] bg-white/[0.03] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
         <span className="text-slate-400 text-sm">to</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
+          className="px-3 py-2 border border-white/[0.06] bg-white/[0.03] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
         <input type="text" placeholder="Search person..." value={searchPerson} onChange={e => setSearchPerson(e.target.value)}
-          className="px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-sm outline-none focus:border-blue-500 transition-all w-40" />
+          className="px-3 py-2 border border-white/[0.06] bg-white/[0.03] rounded-lg text-sm outline-none focus:border-blue-500 transition-all w-40" />
         <select value={filterCamera} onChange={e => setFilterCamera(e.target.value)}
-          className="px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-sm outline-none focus:border-blue-500 transition-all">
+          className="px-3 py-2 border border-white/[0.06] bg-white/[0.03] rounded-lg text-sm outline-none focus:border-blue-500 transition-all">
           <option value="">All Cameras</option>
           {cameras.map(c => <option key={c.camera_id} value={c.camera_id}>{c.department || c.camera_id}</option>)}
         </select>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-          className="px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-sm outline-none focus:border-blue-500 transition-all">
+          className="px-3 py-2 border border-white/[0.06] bg-white/[0.03] rounded-lg text-sm outline-none focus:border-blue-500 transition-all">
           <option value="">All Status</option>
           <option value="in">In</option>
           <option value="out">Out</option>
@@ -227,64 +223,64 @@ function AttendancePage() {
           <div className="w-6 h-6 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
         </div>
       ) : events.length === 0 ? (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center shadow-sm">
-          <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-2 block">event_busy</span>
-          <p className="text-slate-500 dark:text-slate-400">No attendance events found.</p>
+        <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] p-8 text-center">
+          <span className="material-symbols-outlined text-4xl text-slate-300 mb-2 block">event_busy</span>
+          <p className="text-slate-400">No attendance events found.</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+        <div className="bg-white/[0.03] rounded-xl border border-white/[0.06] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Person</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Role</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Camera</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Confidence</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Timestamp</th>
+                <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Person</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Role</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Camera</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Confidence</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Timestamp</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+              <tbody className="divide-y divide-white/[0.04]">
                 {events.map(evt => (
-                  <tr key={evt.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                  <tr key={evt.id} className="hover:bg-white/[0.03] transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         {getImageUrl(evt.image_url) ? (
-                          <img src={getImageUrl(evt.image_url)!} alt={evt.name} className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-600" />
+                          <img src={getImageUrl(evt.image_url)!} alt={evt.name} className="w-8 h-8 rounded-full object-cover border border-white/[0.1]" />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center">
+                          <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
                             <span className="material-symbols-outlined text-slate-400 text-xs">person</span>
                           </div>
                         )}
-                        <span className="text-sm font-medium text-slate-900 dark:text-white">{evt.name}</span>
+                        <span className="text-sm font-medium text-white">{evt.name}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
-                        evt.role === 'Guest' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                        evt.role === 'Guest' ? 'bg-amber-500/15 text-amber-400 '
+                          : 'bg-cyan-500/15 text-cyan-400 '
                       }`}>{evt.role}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                        evt.status === 'in' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                        evt.status === 'in' ? 'bg-emerald-100 text-emerald-700 dark:text-emerald-400'
                           : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                       }`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${evt.status === 'in' ? 'bg-emerald-500' : 'bg-red-500'}`} />
                         {evt.status === 'in' ? 'IN' : 'OUT'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 capitalize">{evt.camera_id?.replace(/-/g, ' ') || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-400 capitalize">{evt.camera_id?.replace(/-/g, ' ') || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="w-16 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
                           <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(evt.confidence, 100)}%` }} />
                         </div>
                         <span className="text-xs text-slate-500 font-mono">{evt.confidence.toFixed(1)}%</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{formatDateTime(evt.timestamp)}</td>
+                    <td className="px-4 py-3 text-sm text-slate-400">{formatDateTime(evt.timestamp)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -292,16 +288,16 @@ function AttendancePage() {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-700">
-            <p className="text-sm text-slate-500 dark:text-slate-400">{total} total events</p>
+          <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06]">
+            <p className="text-sm text-slate-400">{total} total events</p>
             <div className="flex items-center gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                className="px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-white/[0.05] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 Previous
               </button>
-              <span className="text-sm text-slate-500 dark:text-slate-400">Page {page} of {totalPages}</span>
+              <span className="text-sm text-slate-400">Page {page} of {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-                className="px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-white/[0.05] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 Next
               </button>
             </div>
