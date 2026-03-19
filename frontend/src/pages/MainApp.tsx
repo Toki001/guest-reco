@@ -29,11 +29,11 @@ function MainApp() {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
-        <div className="px-5 pt-4 shrink-0">
+        <div className="px-6 pt-5 shrink-0">
           <Header toggleSidebar={toggleMobileSidebar} />
         </div>
 
-        <div className="flex-1 px-5 pb-5 min-h-0 overflow-hidden">
+        <div className="flex-1 px-6 pb-6 min-h-0 overflow-hidden">
           <Routes>
             <Route path="dashboard" element={<DashboardTab />} />
             <Route path="cameras" element={<CameraGridPage />} />

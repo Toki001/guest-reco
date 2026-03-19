@@ -177,11 +177,11 @@ function CameraGridPage() {
         <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gridAutoRows: 'minmax(220px, auto)' }}>
           {cameraList.map(cam => (
             <div key={cam.camera_id}
-              className={`relative bg-[#0f1023] rounded-xl overflow-hidden border transition-all group ${
+              className={`relative rounded-xl overflow-hidden border transition-all group ${
                 cam.status === 'live' ? 'border-cyan-500/30 shadow-lg shadow-cyan-500/5' :
-                cam.status === 'offline' ? 'border-[var(--border-color)]' :
                 'border-[var(--border-color)]'
-              }`}>
+              }`}
+              style={{ backgroundColor: 'var(--bg-surface)' }}>
               <div className="cursor-pointer w-full h-full" onClick={() => setFullscreen(cam.camera_id)}>
                 {/* Always render — MediaMTXWebRTCReader manages its own retry
                     with exponential backoff. Won't exhaust PeerConnections. */}
