@@ -4,19 +4,22 @@ import numpy as np
 from PIL import Image
 from config import Config
 
-FACE_DISTANCE_THRESHOLD = getattr(Config, 'FACE_DISTANCE_THRESHOLD', 0.45)
-CONFIDENCE_FLOOR = 55.0
+# Thresholds
+MATCH_THRESHOLD = 0.45          # Strong match: cosine distance < 0.45 (similarity > 0.55)
+UNCERTAIN_LOWER = 0.35          # Below this = no match at all
+UNCERTAIN_UPPER = 0.55          # Between LOWER and UPPER = "uncertain" zone
+CONFIDENCE_FLOOR = 50.0         # Minimum confidence % to accept a match
+EMBEDDING_DIVERSITY_MIN = 0.15  # Min distance from existing embeddings to store a new one
 
-# InsightFace model (lazy-loaded, thread-safe with lock)
+# InsightFace model (lazy-loaded, thread-safe)
 _model = None
 _lock = threading.Lock()
 
 
 def _get_model():
-    """Lazy-load the InsightFace analysis model."""
     global _model
     if _model is None:
-        import insightface  # pyright: ignore[reportMissingImports]
+        import insightface
         _model = insightface.app.FaceAnalysis(
             name="buffalo_l",
             providers=["CPUExecutionProvider"]
@@ -27,40 +30,26 @@ def _get_model():
 
 
 def _bytes_to_cv2(image_bytes, pad_for_detection=True):
-    """Convert image bytes to numpy array (BGR format for InsightFace).
-
-    When pad_for_detection=True, adds a border around the image so that
-    RetinaFace can detect faces in tight crops where the face fills the frame.
-    """
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     arr = np.array(img)
-
     if pad_for_detection:
         h, w = arr.shape[:2]
-        # Add 50% padding on each side with neutral gray
-        pad_y = h // 2
-        pad_x = w // 2
+        pad_y, pad_x = h // 2, w // 2
         padded = np.full((h + 2 * pad_y, w + 2 * pad_x, 3), 128, dtype=np.uint8)
         padded[pad_y:pad_y + h, pad_x:pad_x + w] = arr
         arr = padded
-
-    # RGB to BGR for InsightFace/OpenCV
     return arr[:, :, ::-1].copy()
 
 
 def index_face(image_bytes):
-    """Extract 512-d ArcFace embedding from image bytes.
-    Returns embedding as numpy bytes (.tobytes()), or None if no face found.
-    """
+    """Extract 512-d ArcFace embedding from image bytes."""
     with _lock:
         try:
             model = _get_model()
             img = _bytes_to_cv2(image_bytes, pad_for_detection=True)
             faces = model.get(img)
             if not faces:
-                print(f"index_face: no face detected (image shape: {img.shape})")
                 return None
-            # Use the largest face (by bounding box area)
             face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
             return face.normed_embedding.astype(np.float64).tobytes()
         except Exception as e:
@@ -68,13 +57,20 @@ def index_face(image_bytes):
             return None
 
 
-def search_face(image_bytes, known_users):
-    """Compare image against all known face encodings using ArcFace cosine similarity.
+def search_face_multi(image_bytes, all_embeddings, context=None):
+    """Multi-embedding face matching with uncertain zone + context signals.
+
+    Args:
+        image_bytes: JPEG/PNG image bytes
+        all_embeddings: list of {"user_id", "embedding" (bytes), "name", "role"}
+            Multiple entries per user (up to 5 embeddings each)
+        context: optional dict with {"camera_id", "recent_users": [...]}
+            for uncertain-zone resolution
 
     Returns:
-        - {"user_id": str, "confidence": float} if match found
-        - {"no_face": True} if no face detected in image
-        - None if face detected but no match (safe to register as new guest)
+        - {"user_id", "confidence", "is_new_embedding": bool} if match found
+        - {"no_face": True} if no face detected
+        - None if no match (register as new guest)
     """
     with _lock:
         try:
@@ -85,49 +81,115 @@ def search_face(image_bytes, known_users):
             if not faces:
                 return {"no_face": True}
 
-            # Use the largest detected face
             face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-            unknown_embedding = face.normed_embedding.astype(np.float64)
+            unknown_emb = face.normed_embedding.astype(np.float64)
 
-            # Build known embeddings
-            valid_users = []
-            known_embeddings = []
-            for user in known_users:
-                if user.get("face_encoding"):
-                    try:
-                        enc = np.frombuffer(user["face_encoding"], dtype=np.float64)
-                        if enc.shape == (512,):
-                            known_embeddings.append(enc)
-                            valid_users.append(user)
-                        elif enc.shape == (128,):
-                            # Legacy dlib encoding — skip (incompatible)
-                            continue
-                    except Exception:
+            # Build per-user best similarity (best of N embeddings)
+            user_best = {}  # user_id -> (best_similarity, name, role)
+
+            for entry in all_embeddings:
+                uid = entry["user_id"]
+                enc_bytes = entry.get("embedding")
+                if not enc_bytes:
+                    continue
+                try:
+                    enc = np.frombuffer(enc_bytes, dtype=np.float64)
+                    if enc.shape != (512,):
                         continue
+                except Exception:
+                    continue
 
-            if not known_embeddings:
+                sim = float(np.dot(enc, unknown_emb))
+
+                if uid not in user_best or sim > user_best[uid][0]:
+                    user_best[uid] = (sim, entry.get("name", uid), entry.get("role", "Guest"))
+
+            if not user_best:
                 return None
 
-            # Cosine similarity (embeddings are already L2-normalized by InsightFace)
-            known_matrix = np.array(known_embeddings)
-            similarities = np.dot(known_matrix, unknown_embedding)
+            # Find the best match across all users
+            best_uid = max(user_best, key=lambda uid: user_best[uid][0])
+            best_sim, best_name, best_role = user_best[best_uid]
+            best_dist = 1.0 - best_sim
+            confidence = round(best_sim * 100, 1)
 
-            best_idx = int(np.argmax(similarities))
-            best_similarity = float(similarities[best_idx])
+            # --- ZONE 1: Strong match ---
+            if best_dist < MATCH_THRESHOLD and confidence >= CONFIDENCE_FLOOR:
+                # Check if this embedding is different enough to store as a new variant
+                is_new = _is_diverse_embedding(unknown_emb, all_embeddings, best_uid)
+                print(f"✅ Strong match: {best_name} (sim={best_sim:.3f}, conf={confidence}%, new_emb={is_new})")
+                return {
+                    "user_id": best_uid,
+                    "confidence": confidence,
+                    "is_new_embedding": is_new,
+                    "new_embedding_bytes": unknown_emb.tobytes() if is_new else None,
+                }
 
-            # Convert similarity to distance-like metric for threshold comparison
-            best_distance = 1.0 - best_similarity
+            # --- ZONE 2: Uncertain match (use context) ---
+            if UNCERTAIN_LOWER <= best_dist <= UNCERTAIN_UPPER and context:
+                recent_users = context.get("recent_users", [])
+                recent_ids = {u["user_id"] for u in recent_users}
 
-            if best_distance >= FACE_DISTANCE_THRESHOLD:
-                return None
+                if best_uid in recent_ids:
+                    # The best match was recently active at this camera — likely the same person
+                    is_new = True  # Always store uncertain matches as new embeddings
+                    print(f"🔄 Context match: {best_name} (sim={best_sim:.3f}, context: recently active)")
+                    return {
+                        "user_id": best_uid,
+                        "confidence": confidence,
+                        "is_new_embedding": is_new,
+                        "new_embedding_bytes": unknown_emb.tobytes(),
+                    }
 
-            confidence = round(best_similarity * 100, 1)
-            if confidence < CONFIDENCE_FLOOR:
-                return None
-
-            print(f"ArcFace match: {valid_users[best_idx]['id']} (similarity={best_similarity:.3f}, confidence={confidence}%)")
-            return {"user_id": valid_users[best_idx]["id"], "confidence": confidence}
+            # --- ZONE 3: No match ---
+            if best_sim > 0.3:
+                print(f"❌ No match (best: {best_name}, sim={best_sim:.3f}, dist={best_dist:.3f})")
+            return None
 
         except Exception as e:
             print(f"Face search error: {e}")
             return {"no_face": True}
+
+
+def _is_diverse_embedding(new_emb, all_embeddings, user_id):
+    """Check if new_emb is different enough from existing embeddings for this user."""
+    user_embs = []
+    for entry in all_embeddings:
+        if entry["user_id"] != user_id or not entry.get("embedding"):
+            continue
+        try:
+            enc = np.frombuffer(entry["embedding"], dtype=np.float64)
+            if enc.shape == (512,):
+                user_embs.append(enc)
+        except Exception:
+            continue
+
+    if not user_embs:
+        return True
+
+    # Check minimum distance from all existing embeddings
+    for existing in user_embs:
+        dist = 1.0 - float(np.dot(existing, new_emb))
+        if dist < EMBEDDING_DIVERSITY_MIN:
+            return False  # Too similar to an existing embedding
+
+    return True
+
+
+# Legacy compatibility — falls back to single-embedding matching
+def search_face(image_bytes, known_users):
+    """Single-embedding matching (backward compatible). Wraps search_face_multi."""
+    # Convert known_users format to all_embeddings format
+    all_embs = []
+    for user in known_users:
+        if user.get("face_encoding"):
+            all_embs.append({
+                "user_id": user["id"],
+                "embedding": user["face_encoding"],
+                "name": user.get("name", user["id"]),
+                "role": user.get("role", "Guest"),
+            })
+    result = search_face_multi(image_bytes, all_embs)
+    if result and "user_id" in result:
+        return {"user_id": result["user_id"], "confidence": result["confidence"]}
+    return result

@@ -49,6 +49,16 @@ def init_db():
             registered_at TEXT
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS face_embeddings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            embedding BLOB NOT NULL,
+            condition TEXT DEFAULT 'initial',
+            created_at TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_face_embeddings_user ON face_embeddings(user_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_user_timestamp ON access_logs(user_id, timestamp DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_camera ON access_logs(camera_id, timestamp DESC)")
     conn.commit()
@@ -77,6 +87,64 @@ def get_all_users_with_encodings():
     rows = conn.execute("SELECT id, name, face_encoding, image_path, role FROM users").fetchall()
     return [{"id": r["id"], "name": r["name"], "face_encoding": r["face_encoding"], "image_url": r["image_path"], "role": r["role"]} for r in rows]
 
+# --- MULTI-EMBEDDING FUNCTIONS ---
+MAX_EMBEDDINGS_PER_USER = 5
+
+def get_all_embeddings():
+    """Return all face embeddings grouped by user for multi-embedding matching."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT fe.user_id, fe.embedding, u.name, u.image_path, u.role
+        FROM face_embeddings fe
+        JOIN users u ON fe.user_id = u.id
+        ORDER BY fe.user_id, fe.created_at DESC
+    """).fetchall()
+    return [{"user_id": r["user_id"], "embedding": r["embedding"], "name": r["name"], "image_url": r["image_path"], "role": r["role"]} for r in rows]
+
+def add_embedding(user_id, embedding_bytes, condition="auto"):
+    """Add a new embedding for a user. Keeps max MAX_EMBEDDINGS_PER_USER per user."""
+    conn = get_connection()
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    # Check current count
+    count = conn.execute(
+        "SELECT COUNT(*) as c FROM face_embeddings WHERE user_id = ?", (user_id,)
+    ).fetchone()["c"]
+
+    if count >= MAX_EMBEDDINGS_PER_USER:
+        # Remove the oldest embedding (keep newest MAX-1, add new one)
+        oldest = conn.execute(
+            "SELECT id FROM face_embeddings WHERE user_id = ? ORDER BY created_at ASC LIMIT 1",
+            (user_id,)
+        ).fetchone()
+        if oldest:
+            conn.execute("DELETE FROM face_embeddings WHERE id = ?", (oldest["id"],))
+
+    conn.execute(
+        "INSERT INTO face_embeddings (user_id, embedding, condition, created_at) VALUES (?, ?, ?, ?)",
+        (user_id, embedding_bytes, condition, now)
+    )
+    conn.commit()
+
+def get_user_embedding_count(user_id):
+    conn = get_connection()
+    return conn.execute(
+        "SELECT COUNT(*) as c FROM face_embeddings WHERE user_id = ?", (user_id,)
+    ).fetchone()["c"]
+
+def get_recent_activity_for_camera(camera_id, minutes=120):
+    """Get users who clocked in at this camera in the last N minutes."""
+    conn = get_connection()
+    cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=minutes)).isoformat()
+    rows = conn.execute("""
+        SELECT DISTINCT a.user_id, u.name, a.status, a.timestamp
+        FROM access_logs a
+        JOIN users u ON a.user_id = u.id
+        WHERE a.camera_id = ? AND a.timestamp >= ?
+        ORDER BY a.timestamp DESC
+    """, (camera_id, cutoff)).fetchall()
+    return [{"user_id": r["user_id"], "name": r["name"], "status": r["status"], "timestamp": r["timestamp"]} for r in rows]
+
 def insert_user(user_id, name, face_encoding_bytes, image_path, role="Employee"):
     conn = get_connection()
     conn.execute(
@@ -85,6 +153,9 @@ def insert_user(user_id, name, face_encoding_bytes, image_path, role="Employee")
     )
     conn.commit()
     KNOWN_USERS_CACHE.add(user_id)
+    # Also add to multi-embedding table (initial embedding)
+    if face_encoding_bytes:
+        add_embedding(user_id, face_encoding_bytes, condition="initial")
 
 def get_last_status(user_id):
     if user_id in USER_STATE_CACHE:

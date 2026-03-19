@@ -20,9 +20,10 @@ from database import (
     delete_user, update_user, update_user_face, get_user_detail,
     get_users_with_last_seen, get_active_users, get_attendance_logs,
     get_user_attendance, user_exists, get_visitors_aggregated, get_today_stats,
-    get_faces_by_camera, get_camera_stats, get_camera_activity
+    get_faces_by_camera, get_camera_stats, get_camera_activity,
+    get_all_embeddings, add_embedding, get_recent_activity_for_camera
 )
-from face_engine import index_face, search_face
+from face_engine import index_face, search_face, search_face_multi
 from auth import (
     check_login, require_admin, require_camera_or_admin,
     verify_ws_auth, get_camera_api_key
@@ -142,18 +143,30 @@ async def auth_me(user=Depends(require_admin)):
 
 # --- API: RECOGNIZE FACE (BATCH) ---
 def _recognize_single(image_bytes, camera_id, known_users):
-    """Synchronous single-face recognition. Called within a thread."""
-    result = search_face(image_bytes, known_users)
+    """Synchronous single-face recognition with multi-embedding matching."""
+    # Get all embeddings for multi-embedding matching
+    all_embs = get_all_embeddings()
+
+    # Build context for uncertain-zone resolution
+    context = None
+    if camera_id:
+        recent = get_recent_activity_for_camera(camera_id, minutes=120)
+        context = {"camera_id": camera_id, "recent_users": recent}
+
+    # Use multi-embedding matching if we have embeddings, else fall back to legacy
+    if all_embs:
+        result = search_face_multi(image_bytes, all_embs, context=context)
+    else:
+        result = search_face(image_bytes, known_users)
 
     if isinstance(result, dict) and result.get("no_face"):
         return None
 
-    # Double-verify failed — face matched someone on first pass but not second.
-    # Do NOT register as new guest; just skip this face entirely.
     if isinstance(result, dict) and result.get("uncertain"):
         return None
 
     if result is None:
+        # No match — register as new guest
         guest_id = f"GUEST-{uuid.uuid4().hex[:6].upper()}"
         guest_name = f"Guest {guest_id[-4:]}"
         encoding_bytes = index_face(image_bytes)
@@ -169,6 +182,12 @@ def _recognize_single(image_bytes, camera_id, known_users):
     user_id = result["user_id"]
     confidence = result["confidence"]
 
+    # Store new embedding if the face looks different from stored ones
+    if result.get("is_new_embedding") and result.get("new_embedding_bytes"):
+        add_embedding(user_id, result["new_embedding_bytes"], condition="auto")
+        print(f"📸 New embedding stored for {user_id}")
+
+    # Cooldown check
     now = time.monotonic()
     if now - _scan_cooldown.get(user_id, 0) < COOLDOWN_SECONDS:
         profile = get_user_profile(user_id)
