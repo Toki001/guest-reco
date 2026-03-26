@@ -27,12 +27,10 @@ export function RecognitionBanner({ banner, onDismiss }: Props) {
   const isIn = banner.status === 'in';
   const isGuest = banner.type === 'guest';
 
-  const bgColor = isGuest ? 'bg-amber-900/95 border-amber-500/50' :
-                  isIn ? 'bg-emerald-900/95 border-emerald-500/50' :
+  const bgColor = isIn ? 'bg-emerald-600/90 border-emerald-400/50' :
                          'bg-red-900/95 border-red-500/50';
 
-  const statusText = isGuest ? 'Visitor Detected' :
-                     isIn ? 'Welcome! Clocked In' : 'Goodbye! Clocked Out';
+  const statusText = isIn ? 'Welcome! Clocked In' : 'Goodbye! Clocked Out';
 
   const imgSrc = banner.imageUrl && banner.imageUrl !== 'placeholder'
     ? (banner.imageUrl.startsWith('/') ? `${API_BASE}${banner.imageUrl}` : banner.imageUrl)

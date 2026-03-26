@@ -277,7 +277,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                 if (drift > maxDrift) maxDrift = drift;
               }
 
-              isMoving = maxDrift > 120;
+              isMoving = maxDrift > 160;
             }
 
             validDetections.forEach(det => {

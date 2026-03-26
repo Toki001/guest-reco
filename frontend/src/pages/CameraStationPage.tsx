@@ -21,8 +21,9 @@ function CameraStationPage() {
   const [isScanning, setIsScanning] = useState(true);
   const [isRegistered, setIsRegistered] = useState(false);
 
-  // Banner system
+  // Banner system + history
   const [banners, setBanners] = useState<BannerData[]>([]);
+  const [history, setHistory] = useState<(BannerData & { timestamp: Date })[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isIdle, setIsIdle] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -166,15 +167,20 @@ function CameraStationPage() {
       // Update cooldown
       cooldownRef.current.set(userId, now);
 
-      // Add banner
-      setBanners(prev => [...prev, {
+      const entry = {
         id: `${userId}-${now}-${Math.random().toString(36).slice(2, 6)}`,
         name: result.name,
         type: result.type,
         status: result.status as 'in' | 'out',
         confidence: result.confidence,
         imageUrl: result.image_url || '',
-      }]);
+      };
+
+      // Add banner
+      setBanners(prev => [...prev, entry]);
+
+      // Add to history (newest first, keep last 50)
+      setHistory(prev => [{ ...entry, timestamp: new Date() }, ...prev].slice(0, 50));
 
       // Play tone
       if (result.status === 'in') {
@@ -282,31 +288,89 @@ function CameraStationPage() {
         </div>
       </div>
 
-      {/* Camera feed */}
-      <div className="flex-1 relative">
-        <CameraFeed
-          isScanning={isScanning}
-          onSnap={handleResult}
-          onToggle={handleToggleScan}
-          cameraId={cameraId}
-          apiKey={apiKey}
-          onFeedbackChange={handleFeedbackChange}
-        >
-          {/* Recognition banners — top of feed */}
-          <div className="absolute top-0 left-0 right-0 z-40 flex flex-col">
-            {banners.slice(0, 3).map(b => (
-              <RecognitionBanner key={b.id} banner={b} onDismiss={handleDismissBanner} />
-            ))}
+      {/* Camera feed + History sidebar */}
+      <div className="flex-1 flex min-h-0">
+        {/* Camera feed */}
+        <div className="flex-1 relative">
+          <CameraFeed
+            isScanning={isScanning}
+            onSnap={handleResult}
+            onToggle={handleToggleScan}
+            cameraId={cameraId}
+            apiKey={apiKey}
+            onFeedbackChange={handleFeedbackChange}
+          >
+            {/* Recognition banners — top of feed */}
+            <div className="absolute top-0 left-0 right-0 z-40 flex flex-col">
+              {banners.slice(0, 3).map(b => (
+                <RecognitionBanner key={b.id} banner={b} onDismiss={handleDismissBanner} />
+              ))}
+            </div>
+
+            {/* Idle overlay */}
+            {isIdle && isScanning && (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[2px]">
+                <span className="material-symbols-outlined text-6xl text-white/60 mb-4 animate-pulse">face</span>
+                <p className="text-white/80 text-lg font-medium tracking-wide">Approach camera to scan</p>
+              </div>
+            )}
+          </CameraFeed>
+        </div>
+
+        {/* Live history sidebar */}
+        <div className="w-80 bg-slate-900/95 border-l border-slate-800 flex flex-col shrink-0">
+          <div className="px-4 py-3 border-b border-slate-800 flex items-center gap-2">
+            <span className="material-symbols-outlined text-blue-400 text-lg">history</span>
+            <h2 className="text-white font-bold text-sm uppercase tracking-wider">Live Activity</h2>
+            <span className="ml-auto text-slate-500 text-xs">{history.length} events</span>
           </div>
 
-          {/* Idle overlay */}
-          {isIdle && isScanning && (
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[2px]">
-              <span className="material-symbols-outlined text-6xl text-white/60 mb-4 animate-pulse">face</span>
-              <p className="text-white/80 text-lg font-medium tracking-wide">Approach camera to scan</p>
-            </div>
-          )}
-        </CameraFeed>
+          <div className="flex-1 overflow-y-auto">
+            {history.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-600">
+                <span className="material-symbols-outlined text-3xl mb-2">pending</span>
+                <p className="text-xs">Waiting for scans...</p>
+              </div>
+            ) : (
+              history.map((entry) => {
+                const isIn = entry.status === 'in';
+                const imgSrc = entry.imageUrl && entry.imageUrl !== 'placeholder'
+                  ? (entry.imageUrl.startsWith('/') ? `${API_BASE}${entry.imageUrl}` : entry.imageUrl)
+                  : null;
+                return (
+                  <div key={entry.id} className="flex items-center gap-3 px-4 py-3 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                    {/* Avatar */}
+                    {imgSrc ? (
+                      <img src={imgSrc} alt={entry.name} className="w-10 h-10 rounded-full object-cover border-2 border-slate-700 shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border-2 border-slate-700 shrink-0">
+                        <span className="material-symbols-outlined text-slate-500 text-lg">person</span>
+                      </div>
+                    )}
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-medium truncate">{entry.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${isIn ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
+                        <span className={`text-xs font-bold uppercase ${isIn ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {isIn ? 'IN' : 'OUT'}
+                        </span>
+                        <span className="text-slate-600 text-xs">·</span>
+                        <span className={`text-xs ${entry.type === 'guest' ? 'text-amber-500' : 'text-blue-400'}`}>
+                          {entry.type === 'guest' ? 'Guest' : 'Employee'}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Time */}
+                    <span className="text-slate-500 text-[11px] font-mono shrink-0">
+                      {entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
