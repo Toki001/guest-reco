@@ -76,15 +76,15 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
       <div className="flex-1 bg-black/50" onClick={onClose} />
 
       {/* Panel */}
-      <div className="w-full max-w-md bg-slate-900 border-l border-slate-700 overflow-y-auto">
+      <div className="w-full max-w-md bg-[var(--bg-surface)] border-l border-[var(--border-color)] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-700 p-4">
+        <div className="sticky top-0 bg-[var(--bg-surface)]/95 backdrop-blur border-b border-[var(--border-color)] p-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-[var(--text-primary)]">{departmentName}</h2>
               <p className="text-xs text-slate-400">Camera Department</p>
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center">
+            <button onClick={onClose} className="w-8 h-8 rounded-lg bg-[var(--bg-surface-hover)] hover:bg-[var(--bg-base)] flex items-center justify-center">
               <span className="material-symbols-outlined text-[var(--text-primary)] text-sm">close</span>
             </button>
           </div>
@@ -92,15 +92,15 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
           {/* Stats */}
           {stats && (
             <div className="grid grid-cols-3 gap-2 mt-3">
-              <div className="bg-slate-800 rounded-lg p-2 text-center">
+              <div className="bg-[var(--bg-surface-hover)] rounded-lg p-2 text-center">
                 <div className="text-lg font-bold text-blue-400">{stats.scans_today}</div>
                 <div className="text-[10px] text-slate-400">Scans Today</div>
               </div>
-              <div className="bg-slate-800 rounded-lg p-2 text-center">
+              <div className="bg-[var(--bg-surface-hover)] rounded-lg p-2 text-center">
                 <div className="text-lg font-bold text-green-400">{stats.unique_faces_today}</div>
                 <div className="text-[10px] text-slate-400">Faces Today</div>
               </div>
-              <div className="bg-slate-800 rounded-lg p-2 text-center">
+              <div className="bg-[var(--bg-surface-hover)] rounded-lg p-2 text-center">
                 <div className="text-lg font-bold text-amber-400">{stats.unique_faces}</div>
                 <div className="text-[10px] text-slate-400">Total Faces</div>
               </div>
@@ -112,7 +112,7 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
             <button
               onClick={() => setTab('faces')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                tab === 'faces' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-[var(--text-primary)]'
+                tab === 'faces' ? 'bg-blue-600 text-white' : 'bg-[var(--bg-surface-hover)] text-slate-400 hover:text-[var(--text-primary)]'
               }`}
             >
               Faces ({faces.length})
@@ -120,7 +120,7 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
             <button
               onClick={() => setTab('activity')}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                tab === 'activity' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-[var(--text-primary)]'
+                tab === 'activity' ? 'bg-blue-600 text-white' : 'bg-[var(--bg-surface-hover)] text-slate-400 hover:text-[var(--text-primary)]'
               }`}
             >
               Activity ({activity.length})
@@ -143,8 +143,8 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
             ) : (
               <div className="space-y-2">
                 {faces.map(face => (
-                  <div key={face.id} className="flex items-center gap-3 bg-slate-800 rounded-lg p-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-700 overflow-hidden flex-shrink-0">
+                  <div key={face.id} className="flex items-center gap-3 bg-[var(--bg-surface-hover)] rounded-lg p-3">
+                    <div className="w-10 h-10 rounded-full bg-[var(--bg-base)] overflow-hidden flex-shrink-0">
                       {face.image_url ? (
                         <img src={face.image_url.startsWith('/') ? `${API_BASE}${face.image_url}` : face.image_url} alt={face.name}
                           className="w-full h-full object-cover" />
@@ -178,8 +178,8 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
             ) : (
               <div className="space-y-2">
                 {activity.map(item => (
-                  <div key={item.id} className="flex items-center gap-3 bg-slate-800 rounded-lg p-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-700 overflow-hidden flex-shrink-0">
+                  <div key={item.id} className="flex items-center gap-3 bg-[var(--bg-surface-hover)] rounded-lg p-3">
+                    <div className="w-8 h-8 rounded-full bg-[var(--bg-base)] overflow-hidden flex-shrink-0">
                       {item.image_url ? (
                         <img src={item.image_url.startsWith('/') ? `${API_BASE}${item.image_url}` : item.image_url} alt={item.name}
                           className="w-full h-full object-cover" />

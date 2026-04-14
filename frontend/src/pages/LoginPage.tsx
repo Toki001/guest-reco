@@ -42,38 +42,40 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
-      <div className="w-full max-w-sm bg-[#1e293b] rounded-2xl p-8 shadow-2xl">
+    <div className="min-h-screen bg-[#1a0a4a] flex items-center justify-center">
+      <div className="w-full max-w-sm bg-[#2B0E72] rounded-2xl p-8 shadow-2xl border border-white/[0.08]">
         <div className="text-center mb-8">
-          <span className="material-symbols-outlined text-4xl text-slate-200 mb-2 block">shield</span>
+          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#2EA3F2] to-[#0C71C3] flex items-center justify-center mx-auto mb-3 shadow-lg shadow-[#2EA3F2]/20">
+            <span className="material-symbols-outlined text-3xl text-white">shield</span>
+          </div>
           <h1 className="text-white font-bold text-xl">SecureSight</h1>
-          <p className="text-slate-500 text-[11px] uppercase tracking-[0.2em] mt-1 font-semibold">
+          <p className="text-blue-300/60 text-[11px] uppercase tracking-[0.2em] mt-1 font-semibold">
             FSUU Facial Recognition
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-slate-400 text-xs font-medium block mb-1.5">Username</label>
+            <label className="text-blue-200/70 text-xs font-medium block mb-1.5">Username</label>
             <input
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
               required
               autoFocus
-              className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:border-blue-500 focus:outline-none transition-colors"
+              className="w-full bg-[#1a0a4a] border border-white/[0.12] rounded-lg px-3 py-2.5 text-white text-sm focus:border-[#2EA3F2] focus:outline-none transition-colors placeholder:text-white/30"
               placeholder="admin"
             />
           </div>
 
           <div>
-            <label className="text-slate-400 text-xs font-medium block mb-1.5">Password</label>
+            <label className="text-blue-200/70 text-xs font-medium block mb-1.5">Password</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:border-blue-500 focus:outline-none transition-colors"
+              className="w-full bg-[#1a0a4a] border border-white/[0.12] rounded-lg px-3 py-2.5 text-white text-sm focus:border-[#2EA3F2] focus:outline-none transition-colors placeholder:text-white/30"
               placeholder="Enter password"
             />
           </div>
@@ -88,7 +90,7 @@ function LoginPage() {
             type="submit"
             disabled={loading}
             className={`w-full py-2.5 rounded-lg font-bold text-sm text-white transition-colors ${
-              loading ? 'bg-blue-500/50 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+              loading ? 'bg-[#2EA3F2]/50 cursor-not-allowed' : 'bg-[#2EA3F2] hover:bg-[#0C71C3]'
             }`}
           >
             {loading ? 'Signing in...' : 'Sign In'}

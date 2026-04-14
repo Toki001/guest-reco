@@ -169,7 +169,7 @@ function EmployeeProfilePage() {
               <h2 className="text-2xl font-bold text-[var(--text-primary)]">{profile.name}</h2>
               <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
                 profile.role === 'Guest' ? 'bg-amber-500/15 text-amber-400 '
-                  : 'bg-cyan-500/15 text-cyan-400 '
+                  : 'bg-blue-500/15 text-blue-400'
               }`}>{profile.role}</span>
             </div>
             <p className="text-sm text-slate-400 font-mono mb-3">{profile.id}</p>
@@ -228,7 +228,7 @@ function EmployeeProfilePage() {
         <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] overflow-hidden">
           <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
             <table className="w-full">
-              <thead className="sticky top-0 bg-slate-50/80 backdrop-blur-sm">
+              <thead className="sticky top-0 bg-[var(--bg-surface)]/80 backdrop-blur-sm">
                 <tr className="border-b border-[var(--border-color)]">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Time In</th>

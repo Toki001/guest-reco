@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <aside
         className={`
-          bg-[#0f1023] flex flex-col shrink-0 fixed inset-y-0 left-0 z-50
+          bg-[var(--bg-sidebar)] flex flex-col shrink-0 fixed inset-y-0 left-0 z-50
           transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
           border-r border-white/[0.06]
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -59,7 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={isCollapsed ? toggleCollapse : undefined}
         >
           <div className={`flex items-center gap-2.5 overflow-hidden ${isCollapsed ? 'justify-center w-full' : ''}`}>
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/20">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#2EA3F2] to-[#0C71C3] flex items-center justify-center shrink-0 shadow-lg shadow-[#2EA3F2]/20">
               <span className="material-symbols-outlined text-white text-lg">shield</span>
             </div>
             <div className={`transition-opacity duration-200 ${isCollapsed ? 'lg:hidden' : 'block'}`}>
@@ -91,9 +91,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   title={isCollapsed ? link.label : ""}
                 >
                   {active && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-cyan-400 rounded-r-full" />
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[var(--accent)] rounded-r-full" />
                   )}
-                  <span className={`material-symbols-outlined text-[20px] ${active ? 'text-cyan-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
+                  <span className={`material-symbols-outlined text-[20px] ${active ? 'text-[var(--accent)]' : 'text-slate-500 group-hover:text-slate-300'}`}>
                     {link.icon}
                   </span>
                   {!isCollapsed && (

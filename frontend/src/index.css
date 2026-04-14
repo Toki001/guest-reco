@@ -37,39 +37,41 @@
 
 /* ─── Tailwind theme extensions ──────────────────────────── */
 @theme {
-  --color-primary: #212966;
-  --color-accent: #1877F21A;
-  --color-purple-accent: #7C3AED1A;
-  --color-background-light: #F0F2F5;
-  --color-background-dark: #0B0E14;
+  --color-primary: #2B0E72;
+  --color-accent: #2EA3F21A;
+  --color-purple-accent: #2B0E721A;
+  --color-background-light: #F0F4F8;
+  --color-background-dark: #0d0f24;
   --font-sans: 'Inter', sans-serif;
   --radius-DEFAULT: 12px;
 }
 
 /* ─── Theme system (light/dark) ───────────────────────────── */
 :root {
-  --bg-base: #f4f5f9;
+  --bg-base: #f0f4f8;
   --bg-surface: #ffffff;
-  --bg-surface-hover: #f0f1f5;
-  --bg-sidebar: #0f1023;
+  --bg-surface-hover: #e8eef6;
+  --bg-sidebar: #2B0E72;
   --border-color: rgba(0,0,0,0.08);
   --text-primary: #111827;
-  --text-secondary: #6b7280;
+  --text-secondary: #4b5563;
   --text-muted: #9ca3af;
-  --accent: #0891b2;
+  --accent: #2EA3F2;
+  --accent-hover: #0C71C3;
   color-scheme: light;
 }
 
 html.dark {
-  --bg-base: #0a0b1a;
-  --bg-surface: rgba(255,255,255,0.03);
-  --bg-surface-hover: rgba(255,255,255,0.06);
-  --bg-sidebar: #0f1023;
-  --border-color: rgba(255,255,255,0.06);
+  --bg-base: #0d0f24;
+  --bg-surface: #151835;
+  --bg-surface-hover: #1c2045;
+  --bg-sidebar: #1a0a4a;
+  --border-color: rgba(255,255,255,0.08);
   --text-primary: #f1f5f9;
-  --text-secondary: #64748b;
+  --text-secondary: #94a3b8;
   --text-muted: #475569;
-  --accent: #22d3ee;
+  --accent: #2EA3F2;
+  --accent-hover: #5bb8f5;
   color-scheme: dark;
 }
 

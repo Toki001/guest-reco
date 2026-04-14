@@ -178,7 +178,7 @@ function CameraGridPage() {
           {cameraList.map(cam => (
             <div key={cam.camera_id}
               className={`relative rounded-xl overflow-hidden border transition-all group ${
-                cam.status === 'live' ? 'border-cyan-500/30 shadow-lg shadow-cyan-500/5' :
+                cam.status === 'live' ? 'border-blue-500/30 shadow-lg shadow-blue-500/5' :
                 'border-[var(--border-color)]'
               }`}
               style={{ backgroundColor: 'var(--bg-surface)' }}>
@@ -221,13 +221,13 @@ function CameraGridPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`w-1.5 h-1.5 rounded-full ${
-                      cam.status === 'live' ? 'bg-cyan-400 animate-pulse' :
+                      cam.status === 'live' ? 'bg-blue-400 animate-pulse' :
                       cam.status === 'connecting' ? 'bg-blue-400 animate-pulse' : 'bg-slate-600'
                     }`} />
                     <span className="text-[var(--text-primary)] text-xs font-semibold capitalize">{cam.camera_id.replace(/-/g, ' ')}</span>
                   </div>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded font-mono ${
-                    cam.status === 'live' ? 'bg-cyan-500/20 text-cyan-400' :
+                    cam.status === 'live' ? 'bg-blue-500/20 text-blue-400' :
                     cam.status === 'connecting' ? 'bg-blue-500/20 text-blue-400' : 'bg-[var(--bg-surface-hover)] text-slate-500'
                   }`}>
                     {cam.status === 'live' ? 'LIVE' : cam.status === 'connecting' ? 'CONNECTING' : 'OFFLINE'}
@@ -247,8 +247,8 @@ function CameraGridPage() {
               {cam.status === 'connecting' && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
                   <div className="text-center">
-                    <div className="w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-2" />
-                    <p className="text-cyan-500/60 text-[10px] font-medium">Connecting</p>
+                    <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-2" />
+                    <p className="text-blue-500/60 text-[10px] font-medium">Connecting</p>
                   </div>
                 </div>
               )}
@@ -266,7 +266,7 @@ function CameraGridPage() {
           />
           <div className="absolute top-4 left-4 flex items-center gap-3">
             <span className="text-[var(--text-primary)] font-semibold text-sm capitalize">{fullscreen.replace(/-/g, ' ')}</span>
-            <span className="bg-cyan-500/20 text-cyan-400 text-[10px] font-mono font-bold px-2 py-1 rounded">LIVE</span>
+            <span className="bg-blue-500/20 text-blue-400 text-[10px] font-mono font-bold px-2 py-1 rounded">LIVE</span>
           </div>
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button className="w-10 h-10 rounded-full bg-red-600/80 hover:bg-red-500 flex items-center justify-center transition-colors"

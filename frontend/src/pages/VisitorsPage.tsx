@@ -159,7 +159,7 @@ function VisitorsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-500/15 text-cyan-400">
+                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/15 text-blue-400">
                         {visitor.total_visits}
                       </span>
                     </td>

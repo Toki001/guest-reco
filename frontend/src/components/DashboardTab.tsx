@@ -199,7 +199,7 @@ const DashboardTab = () => {
       {/* 4 METRIC CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         {[
-          { label: 'Total Scans', value: stats.total_scans, icon: 'center_focus_strong', color: 'cyan' },
+          { label: 'Total Scans', value: stats.total_scans, icon: 'center_focus_strong', color: 'blue' },
           { label: 'Employees', value: stats.employee_matches, icon: 'badge', color: 'emerald' },
           { label: 'Guests', value: stats.guest_alerts, icon: 'person_alert', color: 'amber' },
           { label: 'Cameras', value: stats.cameras_online, icon: 'videocam', color: 'violet', sub: `${cameras.filter(c => c.is_online).length} active` },
@@ -208,7 +208,7 @@ const DashboardTab = () => {
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{card.label}</span>
               <span className={`material-symbols-outlined text-base ${
-                card.color === 'cyan' ? 'text-cyan-500' :
+                card.color === 'blue' ? 'text-blue-500' :
                 card.color === 'emerald' ? 'text-emerald-500' :
                 card.color === 'amber' ? 'text-amber-500' : 'text-violet-500'
               }`}>{card.icon}</span>
@@ -221,7 +221,7 @@ const DashboardTab = () => {
 
       {/* Quick stats pills */}
       <div className="flex flex-wrap gap-2 mb-5">
-        <div className="flex items-center gap-1.5 px-3 py-1 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-xs font-semibold text-cyan-400">
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs font-semibold text-blue-400">
           <span className="material-symbols-outlined text-xs">trending_up</span>
           {todayStats.scans_today} today
         </div>
@@ -255,7 +255,7 @@ const DashboardTab = () => {
                          className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
                   ) : (
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                      det.type === 'guest' ? 'bg-amber-500/20 text-amber-400' : 'bg-cyan-500/20 text-cyan-400'
+                      det.type === 'guest' ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'
                     }`}>
                       <span className="material-symbols-outlined text-sm">person</span>
                     </div>
@@ -348,14 +348,14 @@ const DashboardTab = () => {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-cyan-500/15 text-cyan-400'
+                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'
                       }`}>{det.type === 'guest' ? 'Guest' : 'Employee'}</span>
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500 capitalize">{det.camera_id || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 w-20">
                         <div className="flex-1 h-1 bg-[var(--bg-surface-hover)] rounded-full overflow-hidden">
-                          <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${Math.min(det.confidence, 100)}%` }} />
+                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(det.confidence, 100)}%` }} />
                         </div>
                         <span className="text-[10px] font-mono text-slate-400">{det.confidence}%</span>
                       </div>

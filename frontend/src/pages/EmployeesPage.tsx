@@ -132,7 +132,7 @@ function EmployeesPage() {
     <div className="flex flex-col w-full pb-10">
       <div className="flex items-center justify-end mb-4">
         <button onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-[var(--text-primary)] rounded-lg font-medium text-xs transition-colors">
+          className="flex items-center gap-2 px-3 py-2 bg-[#2EA3F2] hover:bg-[#0C71C3] text-white rounded-lg font-medium text-xs transition-colors">
           <span className="material-symbols-outlined text-sm">person_add</span>
           Add Employee
         </button>
@@ -212,7 +212,7 @@ function EmployeesPage() {
                       ) : (
                         <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
                           emp.role === 'Guest' ? 'bg-amber-500/15 text-amber-400 '
-                            : 'bg-cyan-500/15 text-cyan-400 '
+                            : 'bg-blue-500/15 text-blue-400'
                         }`}>{emp.role}</span>
                       )}
                     </td>

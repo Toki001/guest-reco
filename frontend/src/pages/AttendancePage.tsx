@@ -86,7 +86,7 @@ function AttendancePage() {
                 onClick={() => setRoleFilter(role)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                   roleFilter === role
-                    ? 'bg-cyan-600 text-white shadow-sm'
+                    ? 'bg-[#2EA3F2] text-white shadow-sm'
                     : 'text-slate-400 hover:text-[var(--text-primary)]'
                 }`}
               >

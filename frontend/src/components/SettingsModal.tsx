@@ -87,7 +87,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-2.5">
-            <span className="material-symbols-outlined text-cyan-500">settings</span>
+            <span className="material-symbols-outlined text-blue-500">settings</span>
             <h2 className="text-lg font-bold text-[var(--text-primary)]">Camera Settings</h2>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-[var(--bg-surface-hover)] rounded-lg transition-colors">
@@ -115,7 +115,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                         min={f.min}
                         max={f.max}
                         step={f.step}
-                        className="w-20 px-2 py-1 text-right text-sm font-mono bg-[var(--bg-base)] border border-[var(--border-color)] rounded-lg outline-none focus:border-cyan-500 transition-colors"
+                        className="w-20 px-2 py-1 text-right text-sm font-mono bg-[var(--bg-base)] border border-[var(--border-color)] rounded-lg outline-none focus:border-blue-500 transition-colors"
                       />
                       <span className="text-xs text-slate-400 w-6">{f.unit}</span>
                     </div>
@@ -127,7 +127,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                     min={f.min}
                     max={f.max}
                     step={f.step}
-                    className="w-full h-1.5 bg-[var(--bg-surface-hover)] rounded-full appearance-none cursor-pointer accent-cyan-500"
+                    className="w-full h-1.5 bg-[var(--bg-surface-hover)] rounded-full appearance-none cursor-pointer accent-blue-500"
                   />
                   <p className="text-[11px] text-slate-400 mt-1">{f.description}</p>
                 </div>
@@ -160,7 +160,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
             <button
               onClick={handleSave}
               disabled={saving || loading}
-              className="px-4 py-2 text-sm font-bold text-white bg-cyan-600 hover:bg-cyan-500 rounded-lg transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm font-bold text-white bg-[#2EA3F2] hover:bg-[#0C71C3] rounded-lg transition-colors disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save Settings'}
             </button>

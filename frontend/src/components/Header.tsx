@@ -34,7 +34,7 @@ export const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           <span className="material-symbols-outlined">menu</span>
         </button>
         <div>
-          <h1 className="text-lg font-bold text-white">{title}</h1>
+          <h1 className="text-lg font-bold text-[var(--text-primary)]">{title}</h1>
           {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
         </div>
       </div>
