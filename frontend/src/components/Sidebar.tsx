@@ -8,6 +8,7 @@ interface SidebarProps {
   isCollapsed: boolean;
   toggleMobile: () => void;
   toggleCollapse: () => void;
+  onSettingsClick?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -15,6 +16,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
   toggleMobile,
   toggleCollapse,
+  onSettingsClick,
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -118,7 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!isCollapsed && <span className="text-[13px] font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
             </button>
             <button
-              onClick={() => console.log('Settings not built yet')}
+              onClick={onSettingsClick}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group text-slate-500 hover:bg-white/[0.04] hover:text-slate-300 ${isCollapsed ? 'justify-center' : 'justify-start'}`}
               title={isCollapsed ? "Settings" : ""}
             >

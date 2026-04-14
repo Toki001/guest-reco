@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { CameraFeed } from '../components/CameraFeed';
+import { CameraFeed, CameraSettings } from '../components/CameraFeed';
 import { RecognitionBanner, BannerData } from '../components/RecognitionBanner';
 import { API_BASE } from '../config';
 
@@ -20,6 +20,7 @@ function CameraStationPage() {
 
   const [isScanning, setIsScanning] = useState(true);
   const [isRegistered, setIsRegistered] = useState(false);
+  const [cameraSettings, setCameraSettings] = useState<CameraSettings | undefined>(undefined);
 
   // Banner system + history
   const [banners, setBanners] = useState<BannerData[]>([]);
@@ -45,6 +46,24 @@ function CameraStationPage() {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch camera settings from API (and re-fetch every 60s to pick up admin changes)
+  useEffect(() => {
+    if (!apiKey) return;
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/settings`, {
+          headers: { 'X-API-Key': apiKey },
+        });
+        if (res.ok) setCameraSettings(await res.json());
+      } catch (e) {
+        console.error('Failed to fetch settings:', e);
+      }
+    };
+    fetchSettings();
+    const interval = setInterval(fetchSettings, 60000);
+    return () => clearInterval(interval);
+  }, [apiKey]);
 
   // Idle state tracker
   const handleFeedbackChange = useCallback((feedback: string) => {
@@ -161,8 +180,9 @@ function CameraStationPage() {
       const userId = result.user_id || result.name;
 
       // Client-side cooldown check (secondary guard)
+      const cooldownMs = (cameraSettings?.cooldown_seconds ?? 10) * 1000;
       const lastSeen = cooldownRef.current.get(userId);
-      if (lastSeen && now - lastSeen < 10000) continue;
+      if (lastSeen && now - lastSeen < cooldownMs) continue;
 
       // Update cooldown
       cooldownRef.current.set(userId, now);
@@ -298,6 +318,7 @@ function CameraStationPage() {
             onToggle={handleToggleScan}
             cameraId={cameraId}
             apiKey={apiKey}
+            settings={cameraSettings}
             onFeedbackChange={handleFeedbackChange}
           >
             {/* Recognition banners — top of feed */}

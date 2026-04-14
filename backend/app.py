@@ -1,8 +1,10 @@
 import asyncio
 import datetime
+import logging
 import os
 import uuid
 import time
+from collections import defaultdict
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, WebSocket, Depends, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +14,9 @@ from starlette.websockets import WebSocketDisconnect
 import uvicorn
 
 from config import Config
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 from database import (
     get_user_profile, log_access_attempt, insert_user,
     get_access_logs, get_all_users, get_all_users_with_encodings, get_stats,
@@ -21,7 +26,8 @@ from database import (
     get_users_with_last_seen, get_active_users, get_attendance_logs,
     get_user_attendance, user_exists, get_visitors_aggregated, get_today_stats,
     get_faces_by_camera, get_camera_stats, get_camera_activity,
-    get_all_embeddings, add_embedding, get_recent_activity_for_camera
+    get_all_embeddings, add_embedding, get_recent_activity_for_camera,
+    get_settings, update_settings
 )
 from face_engine import index_face, search_face, search_face_multi
 from auth import (
@@ -33,9 +39,10 @@ from auth import (
 # --- FASTAPI SETUP ---
 app = FastAPI(title="SecureSight Edge Recognition API")
 
+_allowed_origins = os.getenv("CORS_ORIGINS", "https://localhost:3000,https://127.0.0.1:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in _allowed_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -87,6 +94,33 @@ manager = ConnectionManager()
 _scan_cooldown: dict[str, float] = {}
 COOLDOWN_SECONDS = 10
 
+# --- SIMPLE RATE LIMITER ---
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+_rate_limit_last_cleanup: float = 0.0
+RATE_LIMIT_WINDOW = 60  # seconds
+RATE_LIMIT_MAX_REQUESTS = 120  # max requests per window per key
+RATE_LIMIT_CLEANUP_INTERVAL = 300  # seconds between stale key purges
+
+def _check_rate_limit(key: str) -> bool:
+    """Return True if the request is within rate limits."""
+    global _rate_limit_last_cleanup
+    now = time.monotonic()
+
+    # Periodic cleanup of stale keys to prevent unbounded memory growth
+    if now - _rate_limit_last_cleanup > RATE_LIMIT_CLEANUP_INTERVAL:
+        stale_keys = [k for k, v in _rate_limit_store.items() if not v or now - v[-1] > RATE_LIMIT_WINDOW]
+        for k in stale_keys:
+            del _rate_limit_store[k]
+        _rate_limit_last_cleanup = now
+
+    # Purge old entries for this key
+    window = _rate_limit_store[key]
+    _rate_limit_store[key] = [t for t in window if now - t < RATE_LIMIT_WINDOW]
+    if len(_rate_limit_store[key]) >= RATE_LIMIT_MAX_REQUESTS:
+        return False
+    _rate_limit_store[key].append(now)
+    return True
+
 # --- WEBSOCKET ENDPOINT ---
 @app.websocket("/ws/dashboard")
 async def websocket_dashboard(websocket: WebSocket, token: str | None = Query(None)):
@@ -122,16 +156,30 @@ async def camera_timeout_checker():
             if timed_out:
                 await manager.broadcast({"event": "stats_update", "data": await asyncio.to_thread(get_stats)})
         except Exception as e:
-            print(f"⚠️ Camera timeout checker error: {e}")
+            logger.error("Camera timeout checker error: %s", e)
 
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(camera_timeout_checker())
-    print(f"Camera API Key: {get_camera_api_key()}")
+    api_key = get_camera_api_key()
+    logger.info("Camera API Key: %s...%s (masked)", api_key[:4], api_key[-4:])
+
+# --- HEALTH CHECK ---
+@app.get('/health')
+async def health_check():
+    try:
+        from database import get_connection
+        await asyncio.to_thread(lambda: get_connection().execute("SELECT 1"))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    return {"status": "ok", "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
 
 # --- API: AUTH ---
 @app.post('/api/auth/login')
-async def login(username: str = Form(...), password: str = Form(...)):
+async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+    client_ip = request.client.host if request.client else "unknown"
+    if not _check_rate_limit(f"login:{client_ip}"):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
     token = check_login(username, password)
     if not token:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -162,12 +210,15 @@ def _recognize_single(image_bytes, camera_id, known_users):
     if isinstance(result, dict) and result.get("no_face"):
         return None
 
-    if isinstance(result, dict) and result.get("uncertain"):
-        return None
-
     if result is None:
-        # No match — register as new guest
-        guest_id = f"GUEST-{uuid.uuid4().hex[:6].upper()}"
+        # No match — register as new guest (ensure unique ID)
+        for _ in range(5):
+            guest_id = f"GUEST-{uuid.uuid4().hex[:6].upper()}"
+            if not user_exists(guest_id):
+                break
+        else:
+            logger.error("Could not generate unique guest ID after 5 attempts")
+            return None
         guest_name = f"Guest {guest_id[-4:]}"
         encoding_bytes = index_face(image_bytes)
         if encoding_bytes is None:
@@ -185,7 +236,7 @@ def _recognize_single(image_bytes, camera_id, known_users):
     # Store new embedding if the face looks different from stored ones
     if result.get("is_new_embedding") and result.get("new_embedding_bytes"):
         add_embedding(user_id, result["new_embedding_bytes"], condition="auto")
-        print(f"📸 New embedding stored for {user_id}")
+        logger.info("New embedding stored for %s", user_id)
 
     # Cooldown check
     now = time.monotonic()
@@ -215,15 +266,21 @@ async def recognize_batch(
     auth=Depends(require_camera_or_admin)
 ):
     """Process multiple face crops in a single request, sequentially."""
+    rate_key = f"recognize:{camera_id or 'unknown'}"
+    if not _check_rate_limit(rate_key):
+        raise HTTPException(status_code=429, detail="Too many requests. Please slow down.")
     all_bytes = [await img.read() for img in images]
     known_users = await asyncio.to_thread(get_all_users_with_encodings)
 
     def process_all():
         results = []
-        for img_bytes in all_bytes:
-            r = _recognize_single(img_bytes, camera_id, known_users)
-            if r:
-                results.append(r)
+        for i, img_bytes in enumerate(all_bytes):
+            try:
+                r = _recognize_single(img_bytes, camera_id, known_users)
+                if r:
+                    results.append(r)
+            except Exception as e:
+                logger.error("Error processing image %d in batch: %s", i, e)
         return results
 
     results = await asyncio.to_thread(process_all)
@@ -250,91 +307,35 @@ async def recognize_face(
     x_api_key: str | None = Header(None, alias="X-API-Key"),
     auth=Depends(require_camera_or_admin)
 ):
+    rate_key = f"recognize:{camera_id or 'unknown'}"
+    if not _check_rate_limit(rate_key):
+        raise HTTPException(status_code=429, detail="Too many requests. Please slow down.")
+
     image_bytes = await image.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty image file")
 
     try:
-        # Run CPU-bound face search in thread pool
         known_users = await asyncio.to_thread(get_all_users_with_encodings)
-        result = await asyncio.to_thread(search_face, image_bytes, known_users)
+        result = await asyncio.to_thread(_recognize_single, image_bytes, camera_id, known_users)
 
-        # Case 1: No face detected in image
-        if isinstance(result, dict) and result.get("no_face"):
-            return {"status": "no_face_detected", "message": "No face detected in image"}
-
-        # Case 1b: Double-verify failed — skip, don't register as guest
-        if isinstance(result, dict) and result.get("uncertain"):
-            return {"status": "uncertain", "message": "Face detected but verification uncertain"}
-
-        # Case 2: No match found - auto-register as guest
         if result is None:
-            guest_id = f"GUEST-{uuid.uuid4().hex[:6].upper()}"
-            guest_name = f"Guest {guest_id[-4:]}"
-            print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 👤 Unknown Face - Auto-Registering as {guest_name}...")
+            return {"status": "no_face_detected", "message": "No face detected or no match"}
 
-            encoding_bytes = await asyncio.to_thread(index_face, image_bytes)
-            if encoding_bytes is None:
-                return {"status": "no_face_detected", "message": "SCAN FAILED: Could not extract face encoding"}
-
-            avatar_path = save_image_locally(image_bytes, "avatars", f"{guest_id}.jpg")
-            await asyncio.to_thread(insert_user, guest_id, guest_name, encoding_bytes, avatar_path, "Guest")
-            final_status = await asyncio.to_thread(lambda: log_access_attempt(guest_id, "in", 100.0, camera_id=camera_id))
-            _scan_cooldown[guest_id] = time.monotonic()
-
-            # Broadcast to dashboard
+        # Broadcast non-skipped results
+        if not result.get("skipped"):
             await manager.broadcast({
                 "event": "recognition_result",
-                "data": {"name": guest_name, "type": "guest", "confidence": 100.0,
-                         "image_url": avatar_path, "status": final_status, "user_id": guest_id,
-                         "camera_id": camera_id, "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+                "data": {**result, "camera_id": camera_id,
+                         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
             })
             await manager.broadcast({"event": "stats_update", "data": await asyncio.to_thread(get_stats)})
 
-            return {"message": guest_name, "type": "guest", "confidence": 100.0,
-                    "image_url": avatar_path, "status": final_status, "user_id": guest_id}
-
-        # Case 3: Match found
-        user_id = result["user_id"]
-        confidence = result["confidence"]
-
-        # In-memory cooldown: skip if same user scanned within 10 seconds
-        now = time.monotonic()
-        last_scan = _scan_cooldown.get(user_id, 0)
-        if now - last_scan < COOLDOWN_SECONDS:
-            user_profile = await asyncio.to_thread(get_user_profile, user_id)
-            return {"message": user_profile["name"] if user_profile else user_id,
-                    "type": (user_profile.get("role", "Employee").lower() if user_profile else "employee"),
-                    "confidence": confidence, "user_id": user_id, "skipped": True,
-                    "image_url": user_profile.get("image_url", "") if user_profile else "",
-                    "status": None}
-
-        user_profile = await asyncio.to_thread(get_user_profile, user_id)
-        if user_profile:
-            name = user_profile["name"]
-            image_url = user_profile.get("image_url", "")
-            user_type = user_profile.get("role", "Employee").lower()
-        else:
-            name = f"ID: {user_id}"
-            image_url = ""
-            user_type = "employee"
-
-        final_status = await asyncio.to_thread(lambda: log_access_attempt(user_id, "in", confidence, camera_id=camera_id))
-        _scan_cooldown[user_id] = time.monotonic()
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ✅ {user_type.title()} Identified: {name} (Clocking {final_status.upper()})")
-
-        await manager.broadcast({
-            "event": "recognition_result",
-            "data": {"name": name, "type": user_type, "confidence": confidence,
-                     "image_url": image_url, "status": final_status, "user_id": user_id,
-                     "camera_id": camera_id, "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
-        })
-        await manager.broadcast({"event": "stats_update", "data": await asyncio.to_thread(get_stats)})
-
-        return {"message": name, "type": user_type, "confidence": confidence,
-                "image_url": image_url, "status": final_status, "user_id": user_id}
+        return result
 
     except Exception as e:
-        print(f"❌ CRITICAL ERROR in recognize_face: {e}")
-        raise HTTPException(status_code=500, detail={"error": "System Error", "details": str(e)})
+        logger.exception("Error in recognize_face")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # --- API: ADD EMPLOYEE ---
 @app.post('/api/employees/add')
@@ -505,7 +506,7 @@ async def get_camera_activity_feed(camera_id: str, limit: int = Query(20), user=
 
 # --- API: EMPLOYEE MANAGEMENT ---
 @app.get('/api/employees')
-async def list_employees(role: str = Query("Employee"), user=Depends(require_admin)):
+async def list_employees(role: str = Query("all"), user=Depends(require_admin)):
     return await asyncio.to_thread(get_users_with_last_seen, role=role)
 
 @app.get('/api/employees/{employee_id}')
@@ -569,9 +570,10 @@ async def list_visitors(
     per_page: int = Query(50, ge=1, le=200),
     date_from: str = Query(None),
     date_to: str = Query(None),
+    search: str = Query(None),
     user=Depends(require_admin)
 ):
-    return await asyncio.to_thread(get_visitors_aggregated, page, per_page, date_from, date_to)
+    return await asyncio.to_thread(get_visitors_aggregated, page, per_page, date_from, date_to, search)
 
 # --- API: ATTENDANCE ---
 @app.get('/api/attendance/active')
@@ -593,6 +595,22 @@ async def attendance_log(
         get_attendance_logs, page, per_page, date_from, date_to, camera_id, user_id, status
     )
 
+# --- API: SETTINGS ---
+@app.get('/api/settings')
+async def get_system_settings(auth=Depends(require_camera_or_admin)):
+    """Camera stations and admin dashboard both read settings."""
+    return await asyncio.to_thread(get_settings)
+
+@app.put('/api/settings')
+async def update_system_settings(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Expected JSON object")
+    updated = await asyncio.to_thread(update_settings, body)
+    # Broadcast settings change so connected camera stations can react
+    await manager.broadcast({"event": "settings_updated", "settings": updated})
+    return updated
+
 # --- NOTE: WebRTC signaling is handled by PeerJS server (port 9000, proxied via Vite) ---
 # The /ws/camera-signal and /ws/viewer-signal endpoints are no longer needed.
 
@@ -601,5 +619,5 @@ app.mount("/avatars", StaticFiles(directory="avatars"), name="avatars")
 app.mount("/snapshots", StaticFiles(directory="snapshots"), name="snapshots")
 
 if __name__ == '__main__':
-    print("🚀 SecureSight Server Starting...")
+    logger.info("SecureSight Server Starting...")
     uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True)

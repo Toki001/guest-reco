@@ -2,6 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { API_BASE } from '../config';
 
+export interface CameraSettings {
+  movement_threshold: number;
+  still_time_short: number;
+  still_time_long: number;
+  cooldown_seconds: number;
+  min_face_width: number;
+  large_face_threshold: number;
+}
+
 interface CameraFeedProps {
   isScanning: boolean;
   onSnap: (results: { name: string; type: 'guest' | 'employee'; confidence: number; image_url?: string; status?: string; user_id?: string; skipped?: boolean }[]) => void;
@@ -10,13 +19,15 @@ interface CameraFeedProps {
   onFeedbackChange?: (feedback: 'idle' | 'move-closer' | 'hold-still' | 'counting' | 'analyzing') => void;
   cameraId?: string;
   apiKey?: string;
+  settings?: CameraSettings;
   children?: React.ReactNode;
 }
 
-export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onToggle, onStatusChange, onFeedbackChange, cameraId, apiKey, children }) => {
+export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onToggle, onStatusChange, onFeedbackChange, cameraId, apiKey, settings, children }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const captureCanvasRef = useRef<HTMLCanvasElement>(null);
+  const rtcCleanupRef = useRef<(() => void) | null>(null);
 
   const [isOnline, setIsOnline] = useState(false);
   const [scanStatus, setScanStatus] = useState<'idle' | 'analyzing'>('idle');
@@ -27,11 +38,18 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
   const stillStartTimeRef = useRef<number | null>(null);
   const requestRef = useRef<number>(0);
 
-  const MIN_FACE_WIDTH = 80;
-  const LARGE_FACE_THRESHOLD = 150;
-  const STILL_TIME_SHORT = 1;
-  const STILL_TIME_LONG = 2;
-  const requiredStillTimeRef = useRef(STILL_TIME_SHORT);
+  const settingsRef = useRef({
+    minFaceWidth: 80, largeFaceThreshold: 150,
+    stillTimeShort: 1, stillTimeLong: 2, movementThreshold: 160,
+  });
+  settingsRef.current = {
+    minFaceWidth: settings?.min_face_width ?? 80,
+    largeFaceThreshold: settings?.large_face_threshold ?? 150,
+    stillTimeShort: settings?.still_time_short ?? 1,
+    stillTimeLong: settings?.still_time_long ?? 2,
+    movementThreshold: settings?.movement_threshold ?? 160,
+  };
+  const requiredStillTimeRef = useRef(settingsRef.current.stillTimeShort);
   const retryRef = useRef(false);
   const [scanFeedback, setScanFeedback] = useState<'idle' | 'move-closer' | 'hold-still' | 'counting' | 'analyzing'>('idle');
 
@@ -180,7 +198,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
 
               publishWHIP();
 
-              (videoRef.current as any)._rtcCleanup = () => {
+              rtcCleanupRef.current = () => {
                 destroyed = true;
                 pc?.close();
               };
@@ -225,8 +243,9 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
           const detections = faceDetector.detectForVideo(video, performance.now()).detections;
 
           // Split detections by size
-          const validDetections = detections.filter(det => det.boundingBox!.width >= MIN_FACE_WIDTH);
-          const tooSmallDetections = detections.filter(det => det.boundingBox!.width < MIN_FACE_WIDTH);
+          const { minFaceWidth, largeFaceThreshold, stillTimeShort, stillTimeLong, movementThreshold } = settingsRef.current;
+          const validDetections = detections.filter(det => det.boundingBox!.width >= minFaceWidth);
+          const tooSmallDetections = detections.filter(det => det.boundingBox!.width < minFaceWidth);
 
           // Draw yellow boxes for too-small faces
           tooSmallDetections.forEach(det => {
@@ -252,7 +271,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
           } else {
             // Compute adaptive still time from smallest valid face
             const smallestWidth = Math.min(...validDetections.map(d => d.boundingBox!.width));
-            requiredStillTimeRef.current = smallestWidth >= LARGE_FACE_THRESHOLD ? STILL_TIME_SHORT : STILL_TIME_LONG;
+            requiredStillTimeRef.current = smallestWidth >= largeFaceThreshold ? stillTimeShort : stillTimeLong;
 
             const currentCenters = validDetections.map(det => {
               const rawX = det.boundingBox!.originX;
@@ -277,7 +296,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
                 if (drift > maxDrift) maxDrift = drift;
               }
 
-              isMoving = maxDrift > 160;
+              isMoving = maxDrift > movementThreshold;
             }
 
             validDetections.forEach(det => {
@@ -324,8 +343,9 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
     initializeSystem();
 
     return () => {
-      if ((videoRef.current as any)?._rtcCleanup) {
-        (videoRef.current as any)._rtcCleanup();
+      if (rtcCleanupRef.current) {
+        rtcCleanupRef.current();
+        rtcCleanupRef.current = null;
       }
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
       if (faceDetector) faceDetector.close();
@@ -339,8 +359,9 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
     setScanStatus('analyzing');
     setScanFeedback('analyzing');
 
-    if (videoRef.current) {
+    try {
       const video = videoRef.current;
+      if (!video) return;
 
       // Crop all faces into blobs
       const blobs: Blob[] = [];
@@ -367,43 +388,45 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
       }
 
       if (blobs.length > 0) {
-        // Send all face crops in a single batch request
         const formData = new FormData();
         blobs.forEach((blob, i) => formData.append('images', blob, `face_${i}.jpg`));
         if (cameraId) formData.append('camera_id', cameraId);
 
-        try {
-          const fetchHeaders: HeadersInit = apiKey ? { 'X-API-Key': apiKey } : {};
-          const response = await fetch(`${API_BASE}/api/recognize-batch`, { method: 'POST', body: formData, headers: fetchHeaders });
-          const data = await response.json();
+        const fetchHeaders: HeadersInit = apiKey ? { 'X-API-Key': apiKey } : {};
+        const response = await fetch(`${API_BASE}/api/recognize-batch`, { method: 'POST', body: formData, headers: fetchHeaders });
+        const data = await response.json();
 
-          if (response.ok && Array.isArray(data.results)) {
-            const validResults = data.results.filter((r: any) => r && !r.skipped && r.status);
-            if (validResults.length > 0) {
-              onSnap(validResults.map((r: any) => ({
-                name: r.message, type: r.type, confidence: r.confidence,
-                image_url: r.image_url, status: r.status, user_id: r.user_id, skipped: r.skipped
-              })));
+        if (response.ok && Array.isArray(data.results)) {
+          // Separate valid (non-skipped with status) from skipped
+          const validResults = data.results.filter((r: any) => r && !r.skipped && r.status);
+          const hasAnyResults = data.results.length > 0;
+
+          if (validResults.length > 0) {
+            onSnap(validResults.map((r: any) => ({
+              name: r.message, type: r.type, confidence: r.confidence,
+              image_url: r.image_url, status: r.status, user_id: r.user_id, skipped: r.skipped
+            })));
+          } else if (hasAnyResults) {
+            // All results were skipped (cooldown) — don't retry, just move on
+          } else if (!retryRef.current) {
+            // Zero results (no face matched at all) — retry once
+            retryRef.current = true;
+            isAnalyzingRef.current = false;
+            setScanStatus('idle');
+            setScanFeedback('idle');
+            setTimeout(() => {
               retryRef.current = false;
-            } else if (!retryRef.current) {
-              // Zero valid results despite sending faces — retry once
-              retryRef.current = true;
-              isAnalyzingRef.current = false;
-              setScanStatus('idle');
-              setScanFeedback('idle');
-              setTimeout(() => {
-                retryRef.current = false;
-                anchorsRef.current = [];
-                stillStartTimeRef.current = null;
-              }, 500);
-              return;
-            }
+              anchorsRef.current = [];
+              stillStartTimeRef.current = null;
+            }, 500);
+            return;
           }
-        } catch (error) {
-          console.error('Batch recognize failed:', error);
         }
       }
-
+    } catch (error) {
+      console.error('Batch recognize failed:', error);
+    } finally {
+      // Always reset state — no matter what happens above
       isAnalyzingRef.current = false;
       setScanStatus('idle');
       setScanFeedback('idle');

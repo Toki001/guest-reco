@@ -1,8 +1,11 @@
 import io
+import logging
 import threading
 import numpy as np
 from PIL import Image
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 # Thresholds
 MATCH_THRESHOLD = 0.45          # Strong match: cosine distance < 0.45 (similarity > 0.55)
@@ -21,11 +24,11 @@ def _get_model():
     if _model is None:
         import insightface
         _model = insightface.app.FaceAnalysis(
-            name="buffalo_l",
+            name="antelopev2",
             providers=["CPUExecutionProvider"]
         )
         _model.prepare(ctx_id=-1, det_size=(640, 640))
-        print("InsightFace model loaded (buffalo_l / ArcFace + RetinaFace)")
+        logger.info("InsightFace model loaded (antelopev2 / ArcFace + RetinaFace)")
     return _model
 
 
@@ -53,7 +56,7 @@ def index_face(image_bytes):
             face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
             return face.normed_embedding.astype(np.float64).tobytes()
         except Exception as e:
-            print(f"Face indexing error: {e}")
+            logger.error("Face indexing error: %s", e)
             return None
 
 
@@ -117,7 +120,7 @@ def search_face_multi(image_bytes, all_embeddings, context=None):
             if best_dist < MATCH_THRESHOLD and confidence >= CONFIDENCE_FLOOR:
                 # Check if this embedding is different enough to store as a new variant
                 is_new = _is_diverse_embedding(unknown_emb, all_embeddings, best_uid)
-                print(f"✅ Strong match: {best_name} (sim={best_sim:.3f}, conf={confidence}%, new_emb={is_new})")
+                logger.info("Strong match: %s (sim=%.3f, conf=%.1f%%, new_emb=%s)", best_name, best_sim, confidence, is_new)
                 return {
                     "user_id": best_uid,
                     "confidence": confidence,
@@ -130,25 +133,27 @@ def search_face_multi(image_bytes, all_embeddings, context=None):
                 recent_users = context.get("recent_users", [])
                 recent_ids = {u["user_id"] for u in recent_users}
 
-                if best_uid in recent_ids:
+                if best_uid in recent_ids and confidence >= CONFIDENCE_FLOOR:
                     # The best match was recently active at this camera — likely the same person
-                    is_new = True  # Always store uncertain matches as new embeddings
-                    print(f"🔄 Context match: {best_name} (sim={best_sim:.3f}, context: recently active)")
+                    # Check diversity before storing as new embedding
+                    is_new = _is_diverse_embedding(unknown_emb, all_embeddings, best_uid)
+                    logger.info("Context match: %s (sim=%.3f, context: recently active, new_emb=%s)", best_name, best_sim, is_new)
                     return {
                         "user_id": best_uid,
                         "confidence": confidence,
                         "is_new_embedding": is_new,
-                        "new_embedding_bytes": unknown_emb.tobytes(),
+                        "new_embedding_bytes": unknown_emb.tobytes() if is_new else None,
                     }
 
             # --- ZONE 3: No match ---
             if best_sim > 0.3:
-                print(f"❌ No match (best: {best_name}, sim={best_sim:.3f}, dist={best_dist:.3f})")
+                logger.info("No match (best: %s, sim=%.3f, dist=%.3f)", best_name, best_sim, best_dist)
             return None
 
         except Exception as e:
-            print(f"Face search error: {e}")
-            return {"no_face": True}
+            logger.exception("Face search error")
+            # Distinguish system error from "no face" — raise so caller can handle
+            raise
 
 
 def _is_diverse_embedding(new_emb, all_embeddings, user_id):

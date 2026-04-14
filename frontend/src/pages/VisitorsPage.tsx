@@ -9,7 +9,10 @@ interface Visitor {
   first_seen: string | null;
   last_seen: string | null;
   total_visits: number;
+  entries_count: number;
+  exits_count: number;
   last_camera: string | null;
+  last_status: string | null;
 }
 
 interface VisitorsResponse {
@@ -27,6 +30,7 @@ function VisitorsPage() {
   const [total, setTotal] = useState(0);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [search, setSearch] = useState('');
 
   const fetchVisitors = useCallback(async () => {
     setLoading(true);
@@ -36,6 +40,7 @@ function VisitorsPage() {
       params.set('per_page', '50');
       if (dateFrom) params.set('date_from', dateFrom);
       if (dateTo) params.set('date_to', dateTo);
+      if (search) params.set('search', search);
 
       const res = await authFetch(`/api/visitors?${params.toString()}`);
       if (res.ok) {
@@ -49,12 +54,12 @@ function VisitorsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, dateFrom, dateTo]);
+  }, [page, dateFrom, dateTo, search]);
 
   useEffect(() => { fetchVisitors(); }, [fetchVisitors]);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [dateFrom, dateTo]);
+  useEffect(() => { setPage(1); }, [dateFrom, dateTo, search]);
 
   const getImageUrl = (url: string | null) => {
     if (!url) return null;
@@ -69,7 +74,7 @@ function VisitorsPage() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full  overflow-y-auto pb-10">
+    <div className="flex flex-col w-full pb-10">
       <div className="flex items-center justify-end mb-4">
         <button onClick={fetchVisitors}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-surface)] text-slate-400 border border-[var(--border-color)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)] transition-all">
@@ -80,6 +85,11 @@ function VisitorsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative flex-1 max-w-sm">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+          <input type="text" placeholder="Search by name or ID..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-xl text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+        </div>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
           className="px-3 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
         <span className="text-slate-400 text-sm">to</span>
@@ -96,7 +106,7 @@ function VisitorsPage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <span className="material-symbols-outlined text-5xl text-slate-300 mb-3 block">person_search</span>
-            <p className="text-slate-400">{dateFrom || dateTo ? 'No visitors found for selected date range.' : 'No visitors registered yet.'}</p>
+            <p className="text-slate-400">{search || dateFrom || dateTo ? 'No visitors found for selected filters.' : 'No visitors registered yet.'}</p>
           </div>
         </div>
       ) : (
@@ -109,7 +119,10 @@ function VisitorsPage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name/ID</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">First Seen</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Last Seen</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Visits</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Entries</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Exits</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Total</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Last Camera</th>
                 </tr>
               </thead>
@@ -134,9 +147,33 @@ function VisitorsPage() {
                     <td className="px-4 py-3 text-sm text-slate-400">{formatDateTime(visitor.first_seen)}</td>
                     <td className="px-4 py-3 text-sm text-slate-400">{formatDateTime(visitor.last_seen)}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-500/15 text-cyan-400 ">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        {visitor.entries_count}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/15 text-red-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        {visitor.exits_count}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-500/15 text-cyan-400">
                         {visitor.total_visits}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {visitor.last_status ? (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                          visitor.last_status === 'in' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${visitor.last_status === 'in' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                          {visitor.last_status === 'in' ? 'IN' : 'OUT'}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-500">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-400 capitalize">{visitor.last_camera?.replace(/-/g, ' ') || '—'}</td>
                   </tr>

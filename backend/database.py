@@ -1,8 +1,12 @@
 import sqlite3
 import datetime
+import json
+import logging
 
 import threading
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = getattr(Config, 'DB_PATH', 'recognition.db')
 
@@ -15,6 +19,7 @@ def get_connection():
         _local.connection = sqlite3.connect(DB_PATH, check_same_thread=False)
         _local.connection.row_factory = sqlite3.Row
         _local.connection.execute("PRAGMA journal_mode=WAL")
+        _local.connection.execute("PRAGMA foreign_keys = ON")
     return _local.connection
 
 def init_db():
@@ -58,11 +63,54 @@ def init_db():
             created_at TEXT NOT NULL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_face_embeddings_user ON face_embeddings(user_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_user_timestamp ON access_logs(user_id, timestamp DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_camera ON access_logs(camera_id, timestamp DESC)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_status ON access_logs(user_id, status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
     conn.commit()
-    print("✅ SQLite Database Initialized")
+    logger.info("SQLite Database Initialized")
+
+# --- SETTINGS ---
+DEFAULT_SETTINGS = {
+    "movement_threshold": 160,
+    "still_time_short": 1.0,
+    "still_time_long": 2.0,
+    "cooldown_seconds": 10,
+    "min_face_width": 80,
+    "large_face_threshold": 150,
+}
+
+def get_settings():
+    conn = get_connection()
+    row = conn.execute("SELECT value FROM settings WHERE key = 'system'").fetchone()
+    if row:
+        stored = json.loads(row["value"])
+        return {**DEFAULT_SETTINGS, **stored}
+    return dict(DEFAULT_SETTINGS)
+
+def update_settings(new_settings):
+    conn = get_connection()
+    current = get_settings()
+    # Only update known keys, validate types
+    for k, default_val in DEFAULT_SETTINGS.items():
+        if k in new_settings:
+            try:
+                current[k] = type(default_val)(new_settings[k])
+            except (TypeError, ValueError):
+                pass  # Skip invalid values, keep current
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('system', ?)",
+        (json.dumps(current),)
+    )
+    conn.commit()
+    return current
 
 # --- PERFORMANCE CACHE ---
 USER_STATE_CACHE = {}
@@ -194,8 +242,7 @@ def log_access_attempt(user_id, status_type, confidence, snapshot_path=None, cam
     )
     conn.commit()
 
-    direction = "➡️" if final_status == 'in' else "⬅️"
-    print(f"✅ Logged: {user_id} ({direction} {final_status.upper()})")
+    logger.info("Logged: %s (%s)", user_id, final_status.upper())
     return final_status
 
 def get_access_logs(limit=50):
@@ -225,6 +272,9 @@ def get_stats():
 
 def delete_user(user_id):
     conn = get_connection()
+    # Cascade delete related records (foreign keys may not enforce in older DBs)
+    conn.execute("DELETE FROM face_embeddings WHERE user_id = ?", (user_id,))
+    conn.execute("DELETE FROM access_logs WHERE user_id = ?", (user_id,))
     conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
     conn.commit()
     USER_STATE_CACHE.pop(user_id, None)
@@ -237,12 +287,17 @@ def update_user(user_id, name=None, role=None):
     if role is not None:
         conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
     conn.commit()
+    # Invalidate cache
+    USER_STATE_CACHE.pop(user_id, None)
 
 def update_user_face(user_id, face_encoding_bytes, image_path):
     conn = get_connection()
     conn.execute("UPDATE users SET face_encoding = ?, image_path = ? WHERE id = ?",
                  (face_encoding_bytes, image_path, user_id))
     conn.commit()
+    # Also update the multi-embedding table
+    if face_encoding_bytes:
+        add_embedding(user_id, face_encoding_bytes, condition="reface")
 
 def get_user_detail(user_id):
     conn = get_connection()
@@ -273,19 +328,26 @@ def get_users_with_last_seen(role=None):
         params = [role]
     rows = conn.execute(f"""
         SELECT u.id, u.name, u.image_path, u.role,
-               a.status as last_status, a.timestamp as last_seen, a.camera_id as last_camera
+               a.status as last_status, a.timestamp as last_seen, a.camera_id as last_camera,
+               COALESCE(counts.entries_count, 0) as entries_count,
+               COALESCE(counts.exits_count, 0) as exits_count
         FROM users u
         LEFT JOIN access_logs a ON a.user_id = u.id
             AND a.timestamp = (SELECT MAX(timestamp) FROM access_logs WHERE user_id = u.id)
+        LEFT JOIN (
+            SELECT user_id, SUM(status = 'in') as entries_count, SUM(status = 'out') as exits_count
+            FROM access_logs GROUP BY user_id
+        ) counts ON counts.user_id = u.id
         {role_filter}
         ORDER BY u.name
     """, params).fetchall()
     return [{
         "id": r["id"], "name": r["name"], "image_url": r["image_path"], "role": r["role"],
-        "last_status": r["last_status"], "last_seen": r["last_seen"], "last_camera": r["last_camera"]
+        "last_status": r["last_status"], "last_seen": r["last_seen"], "last_camera": r["last_camera"],
+        "entries_count": r["entries_count"], "exits_count": r["exits_count"]
     } for r in rows]
 
-def get_visitors_aggregated(page=1, per_page=50, date_from=None, date_to=None):
+def get_visitors_aggregated(page=1, per_page=50, date_from=None, date_to=None, search=None):
     conn = get_connection()
     conditions = ["u.role = 'Guest'"]
     params = []
@@ -295,6 +357,9 @@ def get_visitors_aggregated(page=1, per_page=50, date_from=None, date_to=None):
     if date_to:
         conditions.append("a.timestamp <= ?")
         params.append(date_to)
+    if search:
+        conditions.append("(u.name LIKE ? OR u.id LIKE ?)")
+        params.extend([f"%{search}%", f"%{search}%"])
 
     where = "WHERE " + " AND ".join(conditions)
     offset = (page - 1) * per_page
@@ -310,7 +375,10 @@ def get_visitors_aggregated(page=1, per_page=50, date_from=None, date_to=None):
                MIN(a.timestamp) as first_seen,
                MAX(a.timestamp) as last_seen,
                COUNT(a.id) as total_visits,
-               (SELECT camera_id FROM access_logs WHERE user_id = u.id ORDER BY timestamp DESC LIMIT 1) as last_camera
+               SUM(CASE WHEN a.status = 'in' THEN 1 ELSE 0 END) as entries_count,
+               SUM(CASE WHEN a.status = 'out' THEN 1 ELSE 0 END) as exits_count,
+               (SELECT camera_id FROM access_logs WHERE user_id = u.id ORDER BY timestamp DESC LIMIT 1) as last_camera,
+               (SELECT status FROM access_logs WHERE user_id = u.id ORDER BY timestamp DESC LIMIT 1) as last_status
         FROM users u
         LEFT JOIN access_logs a ON a.user_id = u.id
         {where}
@@ -326,7 +394,9 @@ def get_visitors_aggregated(page=1, per_page=50, date_from=None, date_to=None):
         "items": [{
             "id": r["id"], "name": r["name"], "image_url": r["image_path"],
             "first_seen": r["first_seen"], "last_seen": r["last_seen"],
-            "total_visits": r["total_visits"], "last_camera": r["last_camera"]
+            "total_visits": r["total_visits"],
+            "entries_count": r["entries_count"] or 0, "exits_count": r["exits_count"] or 0,
+            "last_camera": r["last_camera"], "last_status": r["last_status"]
         } for r in rows]
     }
 
@@ -557,10 +627,19 @@ def get_camera_activity(camera_id, limit=20):
 def register_camera(camera_id, department):
     conn = get_connection()
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    conn.execute(
-        "INSERT OR REPLACE INTO cameras (camera_id, department, last_heartbeat, is_online, registered_at) VALUES (?, ?, ?, 1, COALESCE((SELECT registered_at FROM cameras WHERE camera_id = ?), ?))",
-        (camera_id, department, now, camera_id, now)
-    )
+    existing = conn.execute(
+        "SELECT camera_id FROM cameras WHERE camera_id = ?", (camera_id,)
+    ).fetchone()
+    if existing:
+        conn.execute(
+            "UPDATE cameras SET department = ?, last_heartbeat = ?, is_online = 1 WHERE camera_id = ?",
+            (department, now, camera_id)
+        )
+    else:
+        conn.execute(
+            "INSERT INTO cameras (camera_id, department, last_heartbeat, is_online, registered_at) VALUES (?, ?, ?, 1, ?)",
+            (camera_id, department, now, now)
+        )
     conn.commit()
 
 def update_camera_heartbeat(camera_id):

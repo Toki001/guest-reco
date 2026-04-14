@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { authFetch } from '../auth';
+import { API_BASE } from '../config';
 
 interface CameraFace {
   id: string;
@@ -55,16 +56,16 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      authFetch(`/api/cameras/${encodeURIComponent(cameraId)}/faces`).then(r => r.json()),
-      authFetch(`/api/cameras/${encodeURIComponent(cameraId)}/stats`).then(r => r.json()),
-      authFetch(`/api/cameras/${encodeURIComponent(cameraId)}/activity`).then(r => r.json()),
-    ]).then(([f, s, a]) => {
-      setFaces(f);
-      setStats(s);
-      setActivity(a);
+    Promise.allSettled([
+      authFetch(`/api/cameras/${encodeURIComponent(cameraId)}/faces`).then(r => r.ok ? r.json() : []),
+      authFetch(`/api/cameras/${encodeURIComponent(cameraId)}/stats`).then(r => r.ok ? r.json() : null),
+      authFetch(`/api/cameras/${encodeURIComponent(cameraId)}/activity`).then(r => r.ok ? r.json() : []),
+    ]).then(([facesResult, statsResult, activityResult]) => {
+      if (facesResult.status === 'fulfilled') setFaces(facesResult.value);
+      if (statsResult.status === 'fulfilled' && statsResult.value) setStats(statsResult.value);
+      if (activityResult.status === 'fulfilled') setActivity(activityResult.value);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    });
   }, [cameraId]);
 
   const departmentName = cameraId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -145,7 +146,7 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
                   <div key={face.id} className="flex items-center gap-3 bg-slate-800 rounded-lg p-3">
                     <div className="w-10 h-10 rounded-full bg-slate-700 overflow-hidden flex-shrink-0">
                       {face.image_url ? (
-                        <img src={`/avatars/${face.image_url.split('/').pop()}`} alt={face.name}
+                        <img src={face.image_url.startsWith('/') ? `${API_BASE}${face.image_url}` : face.image_url} alt={face.name}
                           className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-500">
@@ -180,7 +181,7 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
                   <div key={item.id} className="flex items-center gap-3 bg-slate-800 rounded-lg p-3">
                     <div className="w-8 h-8 rounded-full bg-slate-700 overflow-hidden flex-shrink-0">
                       {item.image_url ? (
-                        <img src={`/avatars/${item.image_url.split('/').pop()}`} alt={item.name}
+                        <img src={item.image_url.startsWith('/') ? `${API_BASE}${item.image_url}` : item.image_url} alt={item.name}
                           className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-500">

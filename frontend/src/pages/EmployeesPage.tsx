@@ -12,6 +12,8 @@ interface Employee {
   last_status: string | null;
   last_seen: string | null;
   last_camera: string | null;
+  entries_count: number;
+  exits_count: number;
 }
 
 function EmployeesPage() {
@@ -127,7 +129,7 @@ function EmployeesPage() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full  overflow-y-auto pb-10">
+    <div className="flex flex-col w-full pb-10">
       <div className="flex items-center justify-end mb-4">
         <button onClick={() => setShowAddModal(true)}
           className="flex items-center gap-2 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-[var(--text-primary)] rounded-lg font-medium text-xs transition-colors">
@@ -172,6 +174,8 @@ function EmployeesPage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Employee</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Role</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Entries</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Exits</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Last Seen</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
@@ -211,6 +215,18 @@ function EmployeesPage() {
                             : 'bg-cyan-500/15 text-cyan-400 '
                         }`}>{emp.role}</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        {emp.entries_count || 0}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/15 text-red-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        {emp.exits_count || 0}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-400">{formatTime(emp.last_seen)}</td>
                     <td className="px-4 py-3">

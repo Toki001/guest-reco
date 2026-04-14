@@ -5,6 +5,7 @@ import { Header } from '../components/Header';
 import DashboardTab from '../components/DashboardTab';
 import CameraGridPage from './CameraGridPage';
 import EmployeesPage from './EmployeesPage';
+import SettingsModal from '../components/SettingsModal';
 
 const EmployeeProfilePage = lazy(() => import('./EmployeeProfilePage'));
 const AttendancePage = lazy(() => import('./AttendancePage'));
@@ -13,6 +14,7 @@ const VisitorsPage = lazy(() => import('./VisitorsPage'));
 function MainApp() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const toggleMobileSidebar = () => setSidebarOpen(!isSidebarOpen);
   const toggleDesktopCollapse = () => setSidebarCollapsed(!isSidebarCollapsed);
@@ -25,6 +27,7 @@ function MainApp() {
         isCollapsed={isSidebarCollapsed}
         toggleMobile={toggleMobileSidebar}
         toggleCollapse={toggleDesktopCollapse}
+        onSettingsClick={() => setShowSettings(true)}
       />
 
       {/* Main content */}
@@ -33,7 +36,7 @@ function MainApp() {
           <Header toggleSidebar={toggleMobileSidebar} />
         </div>
 
-        <div className="flex-1 px-6 pb-6 min-h-0 overflow-hidden">
+        <div className="flex-1 px-6 pb-6 min-h-0 overflow-y-auto">
           <Routes>
             <Route path="dashboard" element={<DashboardTab />} />
             <Route path="cameras" element={<CameraGridPage />} />
@@ -45,6 +48,8 @@ function MainApp() {
           </Routes>
         </div>
       </main>
+
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

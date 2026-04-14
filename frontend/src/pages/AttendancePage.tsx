@@ -11,43 +11,10 @@ interface ActiveUser {
   camera_id: string | null;
 }
 
-interface AttendanceEvent {
-  id: number;
-  user_id: string;
-  status: string;
-  confidence: number;
-  timestamp: string;
-  camera_id: string | null;
-  name: string;
-  image_url: string | null;
-  role: string;
-}
-
-interface Camera {
-  camera_id: string;
-  department: string;
-}
-
 function AttendancePage() {
-  // Who's In panel
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [activeLoading, setActiveLoading] = useState(true);
-
-  // Event log
-  const [events, setEvents] = useState<AttendanceEvent[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-
-  // Filters
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [searchPerson, setSearchPerson] = useState('');
-  const [filterCamera, setFilterCamera] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [cameras, setCameras] = useState<Camera[]>([]);
-
+  const [roleFilter, setRoleFilter] = useState<'all' | 'Employee' | 'Guest'>('all');
   const wsRef = useRef<WebSocket | null>(null);
 
   const fetchActive = useCallback(async () => {
@@ -61,41 +28,7 @@ function AttendancePage() {
     }
   }, []);
 
-  const fetchEvents = useCallback(async () => {
-    setEventsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set('page', String(page));
-      params.set('per_page', '50');
-      if (dateFrom) params.set('date_from', dateFrom);
-      if (dateTo) params.set('date_to', dateTo);
-      if (searchPerson) params.set('user_id', searchPerson);
-      if (filterCamera) params.set('camera_id', filterCamera);
-      if (filterStatus) params.set('status', filterStatus);
-
-      const res = await authFetch(`/api/attendance?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setEvents(data.items);
-        setTotal(data.total);
-        setTotalPages(Math.ceil(data.total / data.per_page));
-      }
-    } catch (e) {
-      console.error('Failed to fetch events:', e);
-    } finally {
-      setEventsLoading(false);
-    }
-  }, [page, dateFrom, dateTo, searchPerson, filterCamera, filterStatus]);
-
-  const fetchCameras = useCallback(async () => {
-    try {
-      const res = await authFetch('/api/cameras');
-      if (res.ok) setCameras(await res.json());
-    } catch {}
-  }, []);
-
-  useEffect(() => { fetchActive(); fetchCameras(); }, [fetchActive, fetchCameras]);
-  useEffect(() => { fetchEvents(); }, [fetchEvents]);
+  useEffect(() => { fetchActive(); }, [fetchActive]);
 
   // WebSocket for real-time updates
   useEffect(() => {
@@ -106,7 +39,6 @@ function AttendancePage() {
       try {
         const msg = JSON.parse(event.data);
         if (msg.event === 'recognition_result') {
-          // Refresh active users when someone clocks in/out
           fetchActive();
         }
       } catch {}
@@ -118,9 +50,6 @@ function AttendancePage() {
     return () => { ws.close(); };
   }, [fetchActive]);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [dateFrom, dateTo, searchPerson, filterCamera, filterStatus]);
-
   const getImageUrl = (url: string | null) => {
     if (!url) return null;
     return url.startsWith('/') ? `${API_BASE}${url}` : url;
@@ -130,14 +59,12 @@ function AttendancePage() {
     try { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch { return ts; }
   };
 
-  const formatDateTime = (ts: string) => {
-    try { return new Date(ts).toLocaleString(); } catch { return ts; }
-  };
+  const filteredUsers = roleFilter === 'all' ? activeUsers : activeUsers.filter(u => u.role === roleFilter);
 
   return (
-    <div className="flex flex-col h-full w-full  overflow-y-auto pb-10">
+    <div className="flex flex-col w-full pb-10">
       <div className="flex items-center justify-end mb-4">
-        <button onClick={() => { fetchActive(); fetchEvents(); }}
+        <button onClick={fetchActive}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-surface)] text-slate-400 border border-[var(--border-color)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)] transition-all">
           <span className="material-symbols-outlined text-sm">refresh</span>
           Refresh
@@ -145,25 +72,42 @@ function AttendancePage() {
       </div>
 
       {/* Who's In Right Now */}
-      <div className="mb-6">
-        <h3 className="text-lg font-bold text-[var(--text-primary)] mb-3 flex items-center gap-2">
-          <span className="material-symbols-outlined text-emerald-500">groups</span>
-          Who's In Right Now
-          <span className="text-sm font-normal text-slate-400">({activeUsers.length})</span>
-        </h3>
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <span className="material-symbols-outlined text-emerald-500">groups</span>
+            Who's In Right Now
+            <span className="text-sm font-normal text-slate-400">({filteredUsers.length})</span>
+          </h3>
+          <div className="flex items-center gap-1 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-0.5">
+            {(['all', 'Employee', 'Guest'] as const).map(role => (
+              <button
+                key={role}
+                onClick={() => setRoleFilter(role)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  roleFilter === role
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-[var(--text-primary)]'
+                }`}
+              >
+                {role === 'all' ? 'All' : role === 'Employee' ? 'Employees' : 'Guests'}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {activeLoading ? (
           <div className="flex items-center justify-center py-8">
             <div className="w-6 h-6 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
           </div>
-        ) : activeUsers.length === 0 ? (
+        ) : filteredUsers.length === 0 ? (
           <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] p-8 text-center">
             <span className="material-symbols-outlined text-4xl text-slate-300 mb-2 block">person_off</span>
-            <p className="text-slate-400">No one currently on site</p>
+            <p className="text-slate-400">{roleFilter === 'all' ? 'No one currently on site' : `No ${roleFilter === 'Employee' ? 'employees' : 'guests'} currently on site`}</p>
           </div>
         ) : (
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-            {activeUsers.map(user => (
+            {filteredUsers.map(user => (
               <div key={user.id} className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] p-4 flex items-center gap-3">
                 {getImageUrl(user.image_url) ? (
                   <img src={getImageUrl(user.image_url)!} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-[var(--border-color)] shrink-0" />
@@ -191,119 +135,6 @@ function AttendancePage() {
           </div>
         )}
       </div>
-
-      {/* Event Log */}
-      <h3 className="text-lg font-bold text-[var(--text-primary)] mb-3">Event Log</h3>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="px-3 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
-        <span className="text-slate-400 text-sm">to</span>
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="px-3 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
-        <input type="text" placeholder="Search person..." value={searchPerson} onChange={e => setSearchPerson(e.target.value)}
-          className="px-3 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-lg text-sm outline-none focus:border-blue-500 transition-all w-40" />
-        <select value={filterCamera} onChange={e => setFilterCamera(e.target.value)}
-          className="px-3 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-lg text-sm outline-none focus:border-blue-500 transition-all">
-          <option value="">All Cameras</option>
-          {cameras.map(c => <option key={c.camera_id} value={c.camera_id}>{c.department || c.camera_id}</option>)}
-        </select>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-          className="px-3 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-lg text-sm outline-none focus:border-blue-500 transition-all">
-          <option value="">All Status</option>
-          <option value="in">In</option>
-          <option value="out">Out</option>
-        </select>
-      </div>
-
-      {/* Table */}
-      {eventsLoading ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="w-6 h-6 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-        </div>
-      ) : events.length === 0 ? (
-        <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] p-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-slate-300 mb-2 block">event_busy</span>
-          <p className="text-slate-400">No attendance events found.</p>
-        </div>
-      ) : (
-        <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Person</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Role</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Camera</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Confidence</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Timestamp</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-color)]">
-                {events.map(evt => (
-                  <tr key={evt.id} className="hover:bg-[var(--bg-surface)] transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        {getImageUrl(evt.image_url) ? (
-                          <img src={getImageUrl(evt.image_url)!} alt={evt.name} className="w-8 h-8 rounded-full object-cover border border-[var(--border-color)]" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-slate-400 text-xs">person</span>
-                          </div>
-                        )}
-                        <span className="text-sm font-medium text-[var(--text-primary)]">{evt.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
-                        evt.role === 'Guest' ? 'bg-amber-500/15 text-amber-400 '
-                          : 'bg-cyan-500/15 text-cyan-400 '
-                      }`}>{evt.role}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                        evt.status === 'in' ? 'bg-emerald-100 text-emerald-700 dark:text-emerald-400'
-                          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${evt.status === 'in' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                        {evt.status === 'in' ? 'IN' : 'OUT'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-400 capitalize">{evt.camera_id?.replace(/-/g, ' ') || '—'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-[var(--bg-surface-hover)] rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(evt.confidence, 100)}%` }} />
-                        </div>
-                        <span className="text-xs text-slate-500 font-mono">{evt.confidence.toFixed(1)}%</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-400">{formatDateTime(evt.timestamp)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-color)]">
-            <p className="text-sm text-slate-400">{total} total events</p>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-[var(--bg-surface-hover)] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                Previous
-              </button>
-              <span className="text-sm text-slate-400">Page {page} of {totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-                className="px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-[var(--bg-surface-hover)] rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                Next
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

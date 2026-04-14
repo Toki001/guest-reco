@@ -6,3 +6,4 @@ face_recognition
 numpy
 websockets
 PyJWT
+bcrypt
