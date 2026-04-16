@@ -211,19 +211,19 @@ function CameraGridPage() {
                 />
               </div>
 
-              <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+              <div className="absolute top-2 right-2 flex gap-1.5 z-10">
                 <button onClick={(e) => { e.stopPropagation(); setDetailCamera(cam.camera_id); }}
-                  className="w-8 h-8 rounded-lg bg-black/60 hover:bg-purple-600 flex items-center justify-center transition-colors backdrop-blur-sm" title="View Faces">
-                  <span className="material-symbols-outlined text-[var(--text-primary)] text-base">group</span>
+                  className="w-9 h-9 rounded-xl bg-white/20 hover:bg-violet-500 flex items-center justify-center transition-colors backdrop-blur-md border border-white/20 shadow-lg" title="View Faces">
+                  <span className="material-symbols-outlined text-white text-base">group</span>
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); setFullscreen(cam.camera_id); }}
-                  className="w-8 h-8 rounded-lg bg-black/60 hover:bg-blue-600 flex items-center justify-center transition-colors backdrop-blur-sm" title="Fullscreen">
-                  <span className="material-symbols-outlined text-[var(--text-primary)] text-base">fullscreen</span>
+                  className="w-9 h-9 rounded-xl bg-white/20 hover:bg-blue-500 flex items-center justify-center transition-colors backdrop-blur-md border border-white/20 shadow-lg" title="Fullscreen">
+                  <span className="material-symbols-outlined text-white text-base">fullscreen</span>
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); handleRemove(cam.camera_id); }}
                   disabled={removing === cam.camera_id}
-                  className="w-8 h-8 rounded-lg bg-black/60 hover:bg-red-600 flex items-center justify-center transition-colors backdrop-blur-sm disabled:opacity-50" title="Remove camera">
-                  <span className="material-symbols-outlined text-[var(--text-primary)] text-base">{removing === cam.camera_id ? 'hourglass_empty' : 'delete'}</span>
+                  className="w-9 h-9 rounded-xl bg-white/20 hover:bg-red-500 flex items-center justify-center transition-colors backdrop-blur-md border border-white/20 shadow-lg disabled:opacity-50" title="Remove camera">
+                  <span className="material-symbols-outlined text-white text-base">{removing === cam.camera_id ? 'hourglass_empty' : 'delete'}</span>
                 </button>
               </div>
 

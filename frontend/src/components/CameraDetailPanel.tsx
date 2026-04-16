@@ -73,54 +73,69 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex">
       {/* Backdrop */}
-      <div className="flex-1 bg-black/50" onClick={onClose} />
+      <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="w-full max-w-md bg-[var(--bg-surface)] border-l border-[var(--border-color)] overflow-y-auto">
+      <div
+        className="w-full max-w-md overflow-y-auto glass-scrollbar page-enter"
+        style={{
+          background: 'var(--modal-bg)',
+          backdropFilter: 'blur(24px) saturate(1.3)',
+          WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
+          borderLeft: '1px solid var(--glass-border)',
+          boxShadow: '-8px 0 32px rgba(0,0,0,0.15)',
+        }}
+      >
         {/* Header */}
-        <div className="sticky top-0 bg-[var(--bg-surface)]/95 backdrop-blur border-b border-[var(--border-color)] p-4">
+        <div
+          className="sticky top-0 z-10 p-4"
+          style={{
+            background: 'var(--modal-bg)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            borderBottom: '1px solid var(--glass-border)',
+          }}
+        >
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-[var(--text-primary)]">{departmentName}</h2>
-              <p className="text-xs text-slate-400">Camera Department</p>
+              <p className="text-xs text-[var(--text-muted)]">Camera Department</p>
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg bg-[var(--bg-surface-hover)] hover:bg-[var(--bg-base)] flex items-center justify-center">
-              <span className="material-symbols-outlined text-[var(--text-primary)] text-sm">close</span>
+            <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] flex items-center justify-center transition-colors border border-[var(--glass-border)]">
+              <span className="material-symbols-outlined text-[var(--text-muted)] text-sm">close</span>
             </button>
           </div>
 
           {/* Stats */}
           {stats && (
             <div className="grid grid-cols-3 gap-2 mt-3">
-              <div className="bg-[var(--bg-surface-hover)] rounded-lg p-2 text-center">
-                <div className="text-lg font-bold text-blue-400">{stats.scans_today}</div>
-                <div className="text-[10px] text-slate-400">Scans Today</div>
-              </div>
-              <div className="bg-[var(--bg-surface-hover)] rounded-lg p-2 text-center">
-                <div className="text-lg font-bold text-green-400">{stats.unique_faces_today}</div>
-                <div className="text-[10px] text-slate-400">Faces Today</div>
-              </div>
-              <div className="bg-[var(--bg-surface-hover)] rounded-lg p-2 text-center">
-                <div className="text-lg font-bold text-amber-400">{stats.unique_faces}</div>
-                <div className="text-[10px] text-slate-400">Total Faces</div>
-              </div>
+              {[
+                { value: stats.scans_today, label: 'Scans Today', color: 'text-blue-400' },
+                { value: stats.unique_faces_today, label: 'Faces Today', color: 'text-emerald-400' },
+                { value: stats.unique_faces, label: 'Total Faces', color: 'text-amber-400' },
+              ].map(s => (
+                <div key={s.label} className="glass-card rounded-xl p-2.5 text-center">
+                  <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">{s.label}</div>
+                </div>
+              ))}
             </div>
           )}
 
           {/* Tabs */}
-          <div className="flex gap-1 mt-3">
+          <div className="glass-card flex gap-0.5 mt-3 rounded-xl p-0.5">
             <button
               onClick={() => setTab('faces')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                tab === 'faces' ? 'bg-blue-600 text-white' : 'bg-[var(--bg-surface-hover)] text-slate-400 hover:text-[var(--text-primary)]'
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                tab === 'faces' ? 'bg-[var(--accent)] text-white shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               Faces ({faces.length})
             </button>
             <button
               onClick={() => setTab('activity')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                tab === 'activity' ? 'bg-blue-600 text-white' : 'bg-[var(--bg-surface-hover)] text-slate-400 hover:text-[var(--text-primary)]'
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                tab === 'activity' ? 'bg-[var(--accent)] text-white shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               Activity ({activity.length})
@@ -132,36 +147,36 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
         <div className="p-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+              <div className="w-8 h-8 border-3 border-[var(--accent)]/30 border-t-[var(--accent)] rounded-full animate-spin" />
             </div>
           ) : tab === 'faces' ? (
             faces.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
-                <span className="material-symbols-outlined text-3xl block mb-2">person_off</span>
-                No faces captured at this camera yet.
+              <div className="text-center py-12 text-[var(--text-muted)]">
+                <span className="material-symbols-outlined text-3xl block mb-2 opacity-30">person_off</span>
+                <p className="text-xs">No faces captured at this camera yet.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {faces.map(face => (
-                  <div key={face.id} className="flex items-center gap-3 bg-[var(--bg-surface-hover)] rounded-lg p-3">
-                    <div className="w-10 h-10 rounded-full bg-[var(--bg-base)] overflow-hidden flex-shrink-0">
+                  <div key={face.id} className="glass-card flex items-center gap-3 rounded-xl p-3">
+                    <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 border border-[var(--glass-border)]">
                       {face.image_url ? (
                         <img src={face.image_url.startsWith('/') ? `${API_BASE}${face.image_url}` : face.image_url} alt={face.name}
                           className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-500">
-                          <span className="material-symbols-outlined text-lg">person</span>
+                        <div className="w-full h-full flex items-center justify-center bg-blue-500/10">
+                          <span className="material-symbols-outlined text-blue-400 text-lg">person</span>
                         </div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold text-[var(--text-primary)] truncate">{face.name}</div>
-                      <div className="text-xs text-slate-400">
+                      <div className="text-sm font-semibold text-[var(--text-primary)] truncate">{face.name}</div>
+                      <div className="text-[10px] text-[var(--text-muted)]">
                         {face.visit_count} visit{face.visit_count !== 1 ? 's' : ''} · Last: {timeAgo(face.last_seen)}
                       </div>
                     </div>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      face.role === 'Employee' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
+                      face.role === 'Employee' ? 'bg-blue-500/15 text-blue-400' : 'bg-amber-500/15 text-amber-400'
                     }`}>
                       {face.role}
                     </span>
@@ -171,30 +186,32 @@ export default function CameraDetailPanel({ cameraId, onClose }: Props) {
             )
           ) : (
             activity.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
-                <span className="material-symbols-outlined text-3xl block mb-2">history</span>
-                No activity at this camera yet.
+              <div className="text-center py-12 text-[var(--text-muted)]">
+                <span className="material-symbols-outlined text-3xl block mb-2 opacity-30">history</span>
+                <p className="text-xs">No activity at this camera yet.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {activity.map(item => (
-                  <div key={item.id} className="flex items-center gap-3 bg-[var(--bg-surface-hover)] rounded-lg p-3">
-                    <div className="w-8 h-8 rounded-full bg-[var(--bg-base)] overflow-hidden flex-shrink-0">
+                  <div key={item.id} className="glass-card flex items-center gap-3 rounded-xl p-3">
+                    <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 border border-[var(--glass-border)]">
                       {item.image_url ? (
                         <img src={item.image_url.startsWith('/') ? `${API_BASE}${item.image_url}` : item.image_url} alt={item.name}
                           className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-500">
-                          <span className="material-symbols-outlined text-sm">person</span>
+                        <div className="w-full h-full flex items-center justify-center bg-blue-500/10">
+                          <span className="material-symbols-outlined text-blue-400 text-sm">person</span>
                         </div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold text-[var(--text-primary)] truncate">{item.name}</div>
-                      <div className="text-xs text-slate-400">{timeAgo(item.timestamp)}</div>
+                      <div className="text-sm font-semibold text-[var(--text-primary)] truncate">{item.name}</div>
+                      <div className="text-[10px] text-[var(--text-muted)]">{timeAgo(item.timestamp)}</div>
                     </div>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      item.status === 'in' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ring-1 ${
+                      item.status === 'in'
+                        ? 'bg-emerald-500/15 text-emerald-400 ring-emerald-500/20'
+                        : 'bg-red-500/15 text-red-400 ring-red-500/20'
                     }`}>
                       {item.status === 'in' ? 'IN' : 'OUT'}
                     </span>
