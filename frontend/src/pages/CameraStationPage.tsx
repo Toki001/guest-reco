@@ -27,8 +27,9 @@ function CameraStationPage() {
   const [history, setHistory] = useState<(BannerData & { timestamp: Date })[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isIdle, setIsIdle] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted] = useState(true);
   const [showHistory, setShowHistory] = useState(true);
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'in' | 'out'>('all');
   const cooldownRef = useRef<Map<string, number>>(new Map());
   const idleTimerRef = useRef<number>(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -164,6 +165,24 @@ function CameraStationPage() {
 
   const inCount = history.filter(h => h.status === 'in').length;
   const outCount = history.filter(h => h.status === 'out').length;
+  const filteredHistory = historyFilter === 'all' ? history : history.filter(h => h.status === historyFilter);
+
+  // Theme-aware colors for the camera page
+  const isDark = theme === 'dark';
+  const pageBg = isDark ? '#0a0e1a' : 'var(--bg-base)';
+  const headerBg = isDark ? 'rgba(10,14,26,0.6)' : 'rgba(255,255,255,0.65)';
+  const headerBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+  const headerShadow = isDark ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)';
+  const headerText = isDark ? 'text-white' : 'text-[var(--text-primary)]';
+  const headerTextSub = isDark ? 'text-white/30' : 'text-[var(--text-muted)]';
+  const btnBg = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+  const btnBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+  const btnIcon = isDark ? 'text-white/40' : 'text-[var(--text-muted)]';
+  const sidebarBg = isDark ? 'rgba(10,14,26,0.85)' : 'var(--modal-bg)';
+  const sidebarBorder = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const sidebarText = isDark ? 'text-white' : 'text-[var(--text-primary)]';
+  const sidebarTextSub = isDark ? 'text-white/25' : 'text-[var(--text-muted)]';
+  const sidebarHover = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
 
   // ─── AUTH SCREEN ───────────────────────────────────────
   if (!isAuthenticated) {
@@ -171,7 +190,7 @@ function CameraStationPage() {
       <div className="h-screen w-screen flex items-center justify-center relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a2a5e 0%, #0d1b3e 40%, #111827 100%)' }}>
         <div className="absolute top-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full opacity-20 blur-3xl" style={{ background: 'radial-gradient(circle, rgba(46,163,242,0.4), transparent 70%)' }} />
         <div className="absolute bottom-[-10%] right-[-5%] w-[400px] h-[400px] rounded-full opacity-15 blur-3xl" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.3), transparent 70%)' }} />
-        <div className="relative w-full max-w-sm rounded-2xl p-8 border page-enter" style={{ background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(24px) saturate(1.3)', WebkitBackdropFilter: 'blur(24px) saturate(1.3)', borderColor: 'rgba(255,255,255,0.1)', boxShadow: '0 16px 48px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+        <div className="relative w-full max-w-sm rounded-2xl p-8 border page-enter" style={{ background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(24px) saturate(1.3)', WebkitBackdropFilter: 'blur(24px) saturate(1.3)', borderColor: 'rgba(255,255,255,0.1)', boxShadow: '0 16px 48px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)' }}>
           <div className="text-center mb-6">
             <div className="w-14 h-14 rounded-2xl bg-blue-500/15 border border-blue-400/20 flex items-center justify-center mx-auto mb-3" style={{ boxShadow: '0 0 24px rgba(46,163,242,0.15)' }}>
               <span className="material-symbols-outlined text-3xl text-blue-400">videocam</span>
@@ -198,18 +217,18 @@ function CameraStationPage() {
 
   // ─── MAIN CAMERA VIEW ──────────────────────────────────
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: '#0a0e1a' }}>
+    <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: pageBg }}>
 
       {/* ── Floating glass header ────────────────────────── */}
       <div className="absolute top-0 left-0 right-0 z-20 p-3">
         <div
           className="flex items-center justify-between px-5 py-2.5 rounded-2xl"
           style={{
-            background: 'rgba(10, 14, 26, 0.6)',
+            background: headerBg,
             backdropFilter: 'blur(20px) saturate(1.4)',
             WebkitBackdropFilter: 'blur(20px) saturate(1.4)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+            border: `1px solid ${headerBorder}`,
+            boxShadow: headerShadow,
           }}
         >
           {/* Left: branding */}
@@ -218,24 +237,23 @@ function CameraStationPage() {
               <span className="material-symbols-outlined text-white text-lg">videocam</span>
             </div>
             <div>
-              <h1 className="text-white font-bold text-sm leading-tight">{departmentName}</h1>
+              <h1 className={`${headerText} font-bold text-sm leading-tight`}>{departmentName}</h1>
               <p className="text-blue-400/60 text-[9px] uppercase tracking-[0.15em] font-semibold">SecureSight Station</p>
             </div>
           </div>
 
           {/* Center: clock */}
           <div className="hidden sm:flex flex-col items-center">
-            <p className="text-white font-bold text-xl font-mono leading-none tracking-tight">
+            <p className={`${headerText} font-bold text-xl font-mono leading-none tracking-tight`}>
               {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </p>
-            <p className="text-white/30 text-[9px] uppercase tracking-wider mt-0.5">
+            <p className={`${headerTextSub} text-[9px] uppercase tracking-wider mt-0.5`}>
               {currentTime.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}
             </p>
           </div>
 
           {/* Right: controls */}
           <div className="flex items-center gap-2">
-            {/* Scan count pills */}
             {history.length > 0 && (
               <div className="hidden sm:flex items-center gap-1.5 mr-1">
                 <span className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20">
@@ -247,30 +265,20 @@ function CameraStationPage() {
               </div>
             )}
 
-            {/* Sound toggle */}
-            <button onClick={() => { unlockAudio(); setIsMuted(m => !m); }}
-              className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-              style={{ background: isMuted ? 'rgba(255,255,255,0.06)' : 'rgba(46,163,242,0.15)', border: `1px solid ${isMuted ? 'rgba(255,255,255,0.08)' : 'rgba(46,163,242,0.25)'}` }}>
-              <span className={`material-symbols-outlined text-base ${isMuted ? 'text-white/40' : 'text-blue-400'}`}>{isMuted ? 'volume_off' : 'volume_up'}</span>
-            </button>
-
-            {/* Theme toggle */}
             <button onClick={toggleTheme}
               className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <span className="material-symbols-outlined text-base text-white/40">{theme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
+              style={{ background: btnBg, border: `1px solid ${btnBorder}` }}>
+              <span className={`material-symbols-outlined text-base ${btnIcon}`}>{theme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
             </button>
 
-            {/* History toggle */}
             <button onClick={() => setShowHistory(s => !s)}
               className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-              style={{ background: showHistory ? 'rgba(46,163,242,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${showHistory ? 'rgba(46,163,242,0.25)' : 'rgba(255,255,255,0.08)'}` }}>
-              <span className={`material-symbols-outlined text-base ${showHistory ? 'text-blue-400' : 'text-white/40'}`}>
+              style={{ background: showHistory ? 'rgba(46,163,242,0.15)' : btnBg, border: `1px solid ${showHistory ? 'rgba(46,163,242,0.25)' : btnBorder}` }}>
+              <span className={`material-symbols-outlined text-base ${showHistory ? 'text-blue-400' : btnIcon}`}>
                 {showHistory ? 'right_panel_open' : 'right_panel_close'}
               </span>
             </button>
 
-            {/* Status */}
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: isRegistered ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', border: `1px solid ${isRegistered ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)'}` }}>
               <span className={`w-1.5 h-1.5 rounded-full ${isRegistered ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
               <span className={`text-[9px] font-bold uppercase ${isRegistered ? 'text-emerald-400' : 'text-amber-400'}`}>{isRegistered ? 'Live' : '...'}</span>
@@ -281,7 +289,6 @@ function CameraStationPage() {
 
       {/* ── Camera + Sidebar ─────────────────────────────── */}
       <div className="flex-1 flex min-h-0">
-        {/* Camera feed — full bleed */}
         <div className="flex-1 relative bg-black">
           <CameraFeed
             isScanning={isScanning}
@@ -292,14 +299,12 @@ function CameraStationPage() {
             settings={cameraSettings}
             onFeedbackChange={handleFeedbackChange}
           >
-            {/* Recognition banners */}
             <div className="absolute top-16 left-0 right-0 z-40 flex flex-col">
               {banners.slice(0, 3).map(b => (
                 <RecognitionBanner key={b.id} banner={b} onDismiss={handleDismissBanner} />
               ))}
             </div>
 
-            {/* Idle overlay */}
             {isIdle && isScanning && (
               <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}>
                 <div className="flex flex-col items-center px-12 py-10 rounded-3xl" style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 24px 64px rgba(0,0,0,0.3)' }}>
@@ -313,11 +318,10 @@ function CameraStationPage() {
             )}
           </CameraFeed>
 
-          {/* Bottom floating scan count — visible when sidebar is hidden */}
           {!showHistory && history.length > 0 && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
-              <div className="flex items-center gap-3 px-4 py-2 rounded-xl" style={{ background: 'rgba(10,14,26,0.7)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <span className="text-white/40 text-[10px] font-semibold uppercase">{history.length} scans</span>
+              <div className="flex items-center gap-3 px-4 py-2 rounded-xl" style={{ background: isDark ? 'rgba(10,14,26,0.7)' : 'rgba(255,255,255,0.7)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}` }}>
+                <span className={`${isDark ? 'text-white/40' : 'text-[var(--text-muted)]'} text-[10px] font-semibold uppercase`}>{history.length} scans</span>
                 <span className="text-emerald-400 text-[10px] font-bold">{inCount} IN</span>
                 <span className="text-red-400 text-[10px] font-bold">{outCount} OUT</span>
               </div>
@@ -329,58 +333,76 @@ function CameraStationPage() {
         <div
           className={`flex flex-col shrink-0 transition-all duration-300 ${showHistory ? 'w-80' : 'w-0 overflow-hidden'} max-md:absolute max-md:right-0 max-md:top-0 max-md:bottom-0 max-md:z-30`}
           style={{
-            background: 'rgba(10, 14, 26, 0.85)',
+            background: sidebarBg,
             backdropFilter: 'blur(24px) saturate(1.3)',
             WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
-            borderLeft: '1px solid rgba(255,255,255,0.06)',
+            borderLeft: `1px solid ${sidebarBorder}`,
           }}
         >
-          {/* Sidebar header */}
-          <div className="px-4 py-3.5 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <span className="material-symbols-outlined text-blue-400 text-lg">history</span>
-            <h2 className="text-white font-bold text-xs uppercase tracking-widest">Activity</h2>
-            <span className="ml-auto text-blue-400 text-[10px] px-2 py-0.5 rounded-md font-semibold bg-blue-500/10 ring-1 ring-blue-500/20">
-              {history.length}
-            </span>
-          </div>
-
-          {/* Summary bar */}
-          {history.length > 0 && (
-            <div className="px-4 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-400">{inCount} in</span>
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-500/10 text-red-400">{outCount} out</span>
-              <span className="text-white/20 text-[10px] ml-auto">{history.length} total</span>
+          {/* Sidebar header — pushed down to clear floating header */}
+          <div className="pt-16 px-4 pb-3" style={{ borderBottom: `1px solid ${sidebarBorder}` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="material-symbols-outlined text-blue-400 text-lg">history</span>
+              <h2 className={`${sidebarText} font-bold text-xs uppercase tracking-widest`}>Activity</h2>
+              <span className="ml-auto text-blue-400 text-[10px] px-2 py-0.5 rounded-md font-semibold bg-blue-500/10 ring-1 ring-blue-500/20">
+                {filteredHistory.length}
+              </span>
             </div>
-          )}
+
+            {/* Filter pills */}
+            <div className="flex items-center gap-1 p-0.5 rounded-lg" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }}>
+              {(['all', 'in', 'out'] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setHistoryFilter(f)}
+                  className={`flex-1 px-2 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all ${
+                    historyFilter === f
+                      ? f === 'in' ? 'bg-emerald-500 text-white shadow-sm'
+                        : f === 'out' ? 'bg-red-500 text-white shadow-sm'
+                        : 'bg-[var(--accent)] text-white shadow-sm'
+                      : `${isDark ? 'text-white/40 hover:text-white/60' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`
+                  }`}
+                >
+                  {f === 'all' ? 'All' : f === 'in' ? `In (${inCount})` : `Out (${outCount})`}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* History list */}
           <div className="flex-1 overflow-y-auto glass-scrollbar">
-            {history.length === 0 ? (
+            {filteredHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full">
-                <div className="w-16 h-16 rounded-full bg-white/[0.03] flex items-center justify-center mb-3 ring-1 ring-white/[0.06]">
-                  <span className="material-symbols-outlined text-3xl text-white/15">pending</span>
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-3 ring-1 ${isDark ? 'bg-white/[0.03] ring-white/[0.06]' : 'bg-black/[0.02] ring-black/[0.06]'}`}>
+                  <span className={`material-symbols-outlined text-3xl ${isDark ? 'text-white/15' : 'text-[var(--text-muted)]'} opacity-50`}>
+                    {historyFilter === 'all' ? 'pending' : historyFilter === 'in' ? 'login' : 'logout'}
+                  </span>
                 </div>
-                <p className="text-white/30 text-xs font-medium">Waiting for scans...</p>
+                <p className={`${sidebarTextSub} text-xs font-medium`}>
+                  {historyFilter === 'all' ? 'Waiting for scans...' : `No ${historyFilter === 'in' ? 'clock-ins' : 'clock-outs'} yet`}
+                </p>
               </div>
             ) : (
-              history.map((entry, idx) => {
+              filteredHistory.map((entry, idx) => {
                 const isIn = entry.status === 'in';
                 const imgSrc = entry.imageUrl && entry.imageUrl !== 'placeholder'
                   ? (entry.imageUrl.startsWith('/') ? `${API_BASE}${entry.imageUrl}` : entry.imageUrl)
                   : null;
                 return (
                   <div key={entry.id}
-                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03]"
-                    style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', animation: idx === 0 ? 'fade-in 0.3s ease-out' : undefined }}>
+                    className="flex items-center gap-3 px-4 py-3 transition-colors"
+                    style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}`, animation: idx === 0 ? 'fade-in 0.3s ease-out' : undefined }}
+                    onMouseEnter={e => { e.currentTarget.style.background = sidebarHover; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
                     {imgSrc ? (
-                      <img src={imgSrc} alt={entry.name} className="w-10 h-10 rounded-xl object-cover shrink-0 border border-white/10" />
+                      <img src={imgSrc} alt={entry.name} className={`w-10 h-10 rounded-xl object-cover shrink-0 border ${isDark ? 'border-white/10' : 'border-[var(--glass-border)]'}`} />
                     ) : (
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-blue-500/10 border border-blue-500/15">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-blue-500/10 border ${isDark ? 'border-blue-500/15' : 'border-blue-500/20'}`}>
                         <span className="material-symbols-outlined text-blue-400 text-lg">person</span>
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-semibold truncate">{entry.name}</p>
+                      <p className={`${sidebarText} text-sm font-semibold truncate`}>{entry.name}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
                           isIn ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20' : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/20'
@@ -390,7 +412,7 @@ function CameraStationPage() {
                         </span>
                       </div>
                     </div>
-                    <span className="text-white/25 text-[10px] font-mono shrink-0">
+                    <span className={`${sidebarTextSub} text-[10px] font-mono shrink-0`}>
                       {entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
                   </div>
