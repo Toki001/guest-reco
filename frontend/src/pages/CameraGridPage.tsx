@@ -276,17 +276,17 @@ function CameraGridPage() {
             onLive={() => {}}
           />
           <div className="absolute top-4 left-4 flex items-center gap-3">
-            <span className="text-[var(--text-primary)] font-semibold text-sm capitalize">{fullscreen.replace(/-/g, ' ')}</span>
+            <span className="text-white font-semibold text-sm capitalize">{fullscreen.replace(/-/g, ' ')}</span>
             <span className="bg-blue-500/20 text-blue-400 text-[10px] font-mono font-bold px-2 py-1 rounded">LIVE</span>
           </div>
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button className="w-10 h-10 rounded-full bg-red-600/80 hover:bg-red-500 flex items-center justify-center transition-colors"
               onClick={(e) => { e.stopPropagation(); handleRemove(fullscreen); }}>
-              <span className="material-symbols-outlined text-[var(--text-primary)]">delete</span>
+              <span className="material-symbols-outlined text-white">delete</span>
             </button>
             <button className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
               onClick={() => setFullscreen(null)}>
-              <span className="material-symbols-outlined text-[var(--text-primary)]">close</span>
+              <span className="material-symbols-outlined text-white">close</span>
             </button>
           </div>
         </div>
