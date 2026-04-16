@@ -109,7 +109,7 @@ function AttendancePage() {
               onClick={() => setActiveTab('out')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                 activeTab === 'out'
-                  ? 'bg-slate-500 text-white shadow-md'
+                  ? 'bg-red-500 text-white shadow-md'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -202,19 +202,19 @@ function AttendancePage() {
         <>
           {inactiveLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-6 h-6 border-3 border-slate-500/30 border-t-slate-500 rounded-full animate-spin" />
+              <div className="w-6 h-6 border-3 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
             </div>
           ) : filteredInactive.length === 0 ? (
             <EmptyState icon="groups" title="Everyone is on site" description="All registered people are currently clocked in" />
           ) : (
             <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
               {filteredInactive.map(user => (
-                <div key={user.id} className="glass-card rounded-xl p-4 flex items-center gap-3 opacity-75">
+                <div key={user.id} className="glass-card rounded-xl p-4 flex items-center gap-3">
                   {getImageUrl(user.image_url) ? (
-                    <img src={getImageUrl(user.image_url)!} alt={user.name} className="w-10 h-10 rounded-xl object-cover border border-[var(--glass-border)] shrink-0 grayscale" />
+                    <img src={getImageUrl(user.image_url)!} alt={user.name} className="w-10 h-10 rounded-xl object-cover border border-[var(--glass-border)] shrink-0" />
                   ) : (
-                    <div className="w-10 h-10 rounded-xl bg-white/[0.06] flex items-center justify-center border border-[var(--glass-border)] shrink-0">
-                      <span className="material-symbols-outlined text-[var(--text-muted)] text-sm">person</span>
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-[var(--glass-border)] shrink-0">
+                      <span className="material-symbols-outlined text-blue-400 text-sm">person</span>
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
@@ -229,12 +229,14 @@ function AttendancePage() {
                         <span className="text-[10px] text-[var(--text-muted)]">Never scanned</span>
                       )}
                     </div>
+                    {user.camera_id && (
+                      <p className="text-[10px] text-[var(--text-muted)] capitalize mt-0.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[10px]">videocam</span>
+                        {user.camera_id.replace(/-/g, ' ')}
+                      </p>
+                    )}
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
-                    user.last_status === 'out'
-                      ? 'bg-red-500/15 text-red-400 ring-1 ring-red-500/20'
-                      : 'bg-white/[0.06] text-[var(--text-muted)] ring-1 ring-[var(--glass-border)]'
-                  }`}>{user.last_status === 'out' ? 'OUT' : 'N/A'}</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-400 shrink-0" />
                 </div>
               ))}
             </div>
