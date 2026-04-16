@@ -27,37 +27,46 @@ export function RecognitionBanner({ banner, onDismiss }: Props) {
   const isIn = banner.status === 'in';
   const isGuest = banner.type === 'guest';
 
-  const bgColor = isIn ? 'bg-emerald-600/90 border-emerald-400/50' :
-                         'bg-red-900/95 border-red-500/50';
-
-  const statusText = isIn ? 'Welcome! Clocked In' : 'Goodbye! Clocked Out';
-
   const imgSrc = banner.imageUrl && banner.imageUrl !== 'placeholder'
     ? (banner.imageUrl.startsWith('/') ? `${API_BASE}${banner.imageUrl}` : banner.imageUrl)
     : null;
 
   return (
-    <div className={`flex items-center gap-4 px-6 py-4 border-b backdrop-blur-md shadow-2xl
-      transition-all duration-500 w-full
-      ${bgColor} ${exiting ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'}`}>
+    <div
+      className={`mx-4 mt-3 flex items-center gap-4 px-5 py-4 rounded-2xl shadow-2xl transition-all duration-500 ${
+        exiting ? 'opacity-0 -translate-y-4 scale-95' : 'opacity-100 translate-y-0 scale-100'
+      }`}
+      style={{
+        background: isIn
+          ? 'linear-gradient(135deg, rgba(16,185,129,0.85), rgba(5,150,105,0.9))'
+          : 'linear-gradient(135deg, rgba(239,68,68,0.85), rgba(185,28,28,0.9))',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: `1px solid ${isIn ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}`,
+        boxShadow: isIn
+          ? '0 12px 40px rgba(16,185,129,0.3), inset 0 1px 0 rgba(255,255,255,0.15)'
+          : '0 12px 40px rgba(239,68,68,0.3), inset 0 1px 0 rgba(255,255,255,0.15)',
+      }}
+    >
       {imgSrc ? (
-        <img src={imgSrc} alt={banner.name} className="w-16 h-16 rounded-full object-cover border-2 border-white/30 shrink-0" />
+        <img src={imgSrc} alt={banner.name} className="w-14 h-14 rounded-xl object-cover border-2 border-white/30 shrink-0 shadow-lg" />
       ) : (
-        <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center border-2 border-white/30 shrink-0">
-          <span className="material-symbols-outlined text-slate-400 text-2xl">person</span>
+        <div className="w-14 h-14 rounded-xl bg-white/15 flex items-center justify-center border-2 border-white/20 shrink-0">
+          <span className="material-symbols-outlined text-white/80 text-2xl">person</span>
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-white font-bold text-lg truncate">{banner.name}</p>
-        <p className={`text-sm font-bold uppercase tracking-wider ${
-          isGuest ? 'text-amber-400' : isIn ? 'text-emerald-400' : 'text-red-400'
-        }`}>{statusText}</p>
+        <p className="text-white font-bold text-lg truncate drop-shadow-sm">{banner.name}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="material-symbols-outlined text-white/80 text-sm">{isIn ? 'login' : 'logout'}</span>
+          <p className="text-white/90 text-sm font-semibold">{isIn ? 'Clocked In' : 'Clocked Out'}</p>
+        </div>
       </div>
-      <div className="text-right shrink-0">
-        <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-bold ${
-          isGuest ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${
+          isGuest ? 'bg-amber-400/20 text-amber-100' : 'bg-white/15 text-white'
         }`}>{banner.type === 'guest' ? 'Guest' : 'Employee'}</span>
-        <p className="text-white/60 text-xs font-mono mt-1">{banner.confidence.toFixed(1)}%</p>
+        <p className="text-white/60 text-[11px] font-mono">{banner.confidence.toFixed(1)}%</p>
       </div>
     </div>
   );
