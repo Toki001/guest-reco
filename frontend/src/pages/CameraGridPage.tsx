@@ -212,6 +212,10 @@ function CameraGridPage() {
               </div>
 
               <div className="absolute top-2 right-2 flex gap-1.5 z-10">
+                <button onClick={(e) => { e.stopPropagation(); setQrDepartment(cam.camera_id); setShowQr(true); }}
+                  className="w-9 h-9 rounded-xl bg-white/20 hover:bg-cyan-500 flex items-center justify-center transition-colors backdrop-blur-md border border-white/20 shadow-lg" title="QR Code">
+                  <span className="material-symbols-outlined text-white text-base">qr_code_2</span>
+                </button>
                 <button onClick={(e) => { e.stopPropagation(); setDetailCamera(cam.camera_id); }}
                   className="w-9 h-9 rounded-xl bg-white/20 hover:bg-violet-500 flex items-center justify-center transition-colors backdrop-blur-md border border-white/20 shadow-lg" title="View Faces">
                   <span className="material-symbols-outlined text-white text-base">group</span>
