@@ -170,7 +170,7 @@ function CameraStationPage() {
   // Theme-aware colors for the camera page
   const isDark = theme === 'dark';
   const pageBg = isDark ? '#0a0e1a' : 'var(--bg-base)';
-  const headerBg = isDark ? 'rgba(10,14,26,0.6)' : 'rgba(255,255,255,0.65)';
+  const headerBg = isDark ? 'rgba(10,14,26,0.6)' : 'rgba(255,255,255,0.92)';
   const headerBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
   const headerShadow = isDark ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)';
   const headerText = isDark ? 'text-white' : 'text-[var(--text-primary)]';
