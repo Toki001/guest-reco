@@ -164,9 +164,9 @@ function AttendancePage() {
           ) : filteredActive.length === 0 ? (
             <EmptyState icon="person_off" title="No one currently on site" description={roleFilter !== 'all' ? `No ${roleFilter === 'Employee' ? 'employees' : 'guests'} currently on site` : 'People will appear here when they clock in'} />
           ) : (
-            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 280px))' }}>
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
               {filteredActive.map(user => (
-                <div key={user.id} className="glass-card rounded-xl p-3 flex items-center gap-3" style={{ boxShadow: 'var(--glass-shadow), var(--glow-emerald)' }}>
+                <div key={user.id} className="glass-card rounded-xl p-4 flex items-center gap-3" style={{ boxShadow: 'var(--glass-shadow), var(--glow-emerald)' }}>
                   {getImageUrl(user.image_url) ? (
                     <img src={getImageUrl(user.image_url)!} alt={user.name} className="w-10 h-10 rounded-xl object-cover border border-[var(--glass-border)] shrink-0" />
                   ) : (
@@ -207,9 +207,9 @@ function AttendancePage() {
           ) : filteredInactive.length === 0 ? (
             <EmptyState icon="groups" title="Everyone is on site" description="All registered people are currently clocked in" />
           ) : (
-            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 280px))' }}>
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
               {filteredInactive.map(user => (
-                <div key={user.id} className="glass-card rounded-xl p-3 flex items-center gap-3">
+                <div key={user.id} className="glass-card rounded-xl p-4 flex items-center gap-3">
                   {getImageUrl(user.image_url) ? (
                     <img src={getImageUrl(user.image_url)!} alt={user.name} className="w-10 h-10 rounded-xl object-cover border border-[var(--glass-border)] shrink-0" />
                   ) : (
