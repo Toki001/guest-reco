@@ -305,17 +305,7 @@ function CameraStationPage() {
               ))}
             </div>
 
-            {isIdle && isScanning && (
-              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}>
-                <div className="flex flex-col items-center px-12 py-10 rounded-3xl" style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 24px 64px rgba(0,0,0,0.3)' }}>
-                  <div className="w-20 h-20 rounded-full bg-blue-500/10 flex items-center justify-center mb-4 ring-2 ring-blue-500/20">
-                    <span className="material-symbols-outlined text-5xl text-blue-400/60 animate-pulse">face</span>
-                  </div>
-                  <p className="text-white/80 text-lg font-semibold tracking-wide">Approach to Scan</p>
-                  <p className="text-white/30 text-xs mt-1">Face will be detected automatically</p>
-                </div>
-              </div>
-            )}
+            {/* Idle state — no overlay */}
           </CameraFeed>
 
           {!showHistory && history.length > 0 && (
@@ -340,7 +330,7 @@ function CameraStationPage() {
           }}
         >
           {/* Sidebar header — pushed down to clear floating header */}
-          <div className="pt-16 px-4 pb-3" style={{ borderBottom: `1px solid ${sidebarBorder}` }}>
+          <div className="pt-20 px-4 pb-3" style={{ borderBottom: `1px solid ${sidebarBorder}` }}>
             <div className="flex items-center gap-2 mb-3">
               <span className="material-symbols-outlined text-blue-400 text-lg">history</span>
               <h2 className={`${sidebarText} font-bold text-xs uppercase tracking-widest`}>Activity</h2>
