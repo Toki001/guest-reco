@@ -34,6 +34,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
+  // Shared style for text that fades on collapse
+  const textFade = `transition-all duration-300 whitespace-nowrap ${isCollapsed ? 'lg:opacity-0 lg:w-0 lg:overflow-hidden' : 'opacity-100 w-auto'}`;
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -44,7 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <aside
         className={`
-          flex flex-col shrink-0 fixed inset-y-0 left-0 z-50
+          flex flex-col shrink-0 fixed inset-y-0 left-0 z-50 overflow-hidden
           transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
           border-r
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -60,14 +63,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Logo */}
         <div
-          className={`flex items-center shrink-0 h-16 ${isCollapsed ? 'justify-center px-2 cursor-pointer' : 'px-5 justify-between'}`}
+          className={`flex items-center shrink-0 h-16 transition-all duration-300 ${isCollapsed ? 'justify-center px-3 cursor-pointer' : 'px-5 justify-between'}`}
           onClick={isCollapsed ? toggleCollapse : undefined}
         >
-          <div className={`flex items-center gap-2.5 overflow-hidden ${isCollapsed ? 'justify-center w-full' : ''}`}>
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20 shadow-lg shadow-black/10">
               <span className="material-symbols-outlined text-white text-lg">shield</span>
             </div>
-            <div className={`transition-opacity duration-200 ${isCollapsed ? 'lg:hidden' : 'block'}`}>
+            <div className={textFade}>
               <h1 className="font-bold text-sm text-white tracking-wide">FSUU</h1>
               <p className="text-[9px] text-white/40 uppercase tracking-[0.15em] font-semibold">SecureSight</p>
             </div>
@@ -113,12 +116,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {active && (
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-white rounded-r-full shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
                   )}
-                  <span className={`material-symbols-outlined text-[20px] transition-colors ${active ? 'text-white' : 'text-white/50 group-hover:text-white'}`}>
+                  <span className={`material-symbols-outlined text-[20px] shrink-0 transition-colors ${active ? 'text-white' : 'text-white/50 group-hover:text-white'}`}>
                     {link.icon}
                   </span>
-                  {!isCollapsed && (
-                    <span className={`text-[13px] transition-colors ${active ? 'font-semibold text-white' : 'font-medium text-white/55 group-hover:text-white'}`}>{link.label}</span>
-                  )}
+                  <span className={`text-[13px] ${textFade} ${active ? 'font-semibold text-white' : 'font-medium text-white/55 group-hover:text-white'}`}>{link.label}</span>
                 </Link>
               );
             })}
@@ -126,21 +127,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* System */}
           <div className="mt-6 pt-4 border-t border-white/[0.08]">
-            {!isCollapsed && (
-              <h2 className="px-3 text-[10px] font-semibold text-white/30 tracking-widest uppercase mb-2">System</h2>
-            )}
+            <h2 className={`px-3 text-[10px] font-semibold text-white/30 tracking-widest uppercase mb-2 ${textFade}`}>System</h2>
             <button
               onClick={toggleTheme}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-white/50 hover:text-white ${isCollapsed ? 'justify-center' : 'justify-start'}`}
-              style={{ transition: 'background 0.2s, color 0.2s' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--sidebar-hover)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               title={isCollapsed ? (theme === 'dark' ? 'Light mode' : 'Dark mode') : ""}
             >
-              <span className="material-symbols-outlined text-[20px] text-white/50 group-hover:text-white transition-colors">
+              <span className="material-symbols-outlined text-[20px] shrink-0 text-white/50 group-hover:text-white transition-colors">
                 {theme === 'dark' ? 'light_mode' : 'dark_mode'}
               </span>
-              {!isCollapsed && <span className="text-[13px] font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
+              <span className={`text-[13px] font-medium ${textFade}`}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
             <button
               onClick={onSettingsClick}
@@ -149,8 +147,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               title={isCollapsed ? "Settings" : ""}
             >
-              <span className="material-symbols-outlined text-[20px] text-white/50 group-hover:text-white transition-colors">settings</span>
-              {!isCollapsed && <span className="text-[13px] font-medium">Settings</span>}
+              <span className="material-symbols-outlined text-[20px] shrink-0 text-white/50 group-hover:text-white transition-colors">settings</span>
+              <span className={`text-[13px] font-medium ${textFade}`}>Settings</span>
             </button>
           </div>
         </div>
@@ -158,34 +156,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* User + Collapse */}
         <div className="p-3 mt-auto border-t border-white/[0.08]">
           <div
-            className={`flex items-center rounded-xl p-2.5 transition-all duration-200 ${isCollapsed ? 'justify-center' : 'justify-between'}`}
+            className={`flex items-center rounded-xl transition-all duration-300 ${isCollapsed ? 'justify-center p-2' : 'justify-between p-2.5'}`}
             style={{ background: 'rgba(255,255,255,0.05)' }}
           >
-            <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center border border-white/15 shrink-0">
                 <svg className="w-4 h-4 text-white/80" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
               </div>
-              {!isCollapsed && (
-                <div className="overflow-hidden">
-                  <h3 className="text-white text-xs font-semibold truncate">Admin</h3>
-                  <p className="text-white/35 text-[10px] truncate">admin@fsuu.edu</p>
-                </div>
-              )}
+              <div className={textFade}>
+                <h3 className="text-white text-xs font-semibold truncate">Admin</h3>
+                <p className="text-white/35 text-[10px] truncate">admin@fsuu.edu</p>
+              </div>
             </div>
 
-            {!isCollapsed && (
-              <button onClick={handleLogout} className="text-white/30 hover:text-red-400 transition-colors shrink-0 p-1">
-                <span className="material-symbols-outlined text-lg">logout</span>
-              </button>
-            )}
+            <button onClick={handleLogout} className={`text-white/30 hover:text-red-400 transition-all duration-300 shrink-0 p-1 ${isCollapsed ? 'lg:opacity-0 lg:w-0 lg:overflow-hidden lg:p-0' : 'opacity-100'}`}>
+              <span className="material-symbols-outlined text-lg">logout</span>
+            </button>
           </div>
 
           <button
             className="hidden lg:flex items-center justify-center w-full mt-1.5 py-1.5 text-white/30 hover:text-white/60 transition-colors rounded-lg hover:bg-white/[0.06]"
             onClick={(e) => { e.stopPropagation(); toggleCollapse(); }}
           >
-            <span className="material-symbols-outlined text-sm">
-              {isCollapsed ? 'keyboard_double_arrow_right' : 'keyboard_double_arrow_left'}
+            <span className="material-symbols-outlined text-sm transition-transform duration-300" style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}>
+              keyboard_double_arrow_right
             </span>
           </button>
         </div>
