@@ -3,12 +3,14 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { CameraFeed, CameraSettings } from '../components/CameraFeed';
 import { RecognitionBanner, BannerData } from '../components/RecognitionBanner';
 import { API_BASE } from '../config';
+import { useTheme } from '../ThemeContext';
 
 const CAMERA_KEY_STORAGE = 'securesight_camera_key';
 
 function CameraStationPage() {
   const { cameraId } = useParams<{ cameraId: string }>();
   const [searchParams] = useSearchParams();
+  const { theme, toggle: toggleTheme } = useTheme();
   const urlKey = searchParams.get('key') || '';
   const departmentName = cameraId ? cameraId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown';
 
@@ -174,17 +176,14 @@ function CameraStationPage() {
     const now = Date.now();
 
     for (const result of results) {
-      // Skip if no status (shouldn't happen but safety check)
       if (!result.status) continue;
 
       const userId = result.user_id || result.name;
 
-      // Client-side cooldown check (secondary guard)
       const cooldownMs = (cameraSettings?.cooldown_seconds ?? 10) * 1000;
       const lastSeen = cooldownRef.current.get(userId);
       if (lastSeen && now - lastSeen < cooldownMs) continue;
 
-      // Update cooldown
       cooldownRef.current.set(userId, now);
 
       const entry = {
@@ -196,13 +195,9 @@ function CameraStationPage() {
         imageUrl: result.image_url || '',
       };
 
-      // Add banner
       setBanners(prev => [...prev, entry]);
-
-      // Add to history (newest first, keep last 50)
       setHistory(prev => [{ ...entry, timestamp: new Date() }, ...prev].slice(0, 50));
 
-      // Play tone
       if (result.status === 'in') {
         playTone(880, 0.15);
       } else {
@@ -210,7 +205,6 @@ function CameraStationPage() {
       }
     }
 
-    // Reset idle state on recognition
     setIsIdle(false);
   };
 
@@ -219,43 +213,76 @@ function CameraStationPage() {
     setIsScanning(prev => !prev);
   };
 
-  // Show API key input if not authenticated
+  // ─── AUTH SCREEN (API Key input) ────────────────────────
   if (!isAuthenticated) {
     return (
-      <div className="h-screen w-screen bg-[#0f172a] flex items-center justify-center">
-        <div className="w-full max-w-sm bg-[#1e293b] rounded-2xl p-8 shadow-2xl">
+      <div
+        className="h-screen w-screen flex items-center justify-center"
+        style={{
+          background: 'linear-gradient(135deg, #0a2a5e 0%, #0d1b3e 40%, #111827 100%)',
+        }}
+      >
+        {/* Decorative orbs */}
+        <div className="absolute top-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full opacity-20 blur-3xl" style={{ background: 'radial-gradient(circle, rgba(46,163,242,0.4), transparent 70%)' }} />
+        <div className="absolute bottom-[-10%] right-[-5%] w-[400px] h-[400px] rounded-full opacity-15 blur-3xl" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.3), transparent 70%)' }} />
+
+        <div
+          className="relative w-full max-w-sm rounded-2xl p-8 border"
+          style={{
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(24px) saturate(1.3)',
+            WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 16px 48px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+          }}
+        >
           <div className="text-center mb-6">
-            <span className="material-symbols-outlined text-4xl text-blue-400 mb-2 block">videocam</span>
+            <div className="w-14 h-14 rounded-2xl bg-blue-500/15 border border-blue-400/20 flex items-center justify-center mx-auto mb-3" style={{ boxShadow: '0 0 24px rgba(46,163,242,0.15)' }}>
+              <span className="material-symbols-outlined text-3xl text-blue-400">videocam</span>
+            </div>
             <h1 className="text-white font-bold text-lg">{departmentName}</h1>
-            <p className="text-slate-500 text-[11px] uppercase tracking-[0.2em] mt-1 font-semibold">
+            <p className="text-blue-300/50 text-[11px] uppercase tracking-[0.2em] mt-1 font-semibold">
               Camera Station Setup
             </p>
           </div>
 
           <form onSubmit={handleKeySubmit} className="space-y-4">
             <div>
-              <label className="text-slate-400 text-xs font-medium block mb-1.5">Camera API Key</label>
+              <label className="text-blue-200/60 text-xs font-medium block mb-1.5">Camera API Key</label>
               <input
                 type="text"
                 value={keyInput}
                 onChange={e => setKeyInput(e.target.value)}
                 required
                 autoFocus
-                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm font-mono focus:border-blue-500 focus:outline-none transition-colors"
+                className="w-full rounded-xl px-3.5 py-2.5 text-white text-sm font-mono focus:outline-none transition-all placeholder:text-white/20"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.02)',
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(46,163,242,0.5)'; e.currentTarget.style.boxShadow = '0 0 16px rgba(46,163,242,0.1)'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.02)'; }}
                 placeholder="Paste API key here"
               />
-              <p className="text-slate-500 text-[10px] mt-1.5">Get this from the server console or your administrator.</p>
+              <p className="text-white/25 text-[10px] mt-1.5">Get this from the server console or your administrator.</p>
             </div>
 
             {authError && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-red-400 text-sm">
+              <div className="rounded-xl px-3.5 py-2.5 text-red-300 text-sm border" style={{ background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)' }}>
                 {authError}
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full py-2.5 rounded-lg font-bold text-sm text-white bg-blue-600 hover:bg-blue-500 transition-colors"
+              className="w-full py-2.5 rounded-xl font-bold text-sm text-white transition-all"
+              style={{
+                background: 'linear-gradient(135deg, #2EA3F2, #0C71C3)',
+                boxShadow: '0 4px 16px rgba(46,163,242,0.3)',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 24px rgba(46,163,242,0.45)'; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(46,163,242,0.3)'; }}
             >
               Connect Camera
             </button>
@@ -265,43 +292,87 @@ function CameraStationPage() {
     );
   }
 
+  // ─── MAIN CAMERA VIEW ──────────────────────────────────
   return (
-    <div className="h-screen w-screen bg-black flex flex-col">
-      {/* Department header bar */}
-      <div className="bg-slate-900 px-6 py-3 flex items-center justify-between shrink-0 border-b border-slate-800">
+    <div
+      className="h-screen w-screen flex flex-col transition-colors duration-200"
+      style={{
+        backgroundColor: 'var(--bg-base)',
+        backgroundImage: 'var(--mesh-gradient)',
+      }}
+    >
+      {/* Header bar — glass */}
+      <div
+        className="px-6 py-3 flex items-center justify-between shrink-0"
+        style={{
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(20px) saturate(1.3)',
+          WebkitBackdropFilter: 'blur(20px) saturate(1.3)',
+          borderBottom: '1px solid var(--glass-border)',
+          boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06), inset 0 -1px 0 rgba(255, 255, 255, 0.04)',
+        }}
+      >
         <div className="flex items-center space-x-3">
-          <span className="material-symbols-outlined text-blue-400">videocam</span>
+          <div
+            className="p-2 rounded-xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(46,163,242,0.15), rgba(139,92,246,0.1))',
+              border: '1px solid rgba(46,163,242,0.2)',
+              boxShadow: '0 0 12px rgba(46,163,242,0.1)',
+            }}
+          >
+            <span className="material-symbols-outlined text-[var(--accent)]">videocam</span>
+          </div>
           <div>
-            <h1 className="text-white font-bold text-lg">FSUU — {departmentName}</h1>
-            <p className="text-slate-500 text-xs uppercase tracking-wider">Camera Station</p>
+            <h1 className="text-[var(--text-primary)] font-bold text-lg">FSUU — {departmentName}</h1>
+            <p className="text-[var(--accent)] text-[10px] uppercase tracking-[0.15em] font-semibold opacity-70">Camera Station</p>
           </div>
         </div>
         <div className="flex items-center space-x-4">
-          {/* Clock */}
-          <div className="text-right">
-            <p className="text-white font-bold text-sm font-mono">
-              {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </p>
-            <p className="text-slate-400 text-[10px] uppercase tracking-wider">
-              {currentTime.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
-            </p>
-          </div>
-          {/* Mute toggle */}
-          <button
-            onClick={() => {
-              unlockAudio();
-              setIsMuted(prev => !prev);
+          {/* Clock — glass pill */}
+          <div
+            className="hidden sm:flex items-center gap-2.5 px-4 py-2 rounded-xl"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid var(--glass-border)',
             }}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
           >
-            <span className="material-symbols-outlined text-white text-xl">
-              {isMuted ? 'volume_off' : 'volume_up'}
+            <span className="material-symbols-outlined text-sm text-[var(--accent)]">schedule</span>
+            <div className="text-right">
+              <p className="text-[var(--text-primary)] font-bold text-sm font-mono leading-none">
+                {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+              <p className="text-[var(--text-muted)] text-[9px] uppercase tracking-wider mt-0.5">
+                {currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+              </p>
+            </div>
+          </div>
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-xl transition-all"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid var(--glass-border)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+          >
+            <span className="material-symbols-outlined text-[var(--accent)] text-xl">
+              {theme === 'dark' ? 'light_mode' : 'dark_mode'}
             </span>
           </button>
           {/* Connection status */}
-          <div className="flex items-center space-x-2">
-            <span className={`w-2 h-2 rounded-full ${isRegistered ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`}></span>
-            <span className={`text-xs font-bold uppercase tracking-wider ${isRegistered ? 'text-green-400' : 'text-amber-400'}`}>
+          <div
+            className="flex items-center space-x-2 px-3 py-1.5 rounded-xl"
+            style={{
+              background: isRegistered ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
+              border: `1px solid ${isRegistered ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)'}`,
+              boxShadow: isRegistered ? '0 0 12px rgba(16,185,129,0.08)' : undefined,
+            }}
+          >
+            <span className={`w-2 h-2 rounded-full ${isRegistered ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isRegistered ? 'text-emerald-400' : 'text-amber-400'}`}>
               {isRegistered ? 'Connected' : 'Connecting...'}
             </span>
           </div>
@@ -328,28 +399,60 @@ function CameraStationPage() {
               ))}
             </div>
 
-            {/* Idle overlay */}
+            {/* Idle overlay — glass */}
             {isIdle && isScanning && (
-              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[2px]">
-                <span className="material-symbols-outlined text-6xl text-white/60 mb-4 animate-pulse">face</span>
-                <p className="text-white/80 text-lg font-medium tracking-wide">Approach camera to scan</p>
+              <div
+                className="absolute inset-0 z-30 flex flex-col items-center justify-center"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.25)',
+                  backdropFilter: 'blur(4px)',
+                  WebkitBackdropFilter: 'blur(4px)',
+                }}
+              >
+                <div
+                  className="flex flex-col items-center px-10 py-8 rounded-3xl"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    boxShadow: '0 16px 48px rgba(0, 0, 0, 0.2)',
+                  }}
+                >
+                  <span className="material-symbols-outlined text-6xl text-white/60 mb-4 animate-pulse">face</span>
+                  <p className="text-white/80 text-lg font-medium tracking-wide">Approach camera to scan</p>
+                </div>
               </div>
             )}
           </CameraFeed>
         </div>
 
-        {/* Live history sidebar */}
-        <div className="w-80 bg-slate-900/95 border-l border-slate-800 flex flex-col shrink-0">
-          <div className="px-4 py-3 border-b border-slate-800 flex items-center gap-2">
-            <span className="material-symbols-outlined text-blue-400 text-lg">history</span>
-            <h2 className="text-white font-bold text-sm uppercase tracking-wider">Live Activity</h2>
-            <span className="ml-auto text-slate-500 text-xs">{history.length} events</span>
+        {/* Live history sidebar — glass */}
+        <div
+          className="w-80 flex flex-col shrink-0"
+          style={{
+            background: 'var(--glass-bg-strong)',
+            backdropFilter: 'blur(24px) saturate(1.3)',
+            WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
+            borderLeft: '1px solid var(--glass-border)',
+            boxShadow: '-4px 0 24px rgba(0, 0, 0, 0.06)',
+          }}
+        >
+          <div className="px-4 py-3.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--glass-border)' }}>
+            <span className="material-symbols-outlined text-[var(--accent)] text-lg">history</span>
+            <h2 className="text-[var(--text-primary)] font-bold text-sm uppercase tracking-wider">Live Activity</h2>
+            <span
+              className="ml-auto text-[var(--accent)] text-[10px] px-2.5 py-0.5 rounded-lg font-semibold"
+              style={{ background: 'rgba(46,163,242,0.1)', border: '1px solid rgba(46,163,242,0.15)' }}
+            >
+              {history.length}
+            </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto glass-scrollbar">
             {history.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-600">
-                <span className="material-symbols-outlined text-3xl mb-2">pending</span>
+              <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)]">
+                <span className="material-symbols-outlined text-4xl mb-2 opacity-25">pending</span>
                 <p className="text-xs">Waiting for scans...</p>
               </div>
             ) : (
@@ -359,31 +462,50 @@ function CameraStationPage() {
                   ? (entry.imageUrl.startsWith('/') ? `${API_BASE}${entry.imageUrl}` : entry.imageUrl)
                   : null;
                 return (
-                  <div key={entry.id} className="flex items-center gap-3 px-4 py-3 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                  <div
+                    key={entry.id}
+                    className="flex items-center gap-3 px-4 py-3 transition-colors"
+                    style={{ borderBottom: '1px solid var(--glass-border)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
                     {/* Avatar */}
                     {imgSrc ? (
-                      <img src={imgSrc} alt={entry.name} className="w-10 h-10 rounded-full object-cover border-2 border-slate-700 shrink-0" />
+                      <img
+                        src={imgSrc}
+                        alt={entry.name}
+                        className="w-10 h-10 rounded-xl object-cover shrink-0"
+                        style={{ border: '2px solid var(--glass-border)' }}
+                      />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border-2 border-slate-700 shrink-0">
-                        <span className="material-symbols-outlined text-slate-500 text-lg">person</span>
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                        style={{
+                          background: 'rgba(46,163,242,0.1)',
+                          border: '2px solid rgba(46,163,242,0.15)',
+                        }}
+                      >
+                        <span className="material-symbols-outlined text-[var(--accent)] text-lg">person</span>
                       </div>
                     )}
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{entry.name}</p>
+                      <p className="text-[var(--text-primary)] text-sm font-semibold truncate">{entry.name}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${isIn ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
-                        <span className={`text-xs font-bold uppercase ${isIn ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                          isIn
+                            ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20'
+                            : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/20'
+                        }`}>
                           {isIn ? 'IN' : 'OUT'}
                         </span>
-                        <span className="text-slate-600 text-xs">·</span>
-                        <span className={`text-xs ${entry.type === 'guest' ? 'text-amber-500' : 'text-blue-400'}`}>
+                        <span className={`text-[10px] font-medium ${entry.type === 'guest' ? 'text-amber-400' : 'text-[var(--accent)]'}`}>
                           {entry.type === 'guest' ? 'Guest' : 'Employee'}
                         </span>
                       </div>
                     </div>
                     {/* Time */}
-                    <span className="text-slate-500 text-[11px] font-mono shrink-0">
+                    <span className="text-[var(--text-muted)] text-[10px] font-mono shrink-0">
                       {entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
                   </div>
