@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -10,12 +8,23 @@ services:
       - "5001:5001"
     restart: unless-stopped
     volumes:
-      - ./backend:/app
       - recognition-data:/app/data
+      - avatars-data:/app/avatars
+      - snapshots-data:/app/snapshots
     environment:
       - DB_PATH=/app/data/recognition.db
-      - AVATARS_DIR=avatars
-      - SNAPSHOTS_DIR=snapshots
+      - AVATARS_DIR=/app/avatars
+      - SNAPSHOTS_DIR=/app/snapshots
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - JWT_SECRET=${JWT_SECRET:-}
+      - CAMERA_API_KEY=${CAMERA_API_KEY:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-securesight2026}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   frontend:
     build:
@@ -25,13 +34,22 @@ services:
     ports:
       - "3000:3000"
     restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: securesight_mediamtx
+    ports:
+      - "8889:8889"
+      - "8189:8189/udp"
+      - "9997:9997"
+    restart: unless-stopped
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_URL=http://backend:5001
-      - CHOKIDAR_USEPOLLING=true
-      - WATCHPACK_POLLING=true
+      - ./mediamtx.yml:/mediamtx.yml:ro
 
 volumes:
   recognition-data:
+  avatars-data:
+  snapshots-data:

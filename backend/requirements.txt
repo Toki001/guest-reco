@@ -2,8 +2,10 @@ fastapi
 uvicorn[standard]
 python-multipart
 python-dotenv
-face_recognition
+insightface
+onnxruntime
 numpy
+Pillow
 websockets
 PyJWT
 bcrypt
