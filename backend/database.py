@@ -449,6 +449,23 @@ def get_active_users():
         "clock_in_time": r["clock_in_time"], "camera_id": r["camera_id"]
     } for r in rows]
 
+def get_inactive_users():
+    """Return users whose last status is 'out' or who have never been scanned."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT u.id, u.name, u.image_path, u.role,
+               a.timestamp as last_seen, a.camera_id, a.status as last_status
+        FROM users u
+        LEFT JOIN access_logs a ON a.user_id = u.id
+            AND a.timestamp = (SELECT MAX(timestamp) FROM access_logs WHERE user_id = u.id)
+        WHERE a.status IS NULL OR a.status = 'out'
+        ORDER BY u.name
+    """).fetchall()
+    return [{
+        "id": r["id"], "name": r["name"], "image_url": r["image_path"], "role": r["role"],
+        "last_seen": r["last_seen"], "camera_id": r["camera_id"], "last_status": r["last_status"]
+    } for r in rows]
+
 def get_attendance_logs(page=1, per_page=50, date_from=None, date_to=None,
                         camera_id=None, user_id=None, status=None):
     conn = get_connection()

@@ -190,9 +190,8 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
 
   // ─── Shared glass styles ──────────────────────────────
   const inputStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid var(--glass-border)',
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.02)',
+    background: 'var(--modal-input-bg)',
+    border: '1px solid var(--modal-input-border)',
   };
 
   return (
@@ -202,11 +201,11 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
       <div
         className="relative w-full max-w-lg mx-4 max-h-[90vh] flex flex-col rounded-2xl overflow-hidden page-enter"
         style={{
-          background: 'var(--glass-bg-strong)',
+          background: 'var(--modal-bg)',
           backdropFilter: 'blur(24px) saturate(1.3)',
           WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
           border: '1px solid var(--glass-border)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.25), var(--glass-inset-highlight)',
         }}
         onClick={e => e.stopPropagation()}
       >

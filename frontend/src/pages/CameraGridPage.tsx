@@ -304,11 +304,11 @@ function CameraGridPage() {
           <div
             className="relative w-full max-w-sm rounded-2xl p-6 page-enter"
             style={{
-              background: 'var(--glass-bg-strong)',
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
+              background: 'var(--modal-bg)',
+              backdropFilter: 'blur(24px) saturate(1.3)',
+              WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
               border: '1px solid var(--glass-border)',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.25), var(--glass-inset-highlight)',
             }}
             onClick={e => e.stopPropagation()}
           >

@@ -65,13 +65,18 @@
   --accent-hover: #0C71C3;
 
   /* Glass tokens */
-  --glass-bg: rgba(255, 255, 255, 0.45);
-  --glass-bg-strong: rgba(255, 255, 255, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(0, 0, 0, 0.08);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   --glass-blur: blur(16px);
   --glass-blur-heavy: blur(24px);
-  --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+
+  /* Modal-specific (more opaque for readability) */
+  --modal-bg: rgba(255, 255, 255, 0.88);
+  --modal-input-bg: rgba(0, 0, 0, 0.04);
+  --modal-input-border: rgba(0, 0, 0, 0.1);
   --glow-blue: 0 0 20px rgba(46, 163, 242, 0.15);
   --glow-emerald: 0 0 20px rgba(16, 185, 129, 0.15);
   --glow-amber: 0 0 20px rgba(245, 158, 11, 0.15);
@@ -109,6 +114,10 @@ html.dark {
   --glass-blur: blur(16px);
   --glass-blur-heavy: blur(24px);
   --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  --modal-bg: rgba(21, 24, 53, 0.92);
+  --modal-input-bg: rgba(255, 255, 255, 0.05);
+  --modal-input-border: rgba(255, 255, 255, 0.1);
   --glow-blue: 0 0 24px rgba(46, 163, 242, 0.12);
   --glow-emerald: 0 0 24px rgba(16, 185, 129, 0.12);
   --glow-amber: 0 0 24px rgba(245, 158, 11, 0.12);

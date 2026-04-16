@@ -82,11 +82,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       <div
         className="relative w-full max-w-lg rounded-2xl overflow-hidden"
         style={{
-          background: 'var(--glass-bg-strong)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
+          background: 'var(--modal-bg)',
+          backdropFilter: 'blur(24px) saturate(1.3)',
+          WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
           border: '1px solid var(--glass-border)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.3), var(--glass-inset-highlight)',
           animation: 'fade-in 0.15s ease-out',
         }}
         onClick={e => e.stopPropagation()}
@@ -133,8 +133,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   imgSrc ? (
                     <img src={imgSrc} alt={r.name} className="w-8 h-8 rounded-lg object-cover border border-[var(--glass-border)]" />
                   ) : (
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${r.role === 'Guest' ? 'bg-amber-500/15' : 'bg-emerald-500/15'}`}>
-                      <span className={`material-symbols-outlined text-sm ${r.role === 'Guest' ? 'text-amber-400' : 'text-emerald-400'}`}>person</span>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${r.role === 'Guest' ? 'bg-amber-500/15' : 'bg-blue-500/15'}`}>
+                      <span className={`material-symbols-outlined text-sm ${r.role === 'Guest' ? 'text-amber-400' : 'text-blue-400'}`}>person</span>
                     </div>
                   )
                 ) : (

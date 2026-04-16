@@ -369,7 +369,7 @@ const DashboardTab = () => {
                            alt={det.name} className="w-9 h-9 rounded-xl object-cover border border-[var(--glass-border)] shrink-0 cursor-pointer" />
                     ) : (
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 cursor-pointer ${
-                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
+                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'
                       }`}>
                         <span className="material-symbols-outlined text-sm">person</span>
                       </div>
@@ -471,7 +471,7 @@ const DashboardTab = () => {
                     </td>
                     <td className="px-5 py-3">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
-                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
+                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'
                       }`}>{det.type === 'guest' ? 'Guest' : 'Employee'}</span>
                     </td>
                     <td className="px-5 py-3 text-xs text-[var(--text-muted)] capitalize">{det.camera_id || '—'}</td>

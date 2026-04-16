@@ -29,7 +29,8 @@ from database import (
     get_all_embeddings, add_embedding, get_recent_activity_for_camera,
     get_settings, update_settings,
     get_hourly_stats, get_stats_for_range, global_search,
-    export_attendance, export_visitors
+    export_attendance, export_visitors,
+    get_inactive_users
 )
 from face_engine import index_face, search_face, search_face_multi
 from auth import (
@@ -581,6 +582,10 @@ async def list_visitors(
 @app.get('/api/attendance/active')
 async def active_users(user=Depends(require_admin)):
     return await asyncio.to_thread(get_active_users)
+
+@app.get('/api/attendance/inactive')
+async def inactive_users(user=Depends(require_admin)):
+    return await asyncio.to_thread(get_inactive_users)
 
 @app.get('/api/attendance')
 async def attendance_log(

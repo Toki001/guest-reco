@@ -212,7 +212,7 @@ function EmployeesPage() {
                       ) : (
                         <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
                           emp.role === 'Guest' ? 'bg-amber-500/15 text-amber-400'
-                            : 'bg-emerald-500/15 text-emerald-400'
+                            : 'bg-blue-500/15 text-blue-400'
                         }`}>{emp.role}</span>
                       )}
                     </td>

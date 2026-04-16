@@ -42,11 +42,11 @@ export function HoverCard({ name, type, imageUrl, confidence, cameraId, status, 
           <div
             className="rounded-xl p-3 min-w-[200px] max-w-[260px]"
             style={{
-              background: 'var(--glass-bg-strong)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
+              background: 'var(--modal-bg)',
+              backdropFilter: 'blur(20px) saturate(1.3)',
+              WebkitBackdropFilter: 'blur(20px) saturate(1.3)',
               border: '1px solid var(--glass-border)',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.2)',
+              boxShadow: '0 12px 40px rgba(0,0,0,0.2), var(--glass-inset-highlight)',
               animation: 'fade-in 0.15s ease-out',
             }}
           >
@@ -54,14 +54,14 @@ export function HoverCard({ name, type, imageUrl, confidence, cameraId, status, 
               {imgSrc ? (
                 <img src={imgSrc} alt={name} className="w-10 h-10 rounded-lg object-cover border border-[var(--glass-border)]" />
               ) : (
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isGuest ? 'bg-amber-500/15' : 'bg-emerald-500/15'}`}>
-                  <span className={`material-symbols-outlined text-sm ${isGuest ? 'text-amber-400' : 'text-emerald-400'}`}>person</span>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isGuest ? 'bg-amber-500/15' : 'bg-blue-500/15'}`}>
+                  <span className={`material-symbols-outlined text-sm ${isGuest ? 'text-amber-400' : 'text-blue-400'}`}>person</span>
                 </div>
               )}
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{name}</p>
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block ${
-                  isGuest ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
+                  isGuest ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'
                 }`}>{isGuest ? 'Guest' : 'Employee'}</span>
               </div>
             </div>

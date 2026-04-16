@@ -83,7 +83,16 @@ function SettingsModal({ onClose }: SettingsModalProps) {
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+      <div
+        className="relative rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden"
+        style={{
+          background: 'var(--modal-bg)',
+          backdropFilter: 'blur(24px) saturate(1.3)',
+          WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
+          border: '1px solid var(--glass-border)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.25), var(--glass-inset-highlight)',
+        }}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-2.5">
