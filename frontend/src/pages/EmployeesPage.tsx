@@ -211,8 +211,8 @@ function EmployeesPage() {
                         </select>
                       ) : (
                         <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                          emp.role === 'Guest' ? 'bg-amber-500/15 text-amber-400 '
-                            : 'bg-blue-500/15 text-blue-400'
+                          emp.role === 'Guest' ? 'bg-amber-500/15 text-amber-400'
+                            : 'bg-emerald-500/15 text-emerald-400'
                         }`}>{emp.role}</span>
                       )}
                     </td>
@@ -232,8 +232,8 @@ function EmployeesPage() {
                     <td className="px-4 py-3">
                       {emp.last_status ? (
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                          emp.last_status === 'in' ? 'bg-emerald-100 text-emerald-700 dark:text-emerald-400'
-                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          emp.last_status === 'in' ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20'
+                            : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/20'
                         }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${emp.last_status === 'in' ? 'bg-emerald-500' : 'bg-red-500'}`} />
                           {emp.last_status === 'in' ? 'IN' : 'OUT'}
