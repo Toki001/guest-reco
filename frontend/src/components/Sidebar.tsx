@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <aside
         className={`
-          bg-[var(--bg-sidebar)] flex flex-col shrink-0 fixed inset-y-0 left-0 z-50
+          flex flex-col shrink-0 fixed inset-y-0 left-0 z-50
           transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
           border-r border-white/[0.06]
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -52,6 +52,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ${isCollapsed ? 'lg:w-[72px]' : 'lg:w-60'}
           w-60
         `}
+        style={{
+          background: 'var(--bg-sidebar)',
+          backdropFilter: 'var(--glass-blur-heavy)',
+          WebkitBackdropFilter: 'var(--glass-blur-heavy)',
+        }}
       >
         {/* Logo */}
         <div

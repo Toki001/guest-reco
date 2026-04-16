@@ -48,30 +48,66 @@
 
 /* ─── Theme system (light/dark) ───────────────────────────── */
 :root {
-  --bg-base: #f0f4f8;
-  --bg-surface: #ffffff;
-  --bg-surface-hover: #e8eef6;
-  --bg-sidebar: #2B0E72;
-  --border-color: rgba(0,0,0,0.08);
+  --bg-base: #e8edf5;
+  --bg-surface: rgba(255, 255, 255, 0.55);
+  --bg-surface-hover: rgba(255, 255, 255, 0.7);
+  --bg-sidebar: rgba(43, 14, 114, 0.85);
+  --border-color: rgba(255, 255, 255, 0.35);
   --text-primary: #111827;
   --text-secondary: #4b5563;
   --text-muted: #9ca3af;
   --accent: #2EA3F2;
   --accent-hover: #0C71C3;
+
+  /* Glass tokens */
+  --glass-bg: rgba(255, 255, 255, 0.45);
+  --glass-bg-strong: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --glass-blur: blur(16px);
+  --glass-blur-heavy: blur(24px);
+  --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --glow-blue: 0 0 20px rgba(46, 163, 242, 0.15);
+  --glow-emerald: 0 0 20px rgba(16, 185, 129, 0.15);
+  --glow-amber: 0 0 20px rgba(245, 158, 11, 0.15);
+  --glow-violet: 0 0 20px rgba(139, 92, 246, 0.15);
+
+  /* Mesh gradient for page background */
+  --mesh-gradient: radial-gradient(ellipse at 20% 0%, rgba(46, 163, 242, 0.12) 0%, transparent 50%),
+                   radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+                   radial-gradient(ellipse at 50% 100%, rgba(16, 185, 129, 0.08) 0%, transparent 50%);
+
   color-scheme: light;
 }
 
 html.dark {
-  --bg-base: #0d0f24;
-  --bg-surface: #151835;
-  --bg-surface-hover: #1c2045;
-  --bg-sidebar: #1a0a4a;
-  --border-color: rgba(255,255,255,0.08);
+  --bg-base: #080a1a;
+  --bg-surface: rgba(21, 24, 53, 0.6);
+  --bg-surface-hover: rgba(28, 32, 69, 0.7);
+  --bg-sidebar: rgba(26, 10, 74, 0.9);
+  --border-color: rgba(255, 255, 255, 0.08);
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
   --text-muted: #475569;
   --accent: #2EA3F2;
   --accent-hover: #5bb8f5;
+
+  --glass-bg: rgba(15, 18, 40, 0.5);
+  --glass-bg-strong: rgba(21, 24, 53, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --glass-blur: blur(16px);
+  --glass-blur-heavy: blur(24px);
+  --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --glow-blue: 0 0 24px rgba(46, 163, 242, 0.12);
+  --glow-emerald: 0 0 24px rgba(16, 185, 129, 0.12);
+  --glow-amber: 0 0 24px rgba(245, 158, 11, 0.12);
+  --glow-violet: 0 0 24px rgba(139, 92, 246, 0.12);
+
+  --mesh-gradient: radial-gradient(ellipse at 20% 0%, rgba(46, 163, 242, 0.08) 0%, transparent 50%),
+                   radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.07) 0%, transparent 50%),
+                   radial-gradient(ellipse at 50% 100%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+
   color-scheme: dark;
 }
 
@@ -80,7 +116,29 @@ body {
   font-family: 'Inter', sans-serif;
   background-color: var(--bg-base);
   color: var(--text-primary);
-  transition: background-color 0.2s, color 0.2s;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* ─── Glass card utility ─────────────────────────────────── */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
+  transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.glass-card:hover {
+  background: var(--glass-bg-strong);
+}
+
+.glass-card-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur-heavy);
+  -webkit-backdrop-filter: var(--glass-blur-heavy);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-inset-highlight);
 }
 
 /* ─── Scrollbar utilities ─────────────────────────────────── */
@@ -90,4 +148,29 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ─── Custom scrollbar (thin, glass-themed) ───────────────── */
+.glass-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.glass-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.glass-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 4px;
+}
+.glass-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* ─── Glow ring animations ───────────────────────────────── */
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.glow-ring {
+  animation: glow-pulse 3s ease-in-out infinite;
 }

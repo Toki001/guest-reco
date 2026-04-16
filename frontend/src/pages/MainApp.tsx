@@ -20,7 +20,7 @@ function MainApp() {
   const toggleDesktopCollapse = () => setSidebarCollapsed(!isSidebarCollapsed);
 
   return (
-    <div className="h-screen w-full flex overflow-hidden" style={{ backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+    <div className="h-screen w-full flex overflow-hidden" style={{ backgroundColor: 'var(--bg-base)', backgroundImage: 'var(--mesh-gradient)', color: 'var(--text-primary)' }}>
       {/* Sidebar — always on the LEFT */}
       <Sidebar
         isOpen={isSidebarOpen}

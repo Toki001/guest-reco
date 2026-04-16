@@ -25,24 +25,25 @@ export const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   const dateStr = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
-    <header className="flex items-center justify-between mb-4 shrink-0">
+    <header className="glass-card rounded-2xl px-5 py-3 mb-4 shrink-0 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <button
-          className="lg:hidden p-2 -ml-2 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-white/[0.05]"
+          className="lg:hidden p-2 -ml-2 text-slate-400 hover:text-[var(--text-primary)] transition-colors rounded-lg hover:bg-white/10"
           onClick={toggleSidebar}
         >
           <span className="material-symbols-outlined">menu</span>
         </button>
         <div>
           <h1 className="text-lg font-bold text-[var(--text-primary)]">{title}</h1>
-          {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+          {subtitle && <p className="text-[11px] text-[var(--text-muted)]">{subtitle}</p>}
         </div>
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
-          <span className="font-mono">{timeStr}</span>
-          <span className="text-slate-700">·</span>
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.08] border border-[var(--glass-border)] text-xs text-[var(--text-secondary)]">
+          <span className="material-symbols-outlined text-sm text-[var(--accent)]">schedule</span>
+          <span className="font-mono font-medium">{timeStr}</span>
+          <span className="opacity-40">|</span>
           <span>{dateStr}</span>
         </div>
       </div>
