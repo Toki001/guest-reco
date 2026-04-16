@@ -27,7 +27,9 @@ from database import (
     get_user_attendance, user_exists, get_visitors_aggregated, get_today_stats,
     get_faces_by_camera, get_camera_stats, get_camera_activity,
     get_all_embeddings, add_embedding, get_recent_activity_for_camera,
-    get_settings, update_settings
+    get_settings, update_settings,
+    get_hourly_stats, get_stats_for_range, global_search,
+    export_attendance, export_visitors
 )
 from face_engine import index_face, search_face, search_face_multi
 from auth import (
@@ -611,8 +613,74 @@ async def update_system_settings(request: Request, user=Depends(require_admin)):
     await manager.broadcast({"event": "settings_updated", "settings": updated})
     return updated
 
-# --- NOTE: WebRTC signaling is handled by PeerJS server (port 9000, proxied via Vite) ---
-# The /ws/camera-signal and /ws/viewer-signal endpoints are no longer needed.
+# --- API: HOURLY STATS (for charts) ---
+@app.get('/api/stats/hourly')
+async def hourly_stats(
+    date_from: str = Query(None),
+    date_to: str = Query(None),
+    user=Depends(require_admin)
+):
+    return await asyncio.to_thread(get_hourly_stats, date_from, date_to)
+
+# --- API: STATS WITH DATE RANGE ---
+@app.get('/api/stats/range')
+async def stats_range(
+    date_from: str = Query(None),
+    date_to: str = Query(None),
+    user=Depends(require_admin)
+):
+    return await asyncio.to_thread(get_stats_for_range, date_from, date_to)
+
+# --- API: GLOBAL SEARCH ---
+@app.get('/api/search')
+async def search(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(20, ge=1, le=100),
+    user=Depends(require_admin)
+):
+    return await asyncio.to_thread(global_search, q, limit)
+
+# --- API: EXPORT ---
+@app.get('/api/export/attendance')
+async def export_attendance_csv(
+    date_from: str = Query(None),
+    date_to: str = Query(None),
+    camera_id: str = Query(None),
+    user=Depends(require_admin)
+):
+    import csv
+    import io as _io
+    rows = await asyncio.to_thread(export_attendance, date_from, date_to, camera_id)
+    output = _io.StringIO()
+    if rows:
+        writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=attendance_export.csv"}
+    )
+
+@app.get('/api/export/visitors')
+async def export_visitors_csv(
+    date_from: str = Query(None),
+    date_to: str = Query(None),
+    user=Depends(require_admin)
+):
+    import csv
+    import io as _io
+    rows = await asyncio.to_thread(export_visitors, date_from, date_to)
+    output = _io.StringIO()
+    if rows:
+        writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=visitors_export.csv"}
+    )
 
 # --- STATIC FILE MOUNTS (must be AFTER all API routes) ---
 app.mount("/avatars", StaticFiles(directory="avatars"), name="avatars")

@@ -30,6 +30,7 @@ function CameraStationPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isIdle, setIsIdle] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [showHistory, setShowHistory] = useState(true);
   const cooldownRef = useRef<Map<string, number>>(new Map());
   const idleTimerRef = useRef<number>(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -362,6 +363,22 @@ function CameraStationPage() {
               {theme === 'dark' ? 'light_mode' : 'dark_mode'}
             </span>
           </button>
+          {/* History toggle */}
+          <button
+            onClick={() => setShowHistory(s => !s)}
+            className="p-2 rounded-xl transition-all"
+            style={{
+              background: showHistory ? 'rgba(46,163,242,0.12)' : 'rgba(255,255,255,0.06)',
+              border: `1px solid ${showHistory ? 'rgba(46,163,242,0.25)' : 'var(--glass-border)'}`,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = showHistory ? 'rgba(46,163,242,0.18)' : 'rgba(255,255,255,0.12)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = showHistory ? 'rgba(46,163,242,0.12)' : 'rgba(255,255,255,0.06)'; }}
+            title={showHistory ? 'Hide activity panel' : 'Show activity panel'}
+          >
+            <span className={`material-symbols-outlined text-xl ${showHistory ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}>
+              {showHistory ? 'right_panel_open' : 'right_panel_close'}
+            </span>
+          </button>
           {/* Connection status */}
           <div
             className="flex items-center space-x-2 px-3 py-1.5 rounded-xl"
@@ -427,9 +444,9 @@ function CameraStationPage() {
           </CameraFeed>
         </div>
 
-        {/* Live history sidebar — glass */}
+        {/* Live history sidebar — glass, collapsible */}
         <div
-          className="w-80 flex flex-col shrink-0"
+          className={`flex flex-col shrink-0 transition-all duration-300 ${showHistory ? 'w-80' : 'w-0 overflow-hidden'} max-md:absolute max-md:right-0 max-md:top-0 max-md:bottom-0 max-md:z-30`}
           style={{
             background: 'var(--glass-bg-strong)',
             backdropFilter: 'blur(24px) saturate(1.3)',

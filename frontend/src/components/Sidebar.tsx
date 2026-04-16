@@ -54,10 +54,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         `}
         style={{
           background: 'var(--bg-sidebar)',
-          backdropFilter: 'blur(24px) saturate(1.4)',
-          WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
           borderColor: 'var(--sidebar-border)',
-          boxShadow: '4px 0 24px rgba(0, 0, 0, 0.12), inset -1px 0 0 rgba(255, 255, 255, 0.06)',
+          boxShadow: '4px 0 24px rgba(0, 0, 0, 0.12)',
         }}
       >
         {/* Logo */}

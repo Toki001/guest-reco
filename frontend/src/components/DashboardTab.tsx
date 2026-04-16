@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { authFetch, getAuthWsUrl } from '../auth';
 import { API_BASE } from '../config';
+import { SkeletonCard, SkeletonChart, SkeletonTable } from './GlassSkeleton';
+import { EmptyState } from './EmptyState';
+import { HoverCard } from './HoverCard';
 
 interface DashboardStats {
   total_scans: number;
@@ -26,6 +30,14 @@ interface DetectionEvent {
   timestamp: string;
 }
 
+interface HourlyData {
+  hour: string;
+  scans: number;
+  entries: number;
+  exits: number;
+}
+
+// ─── WebSocket Hook ─────────────────────────────────────
 function useDashboardWebSocket() {
   const [stats, setStats] = useState<DashboardStats>({ total_scans: 0, employee_matches: 0, guest_alerts: 0, cameras_online: 0 });
   const [cameras, setCameras] = useState<CameraInfo[]>([]);
@@ -39,15 +51,9 @@ function useDashboardWebSocket() {
 
   const connect = useCallback(() => {
     if (!mountedRef.current || retryCountRef.current >= MAX_RETRIES) return;
-
     const ws = new WebSocket(getAuthWsUrl('/ws/dashboard'));
     wsRef.current = ws;
-
-    ws.onopen = () => {
-      setIsConnected(true);
-      retryCountRef.current = 0;
-    };
-
+    ws.onopen = () => { setIsConnected(true); retryCountRef.current = 0; };
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -65,46 +71,31 @@ function useDashboardWebSocket() {
           case 'camera_online':
             setCameras(prev => {
               const existing = prev.find(c => c.camera_id === msg.data.camera_id);
-              if (existing) {
-                return prev.map(c => c.camera_id === msg.data.camera_id ? { ...c, is_online: 1, last_heartbeat: msg.data.timestamp } : c);
-              }
+              if (existing) return prev.map(c => c.camera_id === msg.data.camera_id ? { ...c, is_online: 1, last_heartbeat: msg.data.timestamp } : c);
               return [...prev, { camera_id: msg.data.camera_id, department: msg.data.department, last_heartbeat: msg.data.timestamp, is_online: 1 }];
             });
             break;
           case 'camera_offline':
-            if (msg.data.removed) {
-              setCameras(prev => prev.filter(c => c.camera_id !== msg.data.camera_id));
-            } else {
-              setCameras(prev => prev.map(c => c.camera_id === msg.data.camera_id ? { ...c, is_online: 0 } : c));
-            }
+            if (msg.data.removed) setCameras(prev => prev.filter(c => c.camera_id !== msg.data.camera_id));
+            else setCameras(prev => prev.map(c => c.camera_id === msg.data.camera_id ? { ...c, is_online: 0 } : c));
             break;
         }
         setLastUpdated(new Date());
-      } catch (e) {
-        console.error('WebSocket parse error:', e);
-      }
+      } catch (e) { console.error('WebSocket parse error:', e); }
     };
-
     ws.onclose = () => {
-      setIsConnected(false);
-      wsRef.current = null;
+      setIsConnected(false); wsRef.current = null;
       if (mountedRef.current && retryCountRef.current < MAX_RETRIES) {
         retryCountRef.current++;
-        const delay = Math.min(3000 * retryCountRef.current, 15000);
-        setTimeout(connect, delay);
+        setTimeout(connect, Math.min(3000 * retryCountRef.current, 15000));
       }
     };
-
-    ws.onerror = () => {
-      ws.close();
-    };
+    ws.onerror = () => { ws.close(); };
   }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send('ping');
-      }
+      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send('ping');
     }, 25000);
     return () => clearInterval(interval);
   }, []);
@@ -112,42 +103,86 @@ function useDashboardWebSocket() {
   useEffect(() => {
     mountedRef.current = true;
     connect();
-
-    return () => {
-      mountedRef.current = false;
-      retryCountRef.current = MAX_RETRIES;
-      if (wsRef.current) wsRef.current.close();
-    };
+    return () => { mountedRef.current = false; retryCountRef.current = MAX_RETRIES; wsRef.current?.close(); };
   }, [connect]);
 
   return { stats, setStats, cameras, setCameras, detections, isConnected, lastUpdated, setLastUpdated };
 }
 
+// ─── Time Range Presets ─────────────────────────────────
+const TIME_RANGES = [
+  { label: 'Today', key: 'today' },
+  { label: '7 Days', key: '7d' },
+  { label: '30 Days', key: '30d' },
+  { label: 'All Time', key: 'all' },
+] as const;
+
+function getDateRange(key: string): { from?: string; to?: string } {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  switch (key) {
+    case 'today': return { from: todayStart };
+    case '7d': { const d = new Date(now); d.setDate(d.getDate() - 7); return { from: d.toISOString() }; }
+    case '30d': { const d = new Date(now); d.setDate(d.getDate() - 30); return { from: d.toISOString() }; }
+    default: return {};
+  }
+}
+
+// ─── Chart tooltip ──────────────────────────────────────
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="glass-card-strong rounded-lg px-3 py-2 text-xs" style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
+      <p className="text-[var(--text-muted)] mb-1 font-mono">{label}</p>
+      {payload.map((p: any) => (
+        <p key={p.dataKey} className="font-semibold" style={{ color: p.color }}>
+          {p.name}: {p.value}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// ─── Metric Cards Config ────────────────────────────────
 const METRIC_CARDS = [
-  { key: 'total_scans' as const, label: 'Total Scans', icon: 'center_focus_strong', gradient: 'from-blue-500 to-cyan-400', glow: 'var(--glow-blue)', ring: 'ring-blue-400/20', badge: 'bg-blue-500/15 text-blue-400' },
-  { key: 'employee_matches' as const, label: 'Employees', icon: 'badge', gradient: 'from-emerald-500 to-teal-400', glow: 'var(--glow-emerald)', ring: 'ring-emerald-400/20', badge: 'bg-emerald-500/15 text-emerald-400' },
-  { key: 'guest_alerts' as const, label: 'Guests', icon: 'person_alert', gradient: 'from-amber-500 to-orange-400', glow: 'var(--glow-amber)', ring: 'ring-amber-400/20', badge: 'bg-amber-500/15 text-amber-400' },
-  { key: 'cameras_online' as const, label: 'Cameras', icon: 'videocam', gradient: 'from-violet-500 to-purple-400', glow: 'var(--glow-violet)', ring: 'ring-violet-400/20', badge: 'bg-violet-500/15 text-violet-400' },
+  { key: 'total_scans' as const, label: 'Total Scans', icon: 'center_focus_strong', gradient: 'from-blue-500 to-cyan-400', glow: 'var(--glow-blue)' },
+  { key: 'employee_matches' as const, label: 'Employees', icon: 'badge', gradient: 'from-emerald-500 to-teal-400', glow: 'var(--glow-emerald)' },
+  { key: 'guest_alerts' as const, label: 'Guests', icon: 'person_alert', gradient: 'from-amber-500 to-orange-400', glow: 'var(--glow-amber)' },
+  { key: 'cameras_online' as const, label: 'Cameras', icon: 'videocam', gradient: 'from-violet-500 to-purple-400', glow: 'var(--glow-violet)' },
 ];
 
+// ─── Main Component ─────────────────────────────────────
 const DashboardTab = () => {
   const { stats, setStats, cameras, setCameras, detections, isConnected, lastUpdated, setLastUpdated } = useDashboardWebSocket();
   const [initialLogs, setInitialLogs] = useState<any[]>([]);
   const [todayStats, setTodayStats] = useState({ scans_today: 0, unique_people_today: 0, currently_on_site: 0, employees_in_today: 0, guests_today: 0 });
-
+  const [hourlyData, setHourlyData] = useState<HourlyData[]>([]);
+  const [timeRange, setTimeRange] = useState<string>('today');
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const refreshData = useCallback(() => {
+  const refreshData = useCallback((range?: string) => {
+    const r = range ?? timeRange;
     setRefreshing(true);
+    const { from, to } = getDateRange(r);
+    const qs = [from && `date_from=${from}`, to && `date_to=${to}`].filter(Boolean).join('&');
+    const suffix = qs ? `?${qs}` : '';
+
     Promise.allSettled([
       authFetch('/api/access-logs').then(r => r.ok ? r.json() : []).then(data => setInitialLogs(data)),
       authFetch('/api/stats').then(r => r.ok ? r.json() : null).then(data => { if (data) setStats(data); }),
       authFetch('/api/cameras').then(r => r.ok ? r.json() : []).then(data => setCameras(data)),
       authFetch('/api/stats/today').then(r => r.ok ? r.json() : null).then(data => { if (data) setTodayStats(data); }),
-    ]).finally(() => { setRefreshing(false); setLastUpdated(new Date()); });
-  }, [setStats, setCameras, setLastUpdated]);
+      authFetch(`/api/stats/hourly${suffix}`).then(r => r.ok ? r.json() : []).then(data => setHourlyData(data)),
+    ]).finally(() => { setRefreshing(false); setLoading(false); setLastUpdated(new Date()); });
+  }, [setStats, setCameras, setLastUpdated, timeRange]);
 
   useEffect(() => { refreshData(); }, []);
+
+  const handleTimeRange = (key: string) => {
+    setTimeRange(key);
+    refreshData(key);
+  };
 
   const allDetections = detections.length > 0 ? detections : initialLogs.map(log => ({
     name: log.name || log.user_id,
@@ -163,16 +198,37 @@ const DashboardTab = () => {
     try {
       const d = new Date(ts);
       const now = new Date();
-      const diffMs = now.getTime() - d.getTime();
-      const diffMin = Math.floor(diffMs / 60000);
+      const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
       if (diffMin < 1) return 'Just now';
       if (diffMin < 60) return `${diffMin}m ago`;
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } catch { return ts; }
   };
 
+  const chartData = hourlyData.map(h => ({
+    ...h,
+    label: h.hour ? h.hour.slice(11, 16) : '',
+  }));
+
+  // ─── Skeleton loading ───────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full w-full overflow-y-auto pb-10 page-enter">
+        <div className="flex items-center justify-between mb-5">
+          <div className="glass-card rounded-xl px-3.5 py-2 w-32 h-8" />
+          <div className="glass-card rounded-xl px-3.5 py-2 w-20 h-8" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+        <SkeletonChart />
+        <div className="mt-5"><SkeletonTable rows={6} /></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full w-full overflow-y-auto pb-10 glass-scrollbar">
+    <div className="flex flex-col h-full w-full overflow-y-auto pb-10 glass-scrollbar page-enter">
 
       {/* Status Bar */}
       <div className="flex items-center justify-between mb-5">
@@ -184,19 +240,32 @@ const DashboardTab = () => {
             {isConnected ? 'System Online' : 'Disconnected'}
           </div>
           {lastUpdated && (
-            <span className="text-[10px] text-[var(--text-muted)] font-mono">
-              {formatTime(lastUpdated.toISOString())}
-            </span>
+            <span className="text-[10px] text-[var(--text-muted)] font-mono">{formatTime(lastUpdated.toISOString())}</span>
           )}
         </div>
-        <button
-          onClick={refreshData}
-          disabled={refreshing}
-          className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all disabled:opacity-40 cursor-pointer"
-        >
-          <span className={`material-symbols-outlined text-sm ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Time range pills */}
+          <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
+            {TIME_RANGES.map(r => (
+              <button
+                key={r.key}
+                onClick={() => handleTimeRange(r.key)}
+                className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all ${
+                  timeRange === r.key
+                    ? 'bg-[var(--accent)] text-white shadow-md'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                }`}
+              >{r.label}</button>
+            ))}
+          </div>
+          <button
+            onClick={() => refreshData()}
+            disabled={refreshing}
+            className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all disabled:opacity-40 cursor-pointer"
+          >
+            <span className={`material-symbols-outlined text-sm ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Metric Cards */}
@@ -205,14 +274,8 @@ const DashboardTab = () => {
           const value = stats[card.key];
           const extra = card.key === 'cameras_online' ? `${cameras.filter(c => c.is_online).length} active` : undefined;
           return (
-            <div
-              key={card.key}
-              className="glass-card rounded-2xl p-5 group relative overflow-hidden"
-              style={{ boxShadow: `var(--glass-shadow), ${card.glow}` }}
-            >
-              {/* Gradient orb background */}
+            <div key={card.key} className="glass-card rounded-2xl p-5 group relative overflow-hidden" style={{ boxShadow: `var(--glass-shadow), ${card.glow}` }}>
               <div className={`absolute -top-6 -right-6 w-24 h-24 rounded-full bg-gradient-to-br ${card.gradient} opacity-[0.08] group-hover:opacity-[0.15] transition-opacity duration-500 blur-xl`} />
-
               <div className="relative">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">{card.label}</span>
@@ -228,29 +291,59 @@ const DashboardTab = () => {
         })}
       </div>
 
-      {/* Today's Quick Stats */}
-      <div className="flex flex-wrap gap-2.5 mb-5">
-        {[
-          { icon: 'trending_up', label: `${todayStats.scans_today} today`, color: 'blue' },
-          { icon: 'people', label: `${todayStats.unique_people_today} unique`, color: 'emerald' },
-          { icon: 'location_on', label: `${todayStats.currently_on_site} on site`, color: 'violet' },
-        ].map((pill) => (
-          <div
-            key={pill.label}
-            className={`glass-card flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold ${
+      {/* Quick Stats + Chart */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+        {/* Quick stats pills */}
+        <div className="flex flex-col gap-2.5">
+          {[
+            { icon: 'trending_up', label: `${todayStats.scans_today} scans today`, color: 'blue' },
+            { icon: 'people', label: `${todayStats.unique_people_today} unique people`, color: 'emerald' },
+            { icon: 'location_on', label: `${todayStats.currently_on_site} currently on site`, color: 'violet' },
+            { icon: 'badge', label: `${todayStats.employees_in_today} employees`, color: 'cyan' },
+            { icon: 'person_alert', label: `${todayStats.guests_today} guests`, color: 'amber' },
+          ].map((pill) => (
+            <div key={pill.label} className={`glass-card flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-semibold ${
               pill.color === 'blue' ? 'text-blue-400' :
-              pill.color === 'emerald' ? 'text-emerald-400' : 'text-violet-400'
-            }`}
-          >
-            <span className="material-symbols-outlined text-xs">{pill.icon}</span>
-            {pill.label}
+              pill.color === 'emerald' ? 'text-emerald-400' :
+              pill.color === 'violet' ? 'text-violet-400' :
+              pill.color === 'cyan' ? 'text-cyan-400' : 'text-amber-400'
+            }`}>
+              <span className="material-symbols-outlined text-sm">{pill.icon}</span>
+              {pill.label}
+            </div>
+          ))}
+        </div>
+
+        {/* Hourly activity chart */}
+        <div className="lg:col-span-2 glass-card rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-base text-[var(--accent)]">bar_chart</span>
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">Activity Trend</h3>
+            </div>
+            <div className="flex items-center gap-3 text-[10px]">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Entries</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400" />Exits</span>
+            </div>
           </div>
-        ))}
+          {chartData.length === 0 ? (
+            <EmptyState icon="bar_chart" title="No chart data" description="Activity will appear as scans are recorded" />
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={chartData} barGap={2}>
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={30} />
+                <Tooltip content={<ChartTooltip />} />
+                <Bar dataKey="entries" name="Entries" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="exits" name="Exits" fill="#f87171" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
       {/* Activity + Cameras Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-
         {/* Recent Activity */}
         <div className="lg:col-span-2 glass-card rounded-2xl overflow-hidden flex flex-col">
           <div className="px-5 py-3.5 border-b border-[var(--glass-border)] flex items-center justify-between">
@@ -261,25 +354,23 @@ const DashboardTab = () => {
             <span className="text-[10px] text-[var(--text-muted)] font-mono bg-white/[0.06] px-2 py-0.5 rounded-md">{allDetections.length} events</span>
           </div>
           {allDetections.length === 0 ? (
-            <div className="p-10 text-center text-[var(--text-muted)] text-sm flex flex-col items-center gap-2">
-              <span className="material-symbols-outlined text-3xl opacity-30">sensors_off</span>
-              No activity yet
-            </div>
+            <EmptyState icon="sensors_off" title="No activity yet" description="Detections will appear here in real time" />
           ) : (
             <div className="divide-y divide-[var(--glass-border)] max-h-[360px] overflow-y-auto glass-scrollbar">
               {allDetections.slice(0, 12).map((det, idx) => (
                 <div key={idx} className="flex items-center gap-3 px-5 py-3 hover:bg-white/[0.04] transition-colors">
-                  {det.image_url ? (
-                    <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
-                         alt={det.name}
-                         className="w-9 h-9 rounded-xl object-cover border border-[var(--glass-border)] shrink-0" />
-                  ) : (
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                      det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'
-                    }`}>
-                      <span className="material-symbols-outlined text-sm">person</span>
-                    </div>
-                  )}
+                  <HoverCard name={det.name} type={det.type} imageUrl={det.image_url} confidence={det.confidence} cameraId={det.camera_id} status={det.status}>
+                    {det.image_url ? (
+                      <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
+                           alt={det.name} className="w-9 h-9 rounded-xl object-cover border border-[var(--glass-border)] shrink-0 cursor-pointer" />
+                    ) : (
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 cursor-pointer ${
+                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'
+                      }`}>
+                        <span className="material-symbols-outlined text-sm">person</span>
+                      </div>
+                    )}
+                  </HoverCard>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{det.name}</p>
                     <p className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
@@ -289,9 +380,7 @@ const DashboardTab = () => {
                   </div>
                   <div className="flex items-center gap-2.5 shrink-0">
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
-                      det.status === 'in'
-                        ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20'
-                        : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/20'
+                      det.status === 'in' ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20' : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/20'
                     }`}>{det.status?.toUpperCase()}</span>
                     <span className="text-[10px] text-[var(--text-muted)] font-mono w-14 text-right">{det.timestamp ? formatTime(det.timestamp) : ''}</span>
                   </div>
@@ -311,32 +400,21 @@ const DashboardTab = () => {
             <span className="text-[10px] text-[var(--text-muted)] font-mono bg-white/[0.06] px-2 py-0.5 rounded-md">{cameras.length} total</span>
           </div>
           {cameras.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className="text-center text-[var(--text-muted)]">
-                <span className="material-symbols-outlined text-3xl opacity-30 block mb-1">videocam_off</span>
-                <p className="text-xs">No cameras registered</p>
-              </div>
-            </div>
+            <EmptyState icon="videocam_off" title="No cameras registered" description="Connect a camera station to get started" />
           ) : (
             <div className="flex-1 p-3 grid grid-cols-2 gap-2.5 content-start">
               {cameras.map((cam) => (
                 <div key={cam.camera_id} className={`rounded-xl p-3 flex items-center gap-2.5 transition-all border ${
-                  cam.is_online
-                    ? 'bg-emerald-500/[0.06] border-emerald-500/20'
-                    : 'bg-white/[0.03] border-[var(--glass-border)]'
+                  cam.is_online ? 'bg-emerald-500/[0.06] border-emerald-500/20' : 'bg-white/[0.03] border-[var(--glass-border)]'
                 }`} style={cam.is_online ? { boxShadow: 'var(--glow-emerald)' } : undefined}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    cam.is_online ? 'bg-emerald-500/15' : 'bg-white/[0.06]'
-                  }`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${cam.is_online ? 'bg-emerald-500/15' : 'bg-white/[0.06]'}`}>
                     <span className={`material-symbols-outlined text-base ${cam.is_online ? 'text-emerald-400' : 'text-slate-500'}`}>
                       {cam.is_online ? 'videocam' : 'videocam_off'}
                     </span>
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-[var(--text-primary)] truncate capitalize">{cam.department}</div>
-                    <div className={`text-[9px] font-semibold ${cam.is_online ? 'text-emerald-400' : 'text-slate-500'}`}>
-                      {cam.is_online ? 'Online' : 'Offline'}
-                    </div>
+                    <div className={`text-[9px] font-semibold ${cam.is_online ? 'text-emerald-400' : 'text-slate-500'}`}>{cam.is_online ? 'Online' : 'Offline'}</div>
                   </div>
                 </div>
               ))}
@@ -368,22 +446,24 @@ const DashboardTab = () => {
             </thead>
             <tbody className="divide-y divide-[var(--glass-border)]">
               {allDetections.length === 0 ? (
-                <tr><td colSpan={6} className="px-5 py-10 text-center text-[var(--text-muted)] text-xs">No detections yet</td></tr>
+                <tr><td colSpan={6}><EmptyState icon="search_off" title="No detections yet" description="Recognition events will be logged here" /></td></tr>
               ) : (
                 allDetections.slice(0, 20).map((det, idx) => (
                   <tr key={idx} className="hover:bg-white/[0.03] transition-colors">
                     <td className="px-5 py-3">
-                      <div className="flex items-center gap-2.5">
-                        {det.image_url ? (
-                          <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
-                               alt={det.name} className="w-8 h-8 rounded-lg object-cover border border-[var(--glass-border)] shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-xs text-[var(--text-muted)]">person</span>
-                          </div>
-                        )}
-                        <span className="font-semibold text-[var(--text-primary)] text-xs">{det.name}</span>
-                      </div>
+                      <HoverCard name={det.name} type={det.type} imageUrl={det.image_url} confidence={det.confidence} cameraId={det.camera_id} status={det.status}>
+                        <div className="flex items-center gap-2.5 cursor-pointer">
+                          {det.image_url ? (
+                            <img src={det.image_url.startsWith('/') ? `${API_BASE}${det.image_url}` : det.image_url}
+                                 alt={det.name} className="w-8 h-8 rounded-lg object-cover border border-[var(--glass-border)] shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center shrink-0">
+                              <span className="material-symbols-outlined text-xs text-[var(--text-muted)]">person</span>
+                            </div>
+                          )}
+                          <span className="font-semibold text-[var(--text-primary)] text-xs">{det.name}</span>
+                        </div>
+                      </HoverCard>
                     </td>
                     <td className="px-5 py-3">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
@@ -402,9 +482,7 @@ const DashboardTab = () => {
                     <td className="px-5 py-3 text-[10px] font-mono text-[var(--text-muted)]">{det.timestamp ? formatTime(det.timestamp) : '—'}</td>
                     <td className="px-5 py-3">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
-                        det.status === 'in'
-                          ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20'
-                          : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/20'
+                        det.status === 'in' ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20' : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/20'
                       }`}>{det.status?.toUpperCase() || '—'}</span>
                     </td>
                   </tr>
@@ -414,7 +492,6 @@ const DashboardTab = () => {
           </table>
         </div>
       </div>
-
     </div>
   );
 };

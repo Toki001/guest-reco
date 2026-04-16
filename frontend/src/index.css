@@ -51,9 +51,9 @@
   --bg-base: #e8edf5;
   --bg-surface: rgba(255, 255, 255, 0.55);
   --bg-surface-hover: rgba(255, 255, 255, 0.7);
-  --bg-sidebar: rgba(37, 99, 235, 0.72);
-  --sidebar-hover: rgba(29, 78, 216, 0.45);
-  --sidebar-active: rgba(29, 78, 216, 0.65);
+  --bg-sidebar: rgb(29, 78, 216);
+  --sidebar-hover: rgba(37, 99, 235, 0.4);
+  --sidebar-active: rgba(37, 99, 235, 0.6);
   --sidebar-border: rgba(255, 255, 255, 0.18);
   --sidebar-text: rgba(255, 255, 255, 0.75);
   --sidebar-text-active: #ffffff;
@@ -89,9 +89,9 @@ html.dark {
   --bg-base: #080a1a;
   --bg-surface: rgba(21, 24, 53, 0.6);
   --bg-surface-hover: rgba(28, 32, 69, 0.7);
-  --bg-sidebar: rgba(37, 99, 235, 0.55);
-  --sidebar-hover: rgba(29, 78, 216, 0.5);
-  --sidebar-active: rgba(29, 78, 216, 0.7);
+  --bg-sidebar: rgb(29, 78, 216);
+  --sidebar-hover: rgba(37, 99, 235, 0.45);
+  --sidebar-active: rgba(37, 99, 235, 0.65);
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-text: rgba(255, 255, 255, 0.6);
   --sidebar-text-active: #ffffff;
@@ -183,4 +183,20 @@ body {
 
 .glow-ring {
   animation: glow-pulse 3s ease-in-out infinite;
+}
+
+/* ─── Skeleton shimmer ───────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Route transition ───────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.page-enter {
+  animation: fade-in 0.25s ease-out;
 }

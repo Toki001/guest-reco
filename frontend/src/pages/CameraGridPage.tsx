@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { MediaMTXWebRTCReader } from 'mediamtx-webrtc-react';
 import { getAuthWsUrl, authFetch } from '../auth';
 import CameraDetailPanel from '../components/CameraDetailPanel';
@@ -60,6 +61,9 @@ function CameraGridPage() {
   const [fullscreen, setFullscreen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [detailCamera, setDetailCamera] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
+  const [qrDepartment, setQrDepartment] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const mountedRef = useRef(true);
   const deletedRef = useRef<Set<string>>(new Set());
 
@@ -163,6 +167,13 @@ function CameraGridPage() {
           </div>
           <span className="text-[10px] text-slate-600">{cameraList.length} cameras registered</span>
         </div>
+        <button
+          onClick={() => setShowQr(true)}
+          className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-sm">qr_code_2</span>
+          Add Camera
+        </button>
       </div>
 
       {cameraList.length === 0 ? (
@@ -281,9 +292,85 @@ function CameraGridPage() {
         </div>
       )}
 
-      {/* Camera Detail Panel — shows faces and activity for selected camera */}
+      {/* Camera Detail Panel */}
       {detailCamera && (
         <CameraDetailPanel cameraId={detailCamera} onClose={() => setDetailCamera(null)} />
+      )}
+
+      {/* QR Code Setup Modal */}
+      {showQr && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => setShowQr(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm rounded-2xl p-6 page-enter"
+            style={{
+              background: 'var(--glass-bg-strong)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              border: '1px solid var(--glass-border)',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                <span className="material-symbols-outlined text-[var(--accent)]">qr_code_2</span>
+                Camera QR Setup
+              </h3>
+              <button onClick={() => setShowQr(false)} className="p-1 hover:bg-white/10 rounded-lg transition-colors">
+                <span className="material-symbols-outlined text-[var(--text-muted)] text-lg">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="text-[11px] font-medium text-[var(--text-muted)] block mb-1">Department Name</label>
+                <input
+                  type="text"
+                  value={qrDepartment}
+                  onChange={e => setQrDepartment(e.target.value)}
+                  placeholder="e.g. main-entrance"
+                  className="w-full rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] bg-white/[0.06] border border-[var(--glass-border)] focus:border-[var(--accent)] focus:outline-none transition-colors placeholder:text-[var(--text-muted)]"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-[var(--text-muted)] block mb-1">Camera API Key</label>
+                <input
+                  type="text"
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  placeholder="Paste API key from server console"
+                  className="w-full rounded-xl px-3 py-2 text-sm font-mono text-[var(--text-primary)] bg-white/[0.06] border border-[var(--glass-border)] focus:border-[var(--accent)] focus:outline-none transition-colors placeholder:text-[var(--text-muted)]"
+                />
+              </div>
+            </div>
+
+            {qrDepartment && apiKey ? (
+              <div className="flex flex-col items-center gap-3">
+                <div className="bg-white p-3 rounded-xl">
+                  <QRCodeSVG
+                    value={`${window.location.origin}/camera/${qrDepartment.toLowerCase().replace(/\s+/g, '-')}?key=${apiKey}`}
+                    size={180}
+                    level="M"
+                  />
+                </div>
+                <p className="text-[10px] text-[var(--text-muted)] text-center max-w-[220px]">
+                  Scan this QR code from the camera tablet to auto-configure the station
+                </p>
+                <div className="w-full px-3 py-2 rounded-lg bg-white/[0.04] border border-[var(--glass-border)]">
+                  <p className="text-[9px] text-[var(--text-muted)] font-mono break-all">
+                    {`${window.location.origin}/camera/${qrDepartment.toLowerCase().replace(/\s+/g, '-')}?key=${apiKey}`}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-6 text-[var(--text-muted)]">
+                <span className="material-symbols-outlined text-3xl opacity-30 block mb-1">qr_code_2</span>
+                <p className="text-xs">Fill in both fields to generate QR code</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -676,5 +676,128 @@ def get_offline_cameras(timeout_seconds=30):
     ).fetchall()
     return [{"camera_id": r["camera_id"], "department": r["department"]} for r in rows]
 
+# --- HOURLY STATS (for dashboard charts) ---
+def get_hourly_stats(date_from=None, date_to=None):
+    """Return scan counts grouped by hour for charting."""
+    conn = get_connection()
+    conditions = []
+    params = []
+    if date_from:
+        conditions.append("timestamp >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("timestamp <= ?")
+        params.append(date_to)
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    rows = conn.execute(f"""
+        SELECT strftime('%Y-%m-%d %H:00', timestamp) as hour,
+               COUNT(*) as scans,
+               SUM(CASE WHEN status = 'in' THEN 1 ELSE 0 END) as entries,
+               SUM(CASE WHEN status = 'out' THEN 1 ELSE 0 END) as exits
+        FROM access_logs
+        {where}
+        GROUP BY hour
+        ORDER BY hour DESC
+        LIMIT 168
+    """, params).fetchall()
+    return [{"hour": r["hour"], "scans": r["scans"], "entries": r["entries"], "exits": r["exits"]} for r in reversed(rows)]
+
+# --- STATS WITH DATE RANGE ---
+def get_stats_for_range(date_from=None, date_to=None):
+    """Return stats filtered by date range."""
+    conn = get_connection()
+    conditions = []
+    params = []
+    if date_from:
+        conditions.append("a.timestamp >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("a.timestamp <= ?")
+        params.append(date_to)
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    total = conn.execute(f"SELECT COUNT(*) as c FROM access_logs a {where}", params).fetchone()["c"]
+    employees = conn.execute(f"SELECT COUNT(*) as c FROM access_logs a JOIN users u ON a.user_id = u.id {where}{' AND ' if conditions else ' WHERE '}u.role = 'Employee'", params).fetchone()["c"]
+    guests = conn.execute(f"SELECT COUNT(*) as c FROM access_logs a JOIN users u ON a.user_id = u.id {where}{' AND ' if conditions else ' WHERE '}u.role = 'Guest'", params).fetchone()["c"]
+    unique = conn.execute(f"SELECT COUNT(DISTINCT a.user_id) as c FROM access_logs a {where}", params).fetchone()["c"]
+    return {"total_scans": total, "employee_matches": employees, "guest_alerts": guests, "unique_people": unique}
+
+# --- GLOBAL SEARCH ---
+def global_search(query, limit=20):
+    """Search across users, cameras, and access logs."""
+    conn = get_connection()
+    q = f"%{query}%"
+    results = []
+
+    # Search users
+    users = conn.execute(
+        "SELECT id, name, image_path, role FROM users WHERE name LIKE ? OR id LIKE ? LIMIT ?",
+        (q, q, limit)
+    ).fetchall()
+    for r in users:
+        results.append({"type": "person", "id": r["id"], "name": r["name"], "image_url": r["image_path"], "role": r["role"]})
+
+    # Search cameras
+    cameras = conn.execute(
+        "SELECT camera_id, department, is_online FROM cameras WHERE camera_id LIKE ? OR department LIKE ? LIMIT ?",
+        (q, q, limit)
+    ).fetchall()
+    for r in cameras:
+        results.append({"type": "camera", "id": r["camera_id"], "name": r["department"], "is_online": r["is_online"]})
+
+    return results[:limit]
+
+# --- EXPORT HELPERS ---
+def export_attendance(date_from=None, date_to=None, camera_id=None):
+    """Return all attendance records for CSV export."""
+    conn = get_connection()
+    conditions = []
+    params = []
+    if date_from:
+        conditions.append("a.timestamp >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("a.timestamp <= ?")
+        params.append(date_to)
+    if camera_id:
+        conditions.append("a.camera_id = ?")
+        params.append(camera_id)
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    rows = conn.execute(f"""
+        SELECT a.timestamp, a.user_id, u.name, u.role, a.status, a.confidence, a.camera_id
+        FROM access_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        {where}
+        ORDER BY a.timestamp DESC
+    """, params).fetchall()
+    return [{"timestamp": r["timestamp"], "user_id": r["user_id"], "name": r["name"], "role": r["role"],
+             "status": r["status"], "confidence": r["confidence"], "camera_id": r["camera_id"]} for r in rows]
+
+def export_visitors(date_from=None, date_to=None):
+    """Return visitor summary for CSV export."""
+    conn = get_connection()
+    conditions = ["u.role = 'Guest'"]
+    params = []
+    if date_from:
+        conditions.append("a.timestamp >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("a.timestamp <= ?")
+        params.append(date_to)
+    where = "WHERE " + " AND ".join(conditions)
+    rows = conn.execute(f"""
+        SELECT u.id, u.name,
+               MIN(a.timestamp) as first_seen,
+               MAX(a.timestamp) as last_seen,
+               COUNT(a.id) as total_visits
+        FROM users u
+        LEFT JOIN access_logs a ON a.user_id = u.id
+        {where}
+        GROUP BY u.id
+        ORDER BY last_seen DESC
+    """, params).fetchall()
+    return [{"id": r["id"], "name": r["name"], "first_seen": r["first_seen"],
+             "last_seen": r["last_seen"], "total_visits": r["total_visits"]} for r in rows]
+
 # Initialize DB on import
 init_db()

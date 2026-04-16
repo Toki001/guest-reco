@@ -63,9 +63,18 @@ function AttendancePage() {
 
   return (
     <div className="flex flex-col w-full pb-10">
-      <div className="flex items-center justify-end mb-4">
+      <div className="flex items-center justify-end gap-2 mb-4">
+        <a
+          href={`${API_BASE}/api/export/attendance`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-sm">download</span>
+          Export CSV
+        </a>
         <button onClick={fetchActive}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--bg-surface)] text-slate-400 border border-[var(--border-color)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)] transition-all">
+          className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
           <span className="material-symbols-outlined text-sm">refresh</span>
           Refresh
         </button>
