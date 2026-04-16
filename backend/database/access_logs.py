@@ -6,6 +6,32 @@ from database.users import USER_STATE_CACHE, KNOWN_USERS_CACHE, get_user_profile
 logger = logging.getLogger(__name__)
 
 
+def auto_clock_out_stale():
+    """Clock out all users whose last status is 'in'. Returns list of clocked-out user_ids."""
+    conn = get_connection()
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    rows = conn.execute("""
+        SELECT u.id
+        FROM users u
+        JOIN access_logs a ON a.user_id = u.id
+            AND a.timestamp = (SELECT MAX(timestamp) FROM access_logs WHERE user_id = u.id)
+        WHERE a.status = 'in'
+    """).fetchall()
+    clocked_out = []
+    for r in rows:
+        uid = r["id"]
+        conn.execute(
+            "INSERT INTO access_logs (user_id, status, confidence, timestamp, snapshot_path, camera_id) VALUES (?, 'out', 100.0, ?, NULL, 'system')",
+            (uid, now)
+        )
+        USER_STATE_CACHE[uid] = 'out'
+        clocked_out.append(uid)
+    if clocked_out:
+        conn.commit()
+        logger.info("Midnight auto-clock-out: %d users", len(clocked_out))
+    return clocked_out
+
+
 def get_last_status(user_id):
     if user_id in USER_STATE_CACHE:
         return USER_STATE_CACHE[user_id]

@@ -12,7 +12,7 @@ import uvicorn
 
 from config import Config
 from auth import verify_ws_auth, get_camera_api_key
-from database import get_all_cameras, get_stats, get_offline_cameras, mark_camera_offline
+from database import get_all_cameras, get_stats, get_offline_cameras, mark_camera_offline, auto_clock_out_stale
 from services.websocket import manager
 from routes import api_router
 
@@ -39,14 +39,32 @@ async def camera_timeout_checker():
             logger.error("Camera timeout checker error: %s", e)
 
 
+# --- BACKGROUND TASK: Midnight auto-clock-out ---
+async def midnight_auto_clock_out():
+    while True:
+        now = datetime.datetime.now()
+        tomorrow = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        seconds_until_midnight = (tomorrow - now).total_seconds()
+        await asyncio.sleep(seconds_until_midnight)
+        try:
+            clocked_out = await asyncio.to_thread(auto_clock_out_stale)
+            if clocked_out:
+                await manager.broadcast({"event": "stats_update", "data": await asyncio.to_thread(get_stats)})
+                logger.info("Midnight auto-clock-out completed: %d users", len(clocked_out))
+        except Exception as e:
+            logger.error("Midnight auto-clock-out error: %s", e)
+
+
 # --- LIFESPAN ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     task = asyncio.create_task(camera_timeout_checker())
+    midnight_task = asyncio.create_task(midnight_auto_clock_out())
     api_key = get_camera_api_key()
     logger.info("Camera API Key: %s...%s (masked)", api_key[:4], api_key[-4:])
     yield
     task.cancel()
+    midnight_task.cancel()
 
 
 # --- APP SETUP ---

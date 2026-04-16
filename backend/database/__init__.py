@@ -14,6 +14,7 @@ from database.access_logs import (
     get_active_users, get_inactive_users, get_attendance_logs,
     get_user_attendance, get_visitors_aggregated,
     get_hourly_stats, get_stats_for_range, global_search,
+    auto_clock_out_stale,
 )
 from database.cameras import (
     register_camera, update_camera_heartbeat, get_all_cameras,
