@@ -10,7 +10,7 @@ from auth import require_camera_or_admin
 from database import (
     get_user_profile, log_access_attempt, insert_user, user_exists,
     get_all_users_with_encodings, get_all_embeddings, add_embedding,
-    get_recent_activity_for_camera, get_stats,
+    get_recent_activity_for_camera, get_stats, get_settings,
 )
 from services.face_engine import index_face, search_face, search_face_multi
 from services.websocket import manager
@@ -38,7 +38,16 @@ def _recognize_single(image_bytes, camera_id, known_users):
         recent = get_recent_activity_for_camera(camera_id, minutes=120)
         context = {"camera_id": camera_id, "recent_users": recent}
 
-    result = search_face_multi(image_bytes, all_embs, context=context) if all_embs else search_face(image_bytes, known_users)
+    settings = get_settings()
+    thresholds = {
+        "match_threshold": settings.get("match_threshold", 0.45),
+        "confidence_floor": settings.get("confidence_floor", 50.0),
+        "uncertain_lower": settings.get("uncertain_lower", 0.35),
+        "uncertain_upper": settings.get("uncertain_upper", 0.55),
+        "embedding_diversity_min": settings.get("embedding_diversity_min", 0.15),
+    }
+
+    result = search_face_multi(image_bytes, all_embs, context=context, thresholds=thresholds) if all_embs else search_face(image_bytes, known_users)
 
     if isinstance(result, dict) and result.get("no_face"):
         return None

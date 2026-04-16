@@ -8,6 +8,11 @@ interface Settings {
   cooldown_seconds: number;
   min_face_width: number;
   large_face_threshold: number;
+  match_threshold: number;
+  confidence_floor: number;
+  uncertain_lower: number;
+  uncertain_upper: number;
+  embedding_diversity_min: number;
 }
 
 const DEFAULTS: Settings = {
@@ -17,6 +22,11 @@ const DEFAULTS: Settings = {
   cooldown_seconds: 10,
   min_face_width: 80,
   large_face_threshold: 150,
+  match_threshold: 0.45,
+  confidence_floor: 50.0,
+  uncertain_lower: 0.35,
+  uncertain_upper: 0.55,
+  embedding_diversity_min: 0.15,
 };
 
 interface SettingsModalProps {
@@ -70,13 +80,21 @@ function SettingsModal({ onClose }: SettingsModalProps) {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
-  const fields: { key: keyof Settings; label: string; description: string; min: number; max: number; step: number; unit: string }[] = [
+  const cameraFields: { key: keyof Settings; label: string; description: string; min: number; max: number; step: number; unit: string }[] = [
     { key: 'movement_threshold', label: 'Movement Threshold', description: 'Max pixel drift before "HOLD STILL" triggers. Lower = more sensitive.', min: 20, max: 500, step: 10, unit: 'px' },
     { key: 'still_time_short', label: 'Countdown (Close Face)', description: 'Seconds to hold still before capture when face is large/close.', min: 0.5, max: 10, step: 0.5, unit: 's' },
     { key: 'still_time_long', label: 'Countdown (Far Face)', description: 'Seconds to hold still before capture when face is smaller/farther.', min: 0.5, max: 10, step: 0.5, unit: 's' },
     { key: 'cooldown_seconds', label: 'Scan Cooldown', description: 'Seconds before the same person can be scanned again.', min: 1, max: 60, step: 1, unit: 's' },
     { key: 'min_face_width', label: 'Min Face Width', description: 'Minimum detected face width in pixels to be considered valid.', min: 20, max: 200, step: 5, unit: 'px' },
     { key: 'large_face_threshold', label: 'Large Face Threshold', description: 'Face width above this uses the shorter countdown timer.', min: 50, max: 300, step: 10, unit: 'px' },
+  ];
+
+  const confidenceFields: { key: keyof Settings; label: string; description: string; min: number; max: number; step: number; unit: string }[] = [
+    { key: 'match_threshold', label: 'Match Threshold', description: 'Max cosine distance for a strong match. Lower = stricter matching (0.3-0.6).', min: 0.2, max: 0.7, step: 0.01, unit: '' },
+    { key: 'confidence_floor', label: 'Confidence Floor', description: 'Minimum confidence % to accept any match. Below this is rejected.', min: 20, max: 95, step: 1, unit: '%' },
+    { key: 'uncertain_lower', label: 'Uncertain Zone (Lower)', description: 'Distance below this is never matched. Between lower and upper uses context.', min: 0.2, max: 0.5, step: 0.01, unit: '' },
+    { key: 'uncertain_upper', label: 'Uncertain Zone (Upper)', description: 'Distance above this is never matched, even with context signals.', min: 0.4, max: 0.7, step: 0.01, unit: '' },
+    { key: 'embedding_diversity_min', label: 'Embedding Diversity', description: 'Min distance from existing embeddings to store a new variant. Lower = stores more.', min: 0.05, max: 0.4, step: 0.01, unit: '' },
   ];
 
   return (
@@ -112,7 +130,12 @@ function SettingsModal({ onClose }: SettingsModalProps) {
             </div>
           ) : (
             <div className="space-y-5">
-              {fields.map(f => (
+              {/* Camera Detection */}
+              <div className="flex items-center gap-2 mb-1">
+                <span className="material-symbols-outlined text-blue-400 text-base">videocam</span>
+                <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">Camera Detection</h3>
+              </div>
+              {cameraFields.map(f => (
                 <div key={f.key}>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-sm font-semibold text-[var(--text-primary)]">{f.label}</label>
@@ -121,23 +144,42 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                         type="number"
                         value={settings[f.key]}
                         onChange={e => update(f.key, parseFloat(e.target.value) || 0)}
-                        min={f.min}
-                        max={f.max}
-                        step={f.step}
+                        min={f.min} max={f.max} step={f.step}
                         className="w-20 px-2 py-1 text-right text-sm font-mono bg-[var(--bg-base)] border border-[var(--border-color)] rounded-lg outline-none focus:border-blue-500 transition-colors"
                       />
                       <span className="text-xs text-slate-400 w-6">{f.unit}</span>
                     </div>
                   </div>
-                  <input
-                    type="range"
-                    value={settings[f.key]}
-                    onChange={e => update(f.key, parseFloat(e.target.value))}
-                    min={f.min}
-                    max={f.max}
-                    step={f.step}
-                    className="w-full h-1.5 bg-[var(--bg-surface-hover)] rounded-full appearance-none cursor-pointer accent-blue-500"
-                  />
+                  <input type="range" value={settings[f.key]} onChange={e => update(f.key, parseFloat(e.target.value))}
+                    min={f.min} max={f.max} step={f.step}
+                    className="w-full h-1.5 bg-[var(--bg-surface-hover)] rounded-full appearance-none cursor-pointer accent-blue-500" />
+                  <p className="text-[11px] text-slate-400 mt-1">{f.description}</p>
+                </div>
+              ))}
+
+              {/* Face Recognition Confidence */}
+              <div className="flex items-center gap-2 mb-1 mt-6 pt-5 border-t border-[var(--glass-border)]">
+                <span className="material-symbols-outlined text-violet-400 text-base">face</span>
+                <h3 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">Face Recognition</h3>
+              </div>
+              {confidenceFields.map(f => (
+                <div key={f.key}>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm font-semibold text-[var(--text-primary)]">{f.label}</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        value={settings[f.key]}
+                        onChange={e => update(f.key, parseFloat(e.target.value) || 0)}
+                        min={f.min} max={f.max} step={f.step}
+                        className="w-20 px-2 py-1 text-right text-sm font-mono bg-[var(--bg-base)] border border-[var(--border-color)] rounded-lg outline-none focus:border-blue-500 transition-colors"
+                      />
+                      <span className="text-xs text-slate-400 w-6">{f.unit}</span>
+                    </div>
+                  </div>
+                  <input type="range" value={settings[f.key]} onChange={e => update(f.key, parseFloat(e.target.value))}
+                    min={f.min} max={f.max} step={f.step}
+                    className="w-full h-1.5 bg-[var(--bg-surface-hover)] rounded-full appearance-none cursor-pointer accent-violet-500" />
                   <p className="text-[11px] text-slate-400 mt-1">{f.description}</p>
                 </div>
               ))}

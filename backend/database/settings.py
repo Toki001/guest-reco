@@ -8,6 +8,12 @@ DEFAULT_SETTINGS = {
     "cooldown_seconds": 10,
     "min_face_width": 80,
     "large_face_threshold": 150,
+    # Face recognition confidence
+    "match_threshold": 0.45,
+    "confidence_floor": 50.0,
+    "uncertain_lower": 0.35,
+    "uncertain_upper": 0.55,
+    "embedding_diversity_min": 0.15,
 }
 
 

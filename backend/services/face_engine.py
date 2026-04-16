@@ -7,12 +7,12 @@ from config import Config
 
 logger = logging.getLogger(__name__)
 
-# Thresholds
-MATCH_THRESHOLD = 0.45          # Strong match: cosine distance < 0.45 (similarity > 0.55)
-UNCERTAIN_LOWER = 0.35          # Below this = no match at all
-UNCERTAIN_UPPER = 0.55          # Between LOWER and UPPER = "uncertain" zone
-CONFIDENCE_FLOOR = 50.0         # Minimum confidence % to accept a match
-EMBEDDING_DIVERSITY_MIN = 0.15  # Min distance from existing embeddings to store a new one
+# Default thresholds (overridden by settings API)
+MATCH_THRESHOLD = 0.45
+UNCERTAIN_LOWER = 0.35
+UNCERTAIN_UPPER = 0.55
+CONFIDENCE_FLOOR = 50.0
+EMBEDDING_DIVERSITY_MIN = 0.15
 
 # InsightFace model (lazy-loaded, thread-safe)
 _model = None
@@ -60,7 +60,7 @@ def index_face(image_bytes):
             return None
 
 
-def search_face_multi(image_bytes, all_embeddings, context=None):
+def search_face_multi(image_bytes, all_embeddings, context=None, thresholds=None):
     """Multi-embedding face matching with uncertain zone + context signals.
 
     Args:
@@ -75,6 +75,13 @@ def search_face_multi(image_bytes, all_embeddings, context=None):
         - {"no_face": True} if no face detected
         - None if no match (register as new guest)
     """
+    t = thresholds or {}
+    match_thresh = t.get("match_threshold", MATCH_THRESHOLD)
+    conf_floor = t.get("confidence_floor", CONFIDENCE_FLOOR)
+    unc_lower = t.get("uncertain_lower", UNCERTAIN_LOWER)
+    unc_upper = t.get("uncertain_upper", UNCERTAIN_UPPER)
+    div_min = t.get("embedding_diversity_min", EMBEDDING_DIVERSITY_MIN)
+
     with _lock:
         try:
             model = _get_model()
@@ -117,9 +124,8 @@ def search_face_multi(image_bytes, all_embeddings, context=None):
             confidence = round(best_sim * 100, 1)
 
             # --- ZONE 1: Strong match ---
-            if best_dist < MATCH_THRESHOLD and confidence >= CONFIDENCE_FLOOR:
-                # Check if this embedding is different enough to store as a new variant
-                is_new = _is_diverse_embedding(unknown_emb, all_embeddings, best_uid)
+            if best_dist < match_thresh and confidence >= conf_floor:
+                is_new = _is_diverse_embedding(unknown_emb, all_embeddings, best_uid, div_min)
                 logger.info("Strong match: %s (sim=%.3f, conf=%.1f%%, new_emb=%s)", best_name, best_sim, confidence, is_new)
                 return {
                     "user_id": best_uid,
@@ -129,14 +135,14 @@ def search_face_multi(image_bytes, all_embeddings, context=None):
                 }
 
             # --- ZONE 2: Uncertain match (use context) ---
-            if UNCERTAIN_LOWER <= best_dist <= UNCERTAIN_UPPER and context:
+            if unc_lower <= best_dist <= unc_upper and context:
                 recent_users = context.get("recent_users", [])
                 recent_ids = {u["user_id"] for u in recent_users}
 
-                if best_uid in recent_ids and confidence >= CONFIDENCE_FLOOR:
+                if best_uid in recent_ids and confidence >= conf_floor:
                     # The best match was recently active at this camera — likely the same person
                     # Check diversity before storing as new embedding
-                    is_new = _is_diverse_embedding(unknown_emb, all_embeddings, best_uid)
+                    is_new = _is_diverse_embedding(unknown_emb, all_embeddings, best_uid, div_min)
                     logger.info("Context match: %s (sim=%.3f, context: recently active, new_emb=%s)", best_name, best_sim, is_new)
                     return {
                         "user_id": best_uid,
@@ -156,7 +162,7 @@ def search_face_multi(image_bytes, all_embeddings, context=None):
             raise
 
 
-def _is_diverse_embedding(new_emb, all_embeddings, user_id):
+def _is_diverse_embedding(new_emb, all_embeddings, user_id, diversity_min=EMBEDDING_DIVERSITY_MIN):
     """Check if new_emb is different enough from existing embeddings for this user."""
     user_embs = []
     for entry in all_embeddings:
@@ -175,7 +181,7 @@ def _is_diverse_embedding(new_emb, all_embeddings, user_id):
     # Check minimum distance from all existing embeddings
     for existing in user_embs:
         dist = 1.0 - float(np.dot(existing, new_emb))
-        if dist < EMBEDDING_DIVERSITY_MIN:
+        if dist < diversity_min:
             return False  # Too similar to an existing embedding
 
     return True
