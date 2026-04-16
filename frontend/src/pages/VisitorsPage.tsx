@@ -31,6 +31,7 @@ function VisitorsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchVisitors = useCallback(async () => {
     setLoading(true);
@@ -71,6 +72,18 @@ function VisitorsPage() {
     try {
       return new Date(ts).toLocaleString();
     } catch { return ts; }
+  };
+
+  const handleDelete = async (visitor: Visitor) => {
+    if (!confirm(`Delete visitor "${visitor.name}" (${visitor.id})? This will remove all their logs and cannot be undone.`)) return;
+    setDeletingId(visitor.id);
+    try {
+      const res = await authFetch(`/api/employees/${encodeURIComponent(visitor.id)}`, { method: 'DELETE' });
+      if (res.ok) fetchVisitors();
+    } catch (e) {
+      console.error('Failed to delete visitor:', e);
+    }
+    setDeletingId(null);
   };
 
   return (
@@ -133,6 +146,7 @@ function VisitorsPage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Total</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Last Camera</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
@@ -185,6 +199,18 @@ function VisitorsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-400 capitalize">{visitor.last_camera?.replace(/-/g, ' ') || '—'}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => handleDelete(visitor)}
+                        disabled={deletingId === visitor.id}
+                        className="p-1.5 hover:bg-red-500/15 rounded-lg transition-colors disabled:opacity-50"
+                        title="Delete visitor"
+                      >
+                        <span className="material-symbols-outlined text-red-400 text-lg">
+                          {deletingId === visitor.id ? 'hourglass_empty' : 'delete'}
+                        </span>
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
