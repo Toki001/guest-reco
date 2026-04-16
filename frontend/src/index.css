@@ -89,9 +89,9 @@ html.dark {
   --bg-base: #080a1a;
   --bg-surface: rgba(21, 24, 53, 0.6);
   --bg-surface-hover: rgba(28, 32, 69, 0.7);
-  --bg-sidebar: rgb(29, 78, 216);
-  --sidebar-hover: rgba(37, 99, 235, 0.45);
-  --sidebar-active: rgba(37, 99, 235, 0.65);
+  --bg-sidebar: rgb(49, 22, 130);
+  --sidebar-hover: rgba(67, 40, 160, 0.5);
+  --sidebar-active: rgba(67, 40, 160, 0.7);
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-text: rgba(255, 255, 255, 0.6);
   --sidebar-text-active: #ffffff;

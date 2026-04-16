@@ -133,8 +133,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   imgSrc ? (
                     <img src={imgSrc} alt={r.name} className="w-8 h-8 rounded-lg object-cover border border-[var(--glass-border)]" />
                   ) : (
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${r.role === 'Guest' ? 'bg-amber-500/15' : 'bg-blue-500/15'}`}>
-                      <span className={`material-symbols-outlined text-sm ${r.role === 'Guest' ? 'text-amber-400' : 'text-blue-400'}`}>person</span>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${r.role === 'Guest' ? 'bg-amber-500/15' : 'bg-emerald-500/15'}`}>
+                      <span className={`material-symbols-outlined text-sm ${r.role === 'Guest' ? 'text-amber-400' : 'text-emerald-400'}`}>person</span>
                     </div>
                   )
                 ) : (

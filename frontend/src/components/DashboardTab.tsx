@@ -327,7 +327,11 @@ const DashboardTab = () => {
             </div>
           </div>
           {chartData.length === 0 ? (
-            <EmptyState icon="bar_chart" title="No chart data" description="Activity will appear as scans are recorded" />
+            <div className="flex flex-col items-center justify-center text-center" style={{ height: 180 }}>
+              <span className="material-symbols-outlined text-3xl text-[var(--accent)] opacity-25 mb-1">bar_chart</span>
+              <p className="text-xs font-semibold text-[var(--text-primary)]">No chart data</p>
+              <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Activity will appear as scans are recorded</p>
+            </div>
           ) : (
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={chartData} barGap={2}>
@@ -365,7 +369,7 @@ const DashboardTab = () => {
                            alt={det.name} className="w-9 h-9 rounded-xl object-cover border border-[var(--glass-border)] shrink-0 cursor-pointer" />
                     ) : (
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 cursor-pointer ${
-                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'
+                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
                       }`}>
                         <span className="material-symbols-outlined text-sm">person</span>
                       </div>
@@ -467,7 +471,7 @@ const DashboardTab = () => {
                     </td>
                     <td className="px-5 py-3">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
-                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'
+                        det.type === 'guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
                       }`}>{det.type === 'guest' ? 'Guest' : 'Employee'}</span>
                     </td>
                     <td className="px-5 py-3 text-xs text-[var(--text-muted)] capitalize">{det.camera_id || '—'}</td>

@@ -54,14 +54,14 @@ export function HoverCard({ name, type, imageUrl, confidence, cameraId, status, 
               {imgSrc ? (
                 <img src={imgSrc} alt={name} className="w-10 h-10 rounded-lg object-cover border border-[var(--glass-border)]" />
               ) : (
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isGuest ? 'bg-amber-500/15' : 'bg-blue-500/15'}`}>
-                  <span className={`material-symbols-outlined text-sm ${isGuest ? 'text-amber-400' : 'text-blue-400'}`}>person</span>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isGuest ? 'bg-amber-500/15' : 'bg-emerald-500/15'}`}>
+                  <span className={`material-symbols-outlined text-sm ${isGuest ? 'text-amber-400' : 'text-emerald-400'}`}>person</span>
                 </div>
               )}
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{name}</p>
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block ${
-                  isGuest ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'
+                  isGuest ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
                 }`}>{isGuest ? 'Guest' : 'Employee'}</span>
               </div>
             </div>
