@@ -45,7 +45,7 @@ async def add_employee(
     return {"message": f"{role} added!", "image_url": avatar_path}
 
 
-@router.get('/')
+@router.get('')
 async def list_employees(role: str = "all", user=Depends(require_admin)):
     return await asyncio.to_thread(get_users_with_last_seen, role=role)
 

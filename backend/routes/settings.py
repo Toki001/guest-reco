@@ -8,12 +8,12 @@ from services.websocket import manager
 router = APIRouter()
 
 
-@router.get('/')
+@router.get('')
 async def get_system_settings(auth=Depends(require_camera_or_admin)):
     return await asyncio.to_thread(get_settings)
 
 
-@router.put('/')
+@router.put('')
 async def update_system_settings(request: Request, user=Depends(require_admin)):
     body = await request.json()
     if not isinstance(body, dict):

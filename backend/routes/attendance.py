@@ -17,7 +17,7 @@ async def inactive_users(user=Depends(require_admin)):
     return await asyncio.to_thread(get_inactive_users)
 
 
-@router.get('/')
+@router.get('')
 async def attendance_log(
     page: int = Query(1, ge=1), per_page: int = Query(50, ge=1, le=200),
     date_from: str = Query(None), date_to: str = Query(None),

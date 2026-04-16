@@ -7,7 +7,7 @@ from database import get_stats, get_today_stats, get_hourly_stats, get_stats_for
 router = APIRouter()
 
 
-@router.get('/')
+@router.get('')
 async def get_dashboard_stats(user=Depends(require_admin)):
     return await asyncio.to_thread(get_stats)
 
