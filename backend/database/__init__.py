@@ -23,5 +23,6 @@ from database.cameras import (
 )
 from database.export import export_attendance, export_visitors
 
-# Initialize schema on import
+# Initialize schema on import, then clean up stale clock-ins
 init_db()
+auto_clock_out_stale()

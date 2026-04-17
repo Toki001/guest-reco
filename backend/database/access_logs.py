@@ -7,28 +7,29 @@ logger = logging.getLogger(__name__)
 
 
 def auto_clock_out_stale():
-    """Clock out all users whose last status is 'in'. Returns list of clocked-out user_ids."""
+    """Clock out users whose last 'in' was before today's midnight. Runs at query time."""
     conn = get_connection()
+    today_midnight = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     rows = conn.execute("""
         SELECT u.id
         FROM users u
         JOIN access_logs a ON a.user_id = u.id
             AND a.timestamp = (SELECT MAX(timestamp) FROM access_logs WHERE user_id = u.id)
-        WHERE a.status = 'in'
-    """).fetchall()
+        WHERE a.status = 'in' AND a.timestamp < ?
+    """, (today_midnight,)).fetchall()
     clocked_out = []
     for r in rows:
         uid = r["id"]
         conn.execute(
-            "INSERT INTO access_logs (user_id, status, confidence, timestamp, snapshot_path, camera_id) VALUES (?, 'out', 100.0, ?, NULL, 'system')",
+            "INSERT INTO access_logs (user_id, status, confidence, timestamp, snapshot_path, camera_id) VALUES (?, 'out', 100.0, ?, NULL, 'system-auto')",
             (uid, now)
         )
         USER_STATE_CACHE[uid] = 'out'
         clocked_out.append(uid)
     if clocked_out:
         conn.commit()
-        logger.info("Midnight auto-clock-out: %d users", len(clocked_out))
+        logger.info("Auto clock-out: %d users (last in before %s)", len(clocked_out), today_midnight)
     return clocked_out
 
 
@@ -94,6 +95,7 @@ def get_stats():
 
 
 def get_today_stats():
+    auto_clock_out_stale()
     conn = get_connection()
     today_start = conn.execute("SELECT date('now', 'localtime', 'start of day')").fetchone()[0]
     scans = conn.execute("SELECT COUNT(*) as c FROM access_logs WHERE timestamp >= ?", (today_start,)).fetchone()["c"]
@@ -111,6 +113,7 @@ def get_today_stats():
 
 
 def get_active_users():
+    auto_clock_out_stale()
     conn = get_connection()
     rows = conn.execute("""
         SELECT u.id, u.name, u.image_path, u.role, a.timestamp as clock_in_time, a.camera_id
@@ -125,6 +128,7 @@ def get_active_users():
 
 
 def get_inactive_users():
+    auto_clock_out_stale()
     conn = get_connection()
     rows = conn.execute("""
         SELECT u.id, u.name, u.image_path, u.role,
