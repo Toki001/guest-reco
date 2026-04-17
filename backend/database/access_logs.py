@@ -7,9 +7,9 @@ logger = logging.getLogger(__name__)
 
 
 def auto_clock_out_stale():
-    """Clock out users whose last 'in' was before today's midnight. Runs at query time."""
+    """Clock out users whose last 'in' was before today's midnight (UTC). Idempotent — skips users already clocked out."""
     conn = get_connection()
-    today_midnight = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    today_midnight = datetime.datetime.now(datetime.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     rows = conn.execute("""
         SELECT u.id
@@ -21,6 +21,12 @@ def auto_clock_out_stale():
     clocked_out = []
     for r in rows:
         uid = r["id"]
+        already = conn.execute(
+            "SELECT 1 FROM access_logs WHERE user_id = ? AND camera_id = 'system-auto' AND timestamp >= ?",
+            (uid, today_midnight)
+        ).fetchone()
+        if already:
+            continue
         conn.execute(
             "INSERT INTO access_logs (user_id, status, confidence, timestamp, snapshot_path, camera_id) VALUES (?, 'out', 100.0, ?, NULL, 'system-auto')",
             (uid, now)

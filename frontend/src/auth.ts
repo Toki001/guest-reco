@@ -28,6 +28,7 @@ export async function authFetch(path: string, options: RequestInit = {}): Promis
   if (response.status === 401) {
     clearToken();
     window.location.href = '/login';
+    throw new Error('Unauthorized');
   }
   return response;
 }

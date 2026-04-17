@@ -144,7 +144,10 @@ def get_all_embeddings():
 def add_embedding(user_id, embedding_bytes, condition="auto"):
     conn = get_connection()
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+    except Exception:
+        pass
     try:
         count = conn.execute(
             "SELECT COUNT(*) as c FROM face_embeddings WHERE user_id = ?", (user_id,)

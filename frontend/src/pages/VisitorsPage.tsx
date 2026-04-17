@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../auth';
 import { API_BASE } from '../config';
+import { downloadCsv } from '../utils/download';
 
 interface Visitor {
   id: string;
@@ -89,15 +90,13 @@ function VisitorsPage() {
   return (
     <div className="flex flex-col w-full pb-10">
       <div className="flex items-center justify-end gap-2 mb-4">
-        <a
-          href={`${API_BASE}/api/export/visitors`}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => downloadCsv('/api/export/visitors', 'visitors_export.csv')}
           className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
         >
           <span className="material-symbols-outlined text-sm">download</span>
           Export CSV
-        </a>
+        </button>
         <button onClick={fetchVisitors}
           className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
           <span className="material-symbols-outlined text-sm">refresh</span>

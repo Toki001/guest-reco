@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { authFetch, getAuthWsUrl } from '../auth';
 import { API_BASE } from '../config';
 import { EmptyState } from '../components/EmptyState';
+import { downloadCsv } from '../utils/download';
 
 interface ActiveUser {
   id: string;
@@ -138,15 +139,13 @@ function AttendancePage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <a
-            href={`${API_BASE}/api/export/attendance`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => downloadCsv('/api/export/attendance', 'attendance_export.csv')}
             className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-sm">download</span>
             Export
-          </a>
+          </button>
           <button onClick={() => { fetchActive(); fetchInactive(); }}
             className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
             <span className="material-symbols-outlined text-sm">refresh</span>
