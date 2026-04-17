@@ -337,7 +337,7 @@ const DashboardTab = () => {
               <BarChart data={chartData} barGap={2}>
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={30} />
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'var(--glass-bg)', radius: 4 }} />
                 <Bar dataKey="entries" name="Entries" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="exits" name="Exits" fill="#f87171" radius={[4, 4, 0, 0]} />
               </BarChart>
