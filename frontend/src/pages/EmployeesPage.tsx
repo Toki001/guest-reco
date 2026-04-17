@@ -285,6 +285,9 @@ function EmployeesPage() {
               </tbody>
             </table>
           </div>
+          <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--glass-border)]">
+            <p className="text-xs text-[var(--text-muted)]">{filtered.length} employee{filtered.length !== 1 ? 's' : ''}</p>
+          </div>
         </div>
       )}
 

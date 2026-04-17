@@ -216,6 +216,9 @@ function AttendancePage() {
                 </tbody>
               </table>
             </div>
+            <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--glass-border)]">
+              <p className="text-xs text-[var(--text-muted)]">{filteredActive.length} currently on site</p>
+            </div>
           </div>
         )
       )}
@@ -281,6 +284,9 @@ function AttendancePage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--glass-border)]">
+              <p className="text-xs text-[var(--text-muted)]">{filteredInactive.length} not on site</p>
             </div>
           </div>
         )

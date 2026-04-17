@@ -38,6 +38,7 @@ function HistoryPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [cameraFilter, setCameraFilter] = useState('');
   const [cameras, setCameras] = useState<string[]>([]);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -95,14 +96,25 @@ function HistoryPage() {
     } catch { return ts; }
   };
 
-  const handleExport = () => {
+  const handleExport = (role?: string) => {
     const params = new URLSearchParams();
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
     if (cameraFilter) params.set('camera_id', cameraFilter);
-    if (roleFilter !== 'all') params.set('role', roleFilter);
+    if (role && role !== 'all') params.set('role', role);
+    else if (roleFilter !== 'all') params.set('role', roleFilter);
     const qs = params.toString();
-    downloadCsv(`/api/export/attendance${qs ? `?${qs}` : ''}`, 'history_export.csv');
+    downloadCsv(`/api/export/attendance${qs ? `?${qs}` : ''}`, `history_${(role || 'all').toLowerCase()}_export.csv`);
+  };
+
+  const handleExportPerson = () => {
+    const id = search.trim();
+    if (!id) return;
+    const params = new URLSearchParams();
+    params.set('user_id', id);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    downloadCsv(`/api/export/attendance?${params.toString()}`, `history_${id}_export.csv`);
   };
 
   return (
@@ -149,11 +161,42 @@ function HistoryPage() {
           </select>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={handleExport}
-            className="glass-card flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer">
-            <span className="material-symbols-outlined text-sm">download</span>
-            Export
-          </button>
+          <div className="relative">
+            <button onClick={() => setShowExportMenu(s => !s)}
+              className="glass-card flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer">
+              <span className="material-symbols-outlined text-sm">download</span>
+              Export
+              <span className="material-symbols-outlined text-[10px]">expand_more</span>
+            </button>
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 rounded-xl overflow-hidden py-1 min-w-[180px]"
+                  style={{ background: 'var(--modal-bg)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)', boxShadow: '0 12px 32px rgba(0,0,0,0.2)' }}>
+                  {[
+                    { label: 'All Records', role: 'all', icon: 'groups' },
+                    { label: 'Employees Only', role: 'Employee', icon: 'badge' },
+                    { label: 'Guests Only', role: 'Guest', icon: 'person_search' },
+                  ].map(opt => (
+                    <button key={opt.role} onClick={() => { handleExport(opt.role); setShowExportMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors text-left">
+                      <span className="material-symbols-outlined text-sm">{opt.icon}</span>{opt.label}
+                    </button>
+                  ))}
+                  {search.trim() && (
+                    <>
+                      <div className="border-t border-[var(--glass-border)] my-1" />
+                      <button onClick={() => { handleExportPerson(); setShowExportMenu(false); }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors text-left">
+                        <span className="material-symbols-outlined text-sm">person</span>
+                        Export "{search.trim()}"
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
           <button onClick={fetchLogs}
             className="glass-card flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
             <span className="material-symbols-outlined text-sm">refresh</span>
