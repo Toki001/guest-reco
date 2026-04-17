@@ -34,8 +34,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
-  // Shared style for text that fades on collapse
-  const textFade = `transition-all duration-300 whitespace-nowrap ${isCollapsed ? 'lg:opacity-0 lg:w-0 lg:overflow-hidden' : 'opacity-100 w-auto'}`;
+  // Text fades + collapses via max-width so icons stay left-aligned
+  const textCls = `whitespace-nowrap overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+    isCollapsed ? 'lg:max-w-0 lg:opacity-0 lg:ml-0' : 'max-w-[160px] opacity-100 ml-0'
+  }`;
 
   return (
     <>
@@ -48,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         className={`
           flex flex-col shrink-0 fixed inset-y-0 left-0 z-50 overflow-hidden
-          transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+          transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
           border-r
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 lg:static lg:h-full
@@ -61,27 +63,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
           boxShadow: '4px 0 24px rgba(0, 0, 0, 0.12)',
         }}
       >
-        {/* Logo */}
+        {/* Logo — always left-aligned, icon stays put */}
         <div
-          className={`flex items-center shrink-0 h-16 transition-all duration-300 ${isCollapsed ? 'justify-center px-3 cursor-pointer' : 'px-5 justify-between'}`}
+          className="flex items-center shrink-0 h-16 px-[18px] cursor-pointer"
           onClick={isCollapsed ? toggleCollapse : undefined}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20 shadow-lg shadow-black/10">
               <span className="material-symbols-outlined text-white text-lg">shield</span>
             </div>
-            <div className={textFade}>
+            <div className={textCls}>
               <h1 className="font-bold text-sm text-white tracking-wide">FSUU</h1>
               <p className="text-[9px] text-white/40 uppercase tracking-[0.15em] font-semibold">SecureSight</p>
             </div>
           </div>
 
-          <button className="lg:hidden p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/60" onClick={toggleMobile}>
+          <button className="lg:hidden ml-auto p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/60" onClick={toggleMobile}>
             <span className="material-symbols-outlined text-lg">close</span>
           </button>
         </div>
 
-        {/* Navigation */}
+        {/* Navigation — icons always at left, text slides away */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 no-scrollbar">
           <div className="space-y-1">
             {mainLinks.map((link) => {
@@ -91,27 +93,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={link.path}
                   to={link.path}
                   onClick={() => { if (window.innerWidth < 1024) toggleMobile(); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
-                    isCollapsed ? 'justify-center' : 'justify-start'
-                  }`}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 group relative"
                   style={active ? {
                     background: 'var(--sidebar-active)',
                     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 8px rgba(43,14,114,0.25)',
                     color: 'var(--sidebar-text-active)',
                   } : undefined}
                   title={isCollapsed ? link.label : ""}
-                  onMouseEnter={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.background = 'var(--sidebar-hover)';
-                      e.currentTarget.style.color = 'var(--sidebar-text-active)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '';
-                    }
-                  }}
+                  onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'var(--sidebar-hover)'; e.currentTarget.style.color = 'var(--sidebar-text-active)'; } }}
+                  onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = ''; } }}
                 >
                   {active && (
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-white rounded-r-full shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
@@ -119,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span className={`material-symbols-outlined text-[20px] shrink-0 transition-colors ${active ? 'text-white' : 'text-white/50 group-hover:text-white'}`}>
                     {link.icon}
                   </span>
-                  <span className={`text-[13px] ${textFade} ${active ? 'font-semibold text-white' : 'font-medium text-white/55 group-hover:text-white'}`}>{link.label}</span>
+                  <span className={`text-[13px] ${textCls} ${active ? 'font-semibold text-white' : 'font-medium text-white/55 group-hover:text-white'}`}>{link.label}</span>
                 </Link>
               );
             })}
@@ -127,10 +117,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* System */}
           <div className="mt-6 pt-4 border-t border-white/[0.08]">
-            <h2 className={`px-3 text-[10px] font-semibold text-white/30 tracking-widest uppercase mb-2 ${textFade}`}>System</h2>
+            <div className={`px-3 mb-2 ${textCls}`}>
+              <h2 className="text-[10px] font-semibold text-white/30 tracking-widest uppercase">System</h2>
+            </div>
             <button
               onClick={toggleTheme}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-white/50 hover:text-white ${isCollapsed ? 'justify-center' : 'justify-start'}`}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 group text-white/50 hover:text-white"
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--sidebar-hover)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               title={isCollapsed ? (theme === 'dark' ? 'Light mode' : 'Dark mode') : ""}
@@ -138,17 +130,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="material-symbols-outlined text-[20px] shrink-0 text-white/50 group-hover:text-white transition-colors">
                 {theme === 'dark' ? 'light_mode' : 'dark_mode'}
               </span>
-              <span className={`text-[13px] font-medium ${textFade}`}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+              <span className={`text-[13px] font-medium ${textCls}`}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
             <button
               onClick={onSettingsClick}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-white/50 hover:text-white ${isCollapsed ? 'justify-center' : 'justify-start'}`}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 group text-white/50 hover:text-white"
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--sidebar-hover)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               title={isCollapsed ? "Settings" : ""}
             >
               <span className="material-symbols-outlined text-[20px] shrink-0 text-white/50 group-hover:text-white transition-colors">settings</span>
-              <span className={`text-[13px] font-medium ${textFade}`}>Settings</span>
+              <span className={`text-[13px] font-medium ${textCls}`}>Settings</span>
             </button>
           </div>
         </div>
@@ -156,20 +148,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* User + Collapse */}
         <div className="p-3 mt-auto border-t border-white/[0.08]">
           <div
-            className={`flex items-center rounded-xl transition-all duration-300 ${isCollapsed ? 'justify-center p-2' : 'justify-between p-2.5'}`}
+            className="flex items-center rounded-xl p-2.5 transition-colors duration-300"
             style={{ background: 'rgba(255,255,255,0.05)' }}
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center border border-white/15 shrink-0">
                 <svg className="w-4 h-4 text-white/80" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
               </div>
-              <div className={textFade}>
+              <div className={textCls}>
                 <h3 className="text-white text-xs font-semibold truncate">Admin</h3>
                 <p className="text-white/35 text-[10px] truncate">admin@fsuu.edu</p>
               </div>
             </div>
 
-            <button onClick={handleLogout} className={`text-white/30 hover:text-red-400 transition-all duration-300 shrink-0 p-1 ${isCollapsed ? 'lg:opacity-0 lg:w-0 lg:overflow-hidden lg:p-0' : 'opacity-100'}`}>
+            <button onClick={handleLogout} className={`ml-auto text-white/30 hover:text-red-400 shrink-0 p-1 overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isCollapsed ? 'lg:max-w-0 lg:opacity-0 lg:p-0' : 'max-w-[40px] opacity-100'}`}>
               <span className="material-symbols-outlined text-lg">logout</span>
             </button>
           </div>
