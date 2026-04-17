@@ -69,9 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={isCollapsed ? toggleCollapse : undefined}
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20 shadow-lg shadow-black/10">
-              <span className="material-symbols-outlined text-white text-lg">shield</span>
-            </div>
+            <img src="/fsuu-logo.png" alt="FSUU" className="w-9 h-9 rounded-xl shrink-0 object-contain" />
             <div className={textCls}>
               <h1 className="font-bold text-sm text-white tracking-wide">FSUU</h1>
               <p className="text-[9px] text-white/40 uppercase tracking-[0.15em] font-semibold">SecureSight</p>

@@ -85,16 +85,7 @@ function LoginPage() {
         }}
       >
         <div className="text-center mb-8">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
-            style={{
-              background: 'linear-gradient(135deg, rgba(46,163,242,0.2), rgba(14,85,180,0.15))',
-              border: '1px solid rgba(46,163,242,0.25)',
-              boxShadow: '0 0 24px rgba(46,163,242,0.15)',
-            }}
-          >
-            <span className="material-symbols-outlined text-3xl text-blue-400">shield</span>
-          </div>
+          <img src="/fsuu-logo.png" alt="FSUU" className="w-16 h-16 rounded-2xl object-contain mx-auto mb-3" />
           <h1 className={`font-bold text-xl ${isDark ? 'text-white' : 'text-slate-800'}`}>SecureSight</h1>
           <p className={`text-[11px] uppercase tracking-[0.2em] mt-1 font-semibold ${isDark ? 'text-blue-300/40' : 'text-blue-500/50'}`}>
             FSUU Facial Recognition
@@ -117,7 +108,7 @@ function LoginPage() {
               }}
               onFocus={e => { e.currentTarget.style.borderColor = 'rgba(46,163,242,0.5)'; e.currentTarget.style.boxShadow = '0 0 16px rgba(46,163,242,0.1)'; }}
               onBlur={e => { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
-              placeholder="admin"
+              placeholder="Enter username"
             />
           </div>
 
