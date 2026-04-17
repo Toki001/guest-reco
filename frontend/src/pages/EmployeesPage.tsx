@@ -137,10 +137,10 @@ function EmployeesPage() {
           <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
             className="w-full h-9 pl-9 pr-3 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] bg-[var(--glass-bg)] border border-[var(--glass-border)]" />
         </div>
-        <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
+        <div className="glass-card flex items-center h-9 rounded-xl overflow-hidden">
           {['All', 'Employee', 'Guest'].map(r => (
             <button key={r} onClick={() => setRoleFilter(r)}
-              className={`px-3 h-9 rounded-lg text-[11px] font-semibold transition-all flex items-center ${roleFilter === r ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+              className={`px-3 h-full rounded-lg text-[11px] font-semibold transition-all flex items-center ${roleFilter === r ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
               {r === 'All' ? 'All Roles' : r}
             </button>
           ))}

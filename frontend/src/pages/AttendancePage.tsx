@@ -104,24 +104,24 @@ function AttendancePage() {
           <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
             className="w-full h-9 pl-9 pr-3 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] bg-[var(--glass-bg)] border border-[var(--glass-border)]" />
         </div>
-        <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
+        <div className="glass-card flex items-center h-9 rounded-xl overflow-hidden">
           <button onClick={() => setActiveTab('in')}
-            className={`flex items-center gap-1.5 px-3 h-9 rounded-lg text-[11px] font-semibold transition-all flex items-center ${activeTab === 'in' ? 'bg-emerald-500 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+            className={`flex items-center gap-1.5 px-3 h-full rounded-lg text-[11px] font-semibold transition-all flex items-center ${activeTab === 'in' ? 'bg-emerald-500 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
             <span className="material-symbols-outlined text-sm">login</span>
             In
             <span className={`px-1 py-0.5 rounded text-[9px] ${activeTab === 'in' ? 'bg-white/20' : 'bg-white/[0.06]'}`}>{filteredActive.length}</span>
           </button>
           <button onClick={() => setActiveTab('out')}
-            className={`flex items-center gap-1.5 px-3 h-9 rounded-lg text-[11px] font-semibold transition-all flex items-center ${activeTab === 'out' ? 'bg-red-500 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+            className={`flex items-center gap-1.5 px-3 h-full rounded-lg text-[11px] font-semibold transition-all flex items-center ${activeTab === 'out' ? 'bg-red-500 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
             <span className="material-symbols-outlined text-sm">logout</span>
             Out
             <span className={`px-1 py-0.5 rounded text-[9px] ${activeTab === 'out' ? 'bg-white/20' : 'bg-white/[0.06]'}`}>{filteredInactive.length}</span>
           </button>
         </div>
-        <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
+        <div className="glass-card flex items-center h-9 rounded-xl overflow-hidden">
           {(['all', 'Employee', 'Guest'] as const).map(role => (
             <button key={role} onClick={() => setRoleFilter(role)}
-              className={`px-3 h-9 rounded-lg text-[11px] font-semibold transition-all flex items-center ${roleFilter === role ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+              className={`px-3 h-full rounded-lg text-[11px] font-semibold transition-all flex items-center ${roleFilter === role ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
               {role === 'all' ? 'All' : role === 'Employee' ? 'Employees' : 'Guests'}
             </button>
           ))}
