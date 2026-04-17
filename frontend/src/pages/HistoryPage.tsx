@@ -110,9 +110,9 @@ function HistoryPage() {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-2.5 mb-5">
         <div className="relative flex-1 min-w-[180px] max-w-sm">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] text-base">search</span>
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] text-base z-10 pointer-events-none">search</span>
           <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 glass-card rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" />
+            className="w-full h-9 pl-9 pr-3 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] bg-[var(--glass-bg)] border border-[var(--glass-border)]" />
         </div>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
           className="glass-card px-3 h-9 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)]" />
