@@ -146,22 +146,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* User + Collapse */}
-        <div className="p-3 mt-auto border-t border-white/[0.08]">
-          <div
-            className="flex items-center rounded-xl p-2.5 transition-colors duration-300"
-            style={{ background: 'rgba(255,255,255,0.05)' }}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center border border-white/15 shrink-0">
-                <svg className="w-4 h-4 text-white/80" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-              </div>
-              <div className={textCls}>
-                <h3 className="text-white text-xs font-semibold truncate">Admin</h3>
-                <p className="text-white/35 text-[10px] truncate">admin@fsuu.edu</p>
-              </div>
+        <div className="px-3 pb-3 pt-2 mt-auto border-t border-white/[0.08]">
+          <div className="flex items-center gap-3 px-3 py-2.5">
+            <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center border border-white/15 shrink-0">
+              <svg className="w-4 h-4 text-white/80" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
             </div>
-
-            <button onClick={handleLogout} className={`ml-auto text-white/30 hover:text-red-400 shrink-0 p-1 overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isCollapsed ? 'lg:max-w-0 lg:opacity-0 lg:p-0' : 'max-w-[40px] opacity-100'}`}>
+            <div className={`${textCls} flex-1 min-w-0`}>
+              <h3 className="text-white text-xs font-semibold truncate">Admin</h3>
+              <p className="text-white/35 text-[10px] truncate">admin@fsuu.edu</p>
+            </div>
+            <button onClick={handleLogout} className={`text-white/30 hover:text-red-400 shrink-0 p-1 overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isCollapsed ? 'lg:max-w-0 lg:opacity-0 lg:p-0' : 'max-w-[40px] opacity-100'}`}>
               <span className="material-symbols-outlined text-lg">logout</span>
             </button>
           </div>
