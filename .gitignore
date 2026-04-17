@@ -1,6 +1,5 @@
 # Logs
 logs
-docs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -12,8 +11,22 @@ node_modules
 dist
 dist-ssr
 *.local
-venv
 *.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Avatars and snapshots (runtime data)
+backend/avatars/
+backend/snapshots/
 
 # Editor directories and files
 .vscode/*
@@ -26,9 +39,12 @@ venv
 *.sln
 *.sw?
 .superpowers/
+.playwright-mcp/
 
 # SSL certs
 backend/cert.pem
 backend/key.pem
+
+# Binaries
 go2rtc
 mediamtx

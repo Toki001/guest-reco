@@ -112,7 +112,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--glass-border)]">
           <div className="flex items-center gap-2.5">
             <span className="material-symbols-outlined text-blue-500">settings</span>
             <h2 className="text-lg font-bold text-[var(--text-primary)]">Camera Settings</h2>
@@ -145,7 +145,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                         value={settings[f.key]}
                         onChange={e => update(f.key, parseFloat(e.target.value) || 0)}
                         min={f.min} max={f.max} step={f.step}
-                        className="w-20 px-2 py-1 text-right text-sm font-mono bg-[var(--bg-base)] border border-[var(--border-color)] rounded-lg outline-none focus:border-blue-500 transition-colors"
+                        className="w-20 px-2 py-1 text-right text-sm font-mono bg-[var(--bg-base)] border border-[var(--glass-border)] rounded-lg outline-none focus:border-blue-500 transition-colors"
                       />
                       <span className="text-xs text-slate-400 w-6">{f.unit}</span>
                     </div>
@@ -172,7 +172,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
                         value={settings[f.key]}
                         onChange={e => update(f.key, parseFloat(e.target.value) || 0)}
                         min={f.min} max={f.max} step={f.step}
-                        className="w-20 px-2 py-1 text-right text-sm font-mono bg-[var(--bg-base)] border border-[var(--border-color)] rounded-lg outline-none focus:border-blue-500 transition-colors"
+                        className="w-20 px-2 py-1 text-right text-sm font-mono bg-[var(--bg-base)] border border-[var(--glass-border)] rounded-lg outline-none focus:border-blue-500 transition-colors"
                       />
                       <span className="text-xs text-slate-400 w-6">{f.unit}</span>
                     </div>
@@ -188,7 +188,7 @@ function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--border-color)]">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--glass-border)]">
           <button
             onClick={handleReset}
             className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] rounded-lg transition-all"

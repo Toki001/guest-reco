@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 
-from fastapi import APIRouter, Form, HTTPException, Depends, Query
+from fastapi import APIRouter, Form, Depends, Query
 from auth import require_admin, require_camera_or_admin
 from database import (
     register_camera, update_camera_heartbeat, get_all_cameras,
