@@ -130,27 +130,28 @@ function EmployeesPage() {
 
   return (
     <div className="flex flex-col w-full pb-10">
-      <div className="flex items-center justify-end mb-4">
-        <button onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-3 py-2 bg-[#2EA3F2] hover:bg-[#0C71C3] text-white rounded-lg font-medium text-xs transition-colors">
-          <span className="material-symbols-outlined text-sm">person_add</span>
-          Add Employee
-        </button>
-      </div>
-
-      {/* Action Bar */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1 max-w-sm">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-          <input type="text" placeholder="Search by name or ID..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-xl text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-2.5 mb-5">
+        <div className="relative flex-1 min-w-[180px] max-w-sm">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] text-base z-10 pointer-events-none">search</span>
+          <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full h-9 pl-9 pr-3 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] bg-[var(--glass-bg)] border border-[var(--glass-border)]" />
         </div>
-        <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
-          className="px-4 py-2.5 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-xl text-sm outline-none focus:border-blue-500 transition-all">
-          <option value="All">All Roles</option>
-          <option value="Employee">Employee</option>
-          <option value="Guest">Guest</option>
-        </select>
+        <div className="glass-card flex items-center h-9 rounded-xl overflow-hidden">
+          {['All', 'Employee', 'Guest'].map(r => (
+            <button key={r} onClick={() => setRoleFilter(r)}
+              className={`px-3 h-full rounded-lg text-[11px] font-semibold transition-all flex items-center ${roleFilter === r ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+              {r === 'All' ? 'All Roles' : r}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 px-3.5 h-9 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-semibold text-xs transition-colors">
+            <span className="material-symbols-outlined text-sm">person_add</span>
+            Add Employee
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -166,24 +167,24 @@ function EmployeesPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
+        <div className="glass-card rounded-2xl overflow-hidden">
+          <div className="w-full overflow-x-auto glass-scrollbar">
+            <table className="w-full text-left text-sm whitespace-nowrap">
               <thead>
-                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Employee</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Role</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Entries</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Exits</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Last Seen</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+                <tr className="border-b border-[var(--glass-border)]">
+                  <th className="px-5 py-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Employee</th>
+                  <th className="px-5 py-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">ID</th>
+                  <th className="px-5 py-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Role</th>
+                  <th className="px-5 py-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Entries</th>
+                  <th className="px-5 py-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Exits</th>
+                  <th className="px-5 py-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Last Seen</th>
+                  <th className="px-5 py-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Status</th>
+                  <th className="text-right px-5 py-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--border-color)]">
+              <tbody className="divide-y divide-[var(--glass-border)]">
                 {filtered.map(emp => (
-                  <tr key={emp.id} className="hover:bg-[var(--bg-surface)] transition-colors">
+                  <tr key={emp.id} className="hover:bg-white/[0.03] transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         {getImageUrl(emp.image_url) ? (
@@ -283,6 +284,9 @@ function EmployeesPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--glass-border)]">
+            <p className="text-xs text-[var(--text-muted)]">{filtered.length} employee{filtered.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
       )}

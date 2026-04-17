@@ -11,6 +11,7 @@ import { CommandPalette } from '../components/CommandPalette';
 const EmployeeProfilePage = lazy(() => import('./EmployeeProfilePage'));
 const AttendancePage = lazy(() => import('./AttendancePage'));
 const VisitorsPage = lazy(() => import('./VisitorsPage'));
+const HistoryPage = lazy(() => import('./HistoryPage'));
 
 function PageTransition({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -71,6 +72,7 @@ function MainApp() {
               <Route path="employees/:id" element={<Suspense fallback={SuspenseFallback}><EmployeeProfilePage /></Suspense>} />
               <Route path="visitors" element={<Suspense fallback={SuspenseFallback}><VisitorsPage /></Suspense>} />
               <Route path="attendance" element={<Suspense fallback={SuspenseFallback}><AttendancePage /></Suspense>} />
+              <Route path="history" element={<Suspense fallback={SuspenseFallback}><HistoryPage /></Suspense>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </PageTransition>

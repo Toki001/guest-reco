@@ -12,6 +12,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/employees': { title: 'Employees', subtitle: 'Registered personnel' },
   '/visitors': { title: 'Visitors', subtitle: 'Guest visit history' },
   '/attendance': { title: 'Attendance', subtitle: 'Clock in/out tracking' },
+  '/history': { title: 'History', subtitle: 'Full access log' },
 };
 
 export const Header: React.FC<HeaderProps> = ({ toggleSidebar, onSearchClick }) => {

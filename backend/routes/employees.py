@@ -7,7 +7,7 @@ from auth import require_admin
 from database import (
     get_user_profile, get_users_with_last_seen, get_user_detail,
     user_exists, insert_user, delete_user, update_user, update_user_face,
-    get_user_attendance, get_all_users,
+    get_user_attendance,
 )
 from services.face_engine import index_face
 

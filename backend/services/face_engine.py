@@ -3,7 +3,6 @@ import logging
 import threading
 import numpy as np
 from PIL import Image
-from config import Config
 
 logger = logging.getLogger(__name__)
 

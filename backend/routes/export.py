@@ -13,9 +13,11 @@ router = APIRouter()
 @router.get('/attendance')
 async def export_attendance_csv(
     date_from: str = Query(None), date_to: str = Query(None),
-    camera_id: str = Query(None), user=Depends(require_admin)
+    camera_id: str = Query(None), role: str = Query(None),
+    user_id: str = Query(None),
+    user=Depends(require_admin)
 ):
-    rows = await asyncio.to_thread(export_attendance, date_from, date_to, camera_id)
+    rows = await asyncio.to_thread(export_attendance, date_from, date_to, camera_id, role, user_id)
     output = io.StringIO()
     if rows:
         writer = csv.DictWriter(output, fieldnames=rows[0].keys())

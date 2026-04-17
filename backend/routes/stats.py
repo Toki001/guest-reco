@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, Query
 from auth import require_admin
-from database import get_stats, get_today_stats, get_hourly_stats, get_stats_for_range, get_all_users
+from database import get_stats, get_today_stats, get_hourly_stats, get_stats_for_range
 
 router = APIRouter()
 
