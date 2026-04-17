@@ -110,19 +110,19 @@ function HistoryPage() {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-2.5 mb-5">
         <div className="relative flex-1 min-w-[180px] max-w-sm">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm">search</span>
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] text-base">search</span>
           <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 glass-card rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" />
+            className="w-full h-9 pl-9 pr-3 glass-card rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" />
         </div>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="glass-card px-3 py-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)]" />
+          className="glass-card px-3 h-9 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)]" />
         <span className="text-[var(--text-muted)] text-xs">to</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="glass-card px-3 py-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)]" />
+          className="glass-card px-3 h-9 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)]" />
         <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
           {['all', 'Employee', 'Guest'].map(r => (
             <button key={r} onClick={() => setRoleFilter(r)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${roleFilter === r ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+              className={`px-3 h-9 rounded-lg text-[11px] font-semibold transition-all flex items-center ${roleFilter === r ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
               {r === 'all' ? 'All Roles' : r}
             </button>
           ))}
@@ -143,19 +143,19 @@ function HistoryPage() {
         </div>
         {cameras.length > 0 && (
           <select value={cameraFilter} onChange={e => setCameraFilter(e.target.value)}
-            className="glass-card px-3 py-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] capitalize">
+            className="glass-card px-3 h-9 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] capitalize">
             <option value="">All Cameras</option>
             {cameras.map(c => <option key={c} value={c}>{c.replace(/-/g, ' ')}</option>)}
           </select>
         )}
         <div className="ml-auto flex items-center gap-2">
           <button onClick={handleExport}
-            className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer">
+            className="glass-card flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer">
             <span className="material-symbols-outlined text-sm">download</span>
             Export
           </button>
           <button onClick={fetchLogs}
-            className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
+            className="glass-card flex items-center gap-1.5 px-3.5 h-9 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
             <span className="material-symbols-outlined text-sm">refresh</span>
           </button>
         </div>

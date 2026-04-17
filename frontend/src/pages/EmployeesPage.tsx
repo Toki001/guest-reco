@@ -133,21 +133,21 @@ function EmployeesPage() {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-2.5 mb-5">
         <div className="relative flex-1 min-w-[180px] max-w-sm">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm">search</span>
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] text-base">search</span>
           <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 glass-card rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" />
+            className="w-full h-9 pl-9 pr-3 glass-card rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" />
         </div>
         <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
           {['All', 'Employee', 'Guest'].map(r => (
             <button key={r} onClick={() => setRoleFilter(r)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${roleFilter === r ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+              className={`px-3 h-9 rounded-lg text-[11px] font-semibold transition-all flex items-center ${roleFilter === r ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
               {r === 'All' ? 'All Roles' : r}
             </button>
           ))}
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-semibold text-xs transition-colors">
+            className="flex items-center gap-1.5 px-3.5 h-9 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-semibold text-xs transition-colors">
             <span className="material-symbols-outlined text-sm">person_add</span>
             Add Employee
           </button>
