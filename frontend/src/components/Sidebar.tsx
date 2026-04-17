@@ -147,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* User + Collapse */}
         <div className="px-3 pb-3 pt-2 mt-auto border-t border-white/[0.08]">
-          <div className="flex items-center gap-3 px-3 py-2.5">
+          <div className="flex items-center gap-3 px-2 py-2.5">
             <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center border border-white/15 shrink-0">
               <svg className="w-4 h-4 text-white/80" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
             </div>
