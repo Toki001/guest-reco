@@ -1,12 +1,13 @@
 from database.connection import get_connection
 
 
-def export_attendance(date_from=None, date_to=None, camera_id=None):
+def export_attendance(date_from=None, date_to=None, camera_id=None, role=None):
     conn = get_connection()
     conditions, params = [], []
     if date_from: conditions.append("a.timestamp >= ?"); params.append(date_from)
     if date_to: conditions.append("a.timestamp <= ?"); params.append(date_to)
     if camera_id: conditions.append("a.camera_id = ?"); params.append(camera_id)
+    if role and role != "all": conditions.append("u.role = ?"); params.append(role)
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     rows = conn.execute(f"""
         SELECT a.timestamp, a.user_id, u.name, u.role, a.status, a.confidence, a.camera_id

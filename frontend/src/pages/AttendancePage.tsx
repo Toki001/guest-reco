@@ -30,6 +30,7 @@ function AttendancePage() {
   const [inactiveLoading, setInactiveLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<'all' | 'Employee' | 'Guest'>('all');
   const [activeTab, setActiveTab] = useState<'in' | 'out'>('in');
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   const fetchActive = useCallback(async () => {
@@ -139,16 +140,53 @@ function AttendancePage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => downloadCsv('/api/export/attendance', 'attendance_export.csv')}
-            className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-sm">download</span>
-            Export
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(s => !s)}
+              className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-sm">download</span>
+              Export CSV
+              <span className="material-symbols-outlined text-[10px]">expand_more</span>
+            </button>
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                <div
+                  className="absolute right-0 top-full mt-1 z-50 rounded-xl overflow-hidden py-1 min-w-[160px]"
+                  style={{
+                    background: 'var(--modal-bg)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    border: '1px solid var(--glass-border)',
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  {[
+                    { label: 'All Records', role: 'all', icon: 'groups' },
+                    { label: 'Employees Only', role: 'Employee', icon: 'badge' },
+                    { label: 'Guests Only', role: 'Guest', icon: 'person_search' },
+                  ].map(opt => (
+                    <button
+                      key={opt.role}
+                      onClick={() => {
+                        const param = opt.role !== 'all' ? `?role=${opt.role}` : '';
+                        downloadCsv(`/api/export/attendance${param}`, `attendance_${opt.role.toLowerCase()}_export.csv`);
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors text-left"
+                    >
+                      <span className="material-symbols-outlined text-sm">{opt.icon}</span>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <button onClick={() => { fetchActive(); fetchInactive(); }}
             className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
-            <span className="material-symbols-outlined text-sm">refresh</span>
+            <span className="material-symbols-outlined text-sm">refresh</span>Refresh
           </button>
         </div>
       </div>
