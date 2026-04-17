@@ -89,33 +89,29 @@ function VisitorsPage() {
 
   return (
     <div className="flex flex-col w-full pb-10">
-      <div className="flex items-center justify-end gap-2 mb-4">
-        <button
-          onClick={() => downloadCsv('/api/export/visitors', 'visitors_export.csv')}
-          className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-sm">download</span>
-          Export CSV
-        </button>
-        <button onClick={fetchVisitors}
-          className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
-          <span className="material-symbols-outlined text-sm">refresh</span>
-          Refresh
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="relative flex-1 max-w-sm">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-          <input type="text" placeholder="Search by name or ID..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-xl text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-2.5 mb-5">
+        <div className="relative flex-1 min-w-[180px] max-w-sm">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm">search</span>
+          <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 glass-card rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" />
         </div>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="px-3 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
-        <span className="text-slate-400 text-sm">to</span>
+          className="glass-card px-3 py-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)]" />
+        <span className="text-[var(--text-muted)] text-xs">to</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="px-3 py-2 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-lg text-sm outline-none focus:border-blue-500 transition-all" />
+          className="glass-card px-3 py-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)]" />
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => downloadCsv('/api/export/visitors', 'visitors_export.csv')}
+            className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer">
+            <span className="material-symbols-outlined text-sm">download</span>
+            Export
+          </button>
+          <button onClick={fetchVisitors}
+            className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
+            <span className="material-symbols-outlined text-sm">refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Table */}

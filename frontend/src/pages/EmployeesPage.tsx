@@ -130,27 +130,28 @@ function EmployeesPage() {
 
   return (
     <div className="flex flex-col w-full pb-10">
-      <div className="flex items-center justify-end mb-4">
-        <button onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-3 py-2 bg-[#2EA3F2] hover:bg-[#0C71C3] text-white rounded-lg font-medium text-xs transition-colors">
-          <span className="material-symbols-outlined text-sm">person_add</span>
-          Add Employee
-        </button>
-      </div>
-
-      {/* Action Bar */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1 max-w-sm">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-          <input type="text" placeholder="Search by name or ID..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-xl text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-2.5 mb-5">
+        <div className="relative flex-1 min-w-[180px] max-w-sm">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm">search</span>
+          <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 glass-card rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" />
         </div>
-        <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
-          className="px-4 py-2.5 border border-[var(--border-color)] bg-[var(--bg-surface)] rounded-xl text-sm outline-none focus:border-blue-500 transition-all">
-          <option value="All">All Roles</option>
-          <option value="Employee">Employee</option>
-          <option value="Guest">Guest</option>
-        </select>
+        <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
+          {['All', 'Employee', 'Guest'].map(r => (
+            <button key={r} onClick={() => setRoleFilter(r)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${roleFilter === r ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+              {r === 'All' ? 'All Roles' : r}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-semibold text-xs transition-colors">
+            <span className="material-symbols-outlined text-sm">person_add</span>
+            Add Employee
+          </button>
+        </div>
       </div>
 
       {/* Table */}

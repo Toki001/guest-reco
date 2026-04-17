@@ -97,44 +97,36 @@ function AttendancePage() {
 
   return (
     <div className="flex flex-col w-full pb-10 page-enter">
-      {/* Top controls */}
-      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* In / Out tabs */}
-          <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
-            <button onClick={() => setActiveTab('in')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${activeTab === 'in' ? 'bg-emerald-500 text-white shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
-              <span className="material-symbols-outlined text-sm">login</span>
-              Who's In
-              <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${activeTab === 'in' ? 'bg-white/20' : 'bg-white/[0.06]'}`}>{filteredActive.length}</span>
-            </button>
-            <button onClick={() => setActiveTab('out')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${activeTab === 'out' ? 'bg-red-500 text-white shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
-              <span className="material-symbols-outlined text-sm">logout</span>
-              Who's Not In
-              <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${activeTab === 'out' ? 'bg-white/20' : 'bg-white/[0.06]'}`}>{filteredInactive.length}</span>
-            </button>
-          </div>
-
-          {/* Role filter */}
-          <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
-            {(['all', 'Employee', 'Guest'] as const).map(role => (
-              <button key={role} onClick={() => setRoleFilter(role)}
-                className={`px-3 py-2 rounded-lg text-[11px] font-semibold transition-all ${roleFilter === role ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
-                {role === 'all' ? 'All' : role === 'Employee' ? 'Employees' : 'Guests'}
-              </button>
-            ))}
-          </div>
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-2.5 mb-5">
+        <div className="relative flex-1 min-w-[180px] max-w-sm">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm">search</span>
+          <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 glass-card rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" />
         </div>
-
-        <div className="flex items-center gap-2">
-          {/* Search */}
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm">search</span>
-            <input type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
-              className="glass-card pl-9 pr-3 py-2 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] w-40 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" />
-          </div>
-          {/* Export */}
+        <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
+          <button onClick={() => setActiveTab('in')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${activeTab === 'in' ? 'bg-emerald-500 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+            <span className="material-symbols-outlined text-sm">login</span>
+            In
+            <span className={`px-1 py-0.5 rounded text-[9px] ${activeTab === 'in' ? 'bg-white/20' : 'bg-white/[0.06]'}`}>{filteredActive.length}</span>
+          </button>
+          <button onClick={() => setActiveTab('out')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${activeTab === 'out' ? 'bg-red-500 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+            <span className="material-symbols-outlined text-sm">logout</span>
+            Out
+            <span className={`px-1 py-0.5 rounded text-[9px] ${activeTab === 'out' ? 'bg-white/20' : 'bg-white/[0.06]'}`}>{filteredInactive.length}</span>
+          </button>
+        </div>
+        <div className="glass-card flex items-center rounded-xl overflow-hidden p-0.5">
+          {(['all', 'Employee', 'Guest'] as const).map(role => (
+            <button key={role} onClick={() => setRoleFilter(role)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${roleFilter === role ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+              {role === 'all' ? 'All' : role === 'Employee' ? 'Employees' : 'Guests'}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
           <div className="relative">
             <button onClick={() => setShowExportMenu(s => !s)}
               className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer">
@@ -157,7 +149,6 @@ function AttendancePage() {
               </>
             )}
           </div>
-          {/* Refresh */}
           <button onClick={() => { fetchActive(); fetchInactive(); }}
             className="glass-card flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
             <span className="material-symbols-outlined text-sm">refresh</span>
