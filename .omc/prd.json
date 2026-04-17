@@ -1,0 +1,199 @@
+{
+  "project": "SecureSight Offline + Distributed Multi-Camera",
+  "branchName": "ralph/offline-multicam-architecture",
+  "description": "Major architectural overhaul to make SecureSight fully offline (replace AWS Rekognition with local face_recognition, Supabase with SQLite, cloud storage with local filesystem, CDN models with bundled files) and add distributed multi-camera support (camera stations as browsers on school LAN departments, central server with WebSocket dashboard, camera registration and heartbeat).",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "SQLite database layer",
+      "description": "As a developer, I want to replace Supabase with SQLite so that the system works fully offline without cloud database dependencies.",
+      "acceptanceCriteria": [
+        "New `database.py` uses sqlite3 with `recognition.db` file",
+        "Schema includes `users` table (id, name, face_encoding BLOB, image_path, role), `access_logs` table (id, user_id, status, confidence, timestamp, snapshot_path, camera_id), and `cameras` table (camera_id, department, last_heartbeat, is_online, registered_at)",
+        "All existing database.py functions reimplemented for SQLite plus new camera CRUD functions (register_camera, update_camera_heartbeat, get_all_cameras, mark_camera_offline)",
+        "DB auto-initializes schema on first run (CREATE IF NOT EXISTS)",
+        "SQLite uses WAL mode (PRAGMA journal_mode=WAL) and check_same_thread=False",
+        "Remove supabase dependency from requirements.txt",
+        "Typecheck passes",
+        "Backend starts without errors"
+      ],
+      "priority": 1,
+      "passes": false
+    },
+    {
+      "id": "US-002",
+      "title": "Local filesystem storage",
+      "description": "As a developer, I want to replace Supabase Storage with local filesystem so that avatar images and snapshots are stored locally.",
+      "acceptanceCriteria": [
+        "Images saved to `backend/avatars/` and `backend/snapshots/` directories",
+        "FastAPI serves static files via `/avatars` and `/snapshots` mount points",
+        "Image URLs returned by API point to local static paths (e.g., `/avatars/EMP-101.jpg`)",
+        "Auto-create storage directories on startup if missing",
+        "Typecheck passes",
+        "Backend starts without errors"
+      ],
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "US-003",
+      "title": "Local face recognition engine",
+      "description": "As a developer, I want to replace AWS Rekognition with the local `face_recognition` library so that face detection and matching works offline.",
+      "acceptanceCriteria": [
+        "New `face_engine.py` module with `index_face(image_bytes)` and `search_face(image_bytes)` functions",
+        "Face encodings (128-d vectors) stored as BLOB in SQLite users table",
+        "search_face returns three-way result: match dict, None (no match), or {no_face: True}",
+        "Configurable similarity threshold in config.py (default 0.6 distance)",
+        "All face_engine calls designed to be wrapped in asyncio.to_thread() for async endpoints",
+        "Remove boto3 and aws.py dependency",
+        "Update requirements.txt: add face_recognition, numpy; remove boto3",
+        "Typecheck passes",
+        "Backend starts without errors"
+      ],
+      "priority": 3,
+      "passes": false
+    },
+    {
+      "id": "US-004",
+      "title": "Update app.py endpoints for offline stack",
+      "description": "As a developer, I want to update the FastAPI endpoints to use the new local face engine, SQLite database, and local storage so that the full recognition flow works offline.",
+      "acceptanceCriteria": [
+        "`/api/recognize` uses local face_engine.search_face() via asyncio.to_thread()",
+        "`/api/recognize` handles three cases: match found, no match (auto-register guest), no face detected (return error)",
+        "`/api/employees/add` uses local face_engine.index_face() via asyncio.to_thread()",
+        "Both endpoints save images to local filesystem instead of Supabase storage",
+        "Both endpoints log to SQLite instead of Supabase",
+        "Two concurrent /api/recognize requests do not block each other",
+        "Remove all AWS/Supabase imports from app.py",
+        "Typecheck passes",
+        "Both endpoints return correct JSON responses"
+      ],
+      "priority": 4,
+      "passes": false
+    },
+    {
+      "id": "US-005",
+      "title": "Bundle MediaPipe models locally",
+      "description": "As a user, I want MediaPipe face detection to work without internet so that the camera feed functions offline.",
+      "acceptanceCriteria": [
+        "MediaPipe WASM files copied to `frontend/public/mediapipe-wasm/`",
+        "Face detection model (blaze_face_short_range.tflite) copied to `frontend/public/models/`",
+        "CameraFeed.tsx loads from local paths instead of CDN URLs",
+        "MediaPipe version pinned (no caret range) in package.json to match bundled WASM",
+        "Face detection works when browser has no internet connection",
+        "Typecheck passes",
+        "Frontend builds successfully"
+      ],
+      "priority": 5,
+      "passes": false
+    },
+    {
+      "id": "US-006",
+      "title": "WebSocket dashboard + camera registration API",
+      "description": "As a developer, I want to add WebSocket broadcast, camera registration, and heartbeat endpoints so that the dashboard receives real-time updates from distributed camera stations.",
+      "acceptanceCriteria": [
+        "WebSocket endpoint at /ws/dashboard with ConnectionManager for multiple subscribers",
+        "Events broadcast: recognition_result, camera_online, camera_offline, stats_update",
+        "POST /api/camera/register endpoint for camera station registration",
+        "POST /api/camera/heartbeat endpoint for online/offline tracking",
+        "Background task detects camera timeout (30s no heartbeat) and broadcasts camera_offline",
+        "Remove supabaseClient.ts and all Supabase imports from frontend",
+        "Remove @supabase/supabase-js from package.json",
+        "Add websockets to backend requirements.txt",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false
+    },
+    {
+      "id": "US-007",
+      "title": "App mode routing (camera station vs dashboard)",
+      "description": "As a developer, I want URL-based routing so that the same React app serves as either a camera station (/camera/:id) or admin dashboard (/dashboard) depending on the URL.",
+      "acceptanceCriteria": [
+        "React Router installed and configured with BrowserRouter",
+        "/camera/:cameraId renders fullscreen CameraStationPage",
+        "/dashboard and /admin/add-employee render MainApp with Sidebar",
+        "Sidebar.tsx converted from setActiveTab() to React Router Link/useNavigate",
+        "Sidebar derives active state from useLocation() instead of activeTab prop",
+        "Camera entry removed from Sidebar navigation",
+        "Shared config.ts exports API_BASE and WS_BASE",
+        "Typecheck passes",
+        "Frontend builds successfully"
+      ],
+      "priority": 7,
+      "passes": false,
+      "note": "SUPERSEDES original USB camera enumeration approach"
+    },
+    {
+      "id": "US-008",
+      "title": "Camera station mode",
+      "description": "As a school department operator, I want to open a browser URL on my tablet/laptop that connects to the central server and runs face recognition for my department.",
+      "acceptanceCriteria": [
+        "CameraStationPage renders fullscreen CameraFeed with department identity from URL params",
+        "Camera station registers with central server on mount via POST /api/camera/register",
+        "Heartbeat sent every 10 seconds via POST /api/camera/heartbeat",
+        "CameraFeed sends camera_id with every /api/recognize request",
+        "CameraFeed uses configurable server URL from shared config.ts (not hardcoded localhost)",
+        "ResultModal auto-dismisses after 5 seconds in camera station mode",
+        "Independent isScanning/activeResults state per camera station",
+        "Typecheck passes",
+        "Frontend builds successfully"
+      ],
+      "priority": 8,
+      "passes": false,
+      "note": "SUPERSEDES original multi-camera grid view approach"
+    },
+    {
+      "id": "US-009",
+      "title": "Real-time WebSocket dashboard",
+      "description": "As an admin, I want the dashboard to show real-time recognition events, camera online/offline status, and live statistics via WebSocket so I can monitor all departments.",
+      "acceptanceCriteria": [
+        "DashboardTab connects to /ws/dashboard via useDashboardWebSocket hook",
+        "Recognition events appear in real-time in the Recent Detections table with department source",
+        "Camera status grid shows online/offline status per department",
+        "Metric cards update in real-time from WebSocket stats_update events",
+        "WebSocket auto-reconnects on disconnect with exponential backoff (max 10 retries)",
+        "Falls back gracefully when WebSocket is unavailable",
+        "Typecheck passes",
+        "Frontend builds successfully"
+      ],
+      "priority": 9,
+      "passes": false
+    },
+    {
+      "id": "US-010",
+      "title": "Config cleanup + deployment docs",
+      "description": "As a developer, I want to clean up all cloud-specific configuration and document the distributed deployment so that IT staff can set up camera stations.",
+      "acceptanceCriteria": [
+        "config.py only contains local settings (DB path, storage paths, face threshold, server port)",
+        "Remove AWS and Supabase config fields from Config class",
+        ".env.example updated with only required local environment variables",
+        "docker-compose.yml updated for central server deployment with volume mounts",
+        "Backend Dockerfile updated with dlib build dependencies (cmake, build-essential)",
+        "DockerFile renamed to Dockerfile (fix capitalization)",
+        "DEPLOYMENT.md created with camera station setup instructions",
+        "requirements.txt is clean (no boto3, no supabase; has face_recognition, websockets)",
+        "package.json is clean (no @supabase/supabase-js; has react-router-dom)",
+        "Full stack starts with docker compose up"
+      ],
+      "priority": 10,
+      "passes": false
+    },
+    {
+      "id": "US-011",
+      "title": "Update AGENTS.md documentation",
+      "description": "As a developer, I want all AGENTS.md files updated to reflect the new offline distributed architecture so that AI agents have accurate context.",
+      "acceptanceCriteria": [
+        "Root AGENTS.md reflects offline distributed architecture (central server + camera stations)",
+        "backend/AGENTS.md documents SQLite, face_recognition, WebSocket, camera APIs",
+        "frontend/AGENTS.md documents React Router, config.ts, bundled MediaPipe",
+        "frontend/src/AGENTS.md documents CameraStationPage vs MainApp routing",
+        "frontend/src/components/AGENTS.md documents CameraFeed remote server usage, Sidebar React Router integration",
+        "All parent references valid",
+        "No references to AWS, Supabase, USB enumeration, or cloud services"
+      ],
+      "priority": 11,
+      "passes": false
+    }
+  ]
+}

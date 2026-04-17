@@ -1,5 +1,6 @@
 # Logs
 logs
+docs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -24,3 +25,10 @@ venv
 *.njsproj
 *.sln
 *.sw?
+.superpowers/
+
+# SSL certs
+backend/cert.pem
+backend/key.pem
+go2rtc
+mediamtx

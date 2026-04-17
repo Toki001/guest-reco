@@ -1,19 +1,32 @@
-# Use a lightweight Python 3.9 image
-FROM python:3.9-slim
+FROM python:3.11-slim
 
-# Set the working directory inside the container
+# Install build deps for insightface/onnxruntime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    libopenblas-dev \
+    liblapack-dev \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copy the requirements file and install dependencies
-# (Make sure you have a requirements.txt with fastapi, uvicorn, boto3, supabase, python-multipart, etc.)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
-# Copy the rest of the backend code
+# Pre-download the antelopev2 model so first request isn't slow
+RUN python -c "\
+import insightface; \
+app = insightface.app.FaceAnalysis(name='antelopev2', providers=['CPUExecutionProvider']); \
+app.prepare(ctx_id=-1, det_size=(640, 640)); \
+print('Model downloaded successfully')"
+
 COPY . .
 
-# Expose the port FastAPI runs on
+# Create storage dirs
+RUN mkdir -p avatars snapshots data
+
 EXPOSE 5001
 
-# Start the FastAPI server on 0.0.0.0 so it can be accessed outside the container
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5001", "--reload"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5001"]

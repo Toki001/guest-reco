@@ -1,19 +1,23 @@
-# Use a lightweight Node.js image
-FROM node:18-alpine
+# Stage 1: Build static assets
+FROM node:20-slim AS build
 
-# Set the working directory
 WORKDIR /app
 
-# Copy package files and install dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
-# Copy the rest of the frontend code
 COPY . .
+RUN npm run build
 
-# Expose the port React runs on
+# Stage 2: Serve via nginx with reverse proxy
+FROM nginx:alpine
+
+# Remove default nginx config
+RUN rm /etc/nginx/conf.d/default.conf
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+
 EXPOSE 3000
 
-# Start the React development server
-# (If you are using Vite, change this to CMD ["npm", "run", "dev", "--", "--host"])
-CMD ["npm", "start"]
+CMD ["nginx", "-g", "daemon off;"]

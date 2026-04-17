@@ -1,0 +1,21 @@
+logLevel: info
+
+# Enable API for diagnostics
+api: yes
+apiAddress: :9997
+
+# Only enable WebRTC (WHIP/WHEP)
+rtsp: no
+rtmp: no
+hls: no
+srt: no
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
+
+# Accept any stream name — auto-created when camera publishes via WHIP
+paths:
+  all:
+    source: publisher
