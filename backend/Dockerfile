@@ -15,13 +15,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
-# Pre-download the antelopev2 model so first request isn't slow
-RUN python -c "\
-import insightface; \
-app = insightface.app.FaceAnalysis(name='antelopev2', providers=['CPUExecutionProvider']); \
-app.prepare(ctx_id=-1, det_size=(640, 640)); \
-print('Model downloaded successfully')"
-
 COPY . .
 
 # Create storage dirs
@@ -29,4 +22,7 @@ RUN mkdir -p avatars snapshots data
 
 EXPOSE 5001
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5001"]
+COPY start.sh .
+RUN chmod +x start.sh
+
+CMD ["./start.sh"]
