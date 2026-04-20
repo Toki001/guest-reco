@@ -11,11 +11,12 @@ services:
       - recognition-data:/app/data
       - avatars-data:/app/avatars
       - snapshots-data:/app/snapshots
+      - model-cache:/root/.insightface
     environment:
       - DB_PATH=/app/data/recognition.db
       - AVATARS_DIR=/app/avatars
       - SNAPSHOTS_DIR=/app/snapshots
-      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - CORS_ORIGINS=*
       - JWT_SECRET=${JWT_SECRET:-}
       - CAMERA_API_KEY=${CAMERA_API_KEY:-}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-securesight2026}
@@ -53,3 +54,4 @@ volumes:
   recognition-data:
   avatars-data:
   snapshots-data:
+  model-cache:
