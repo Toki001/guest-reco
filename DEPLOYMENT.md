@@ -1,5 +1,9 @@
 # SecureSight Deployment Guide
 
+For full setup instructions including Docker installation for macOS, Windows, and Linux, see the main [README.md](README.md).
+
+This document covers production deployment details and operational procedures.
+
 ## Architecture
 
 ```
@@ -7,18 +11,18 @@ School LAN (no internet required)
     |
     +-- Central Server (this machine)
     |     - Backend API on port 5001
-    |     - Frontend on port 3000 (nginx in production)
+    |     - Frontend on port 3000 (HTTP) / 3443 (HTTPS)
     |     - MediaMTX on port 8889 (WebRTC relay)
     |     - SQLite database + local avatar/snapshot storage
     |
     +-- Camera Station A (tablet/laptop in Engineering)
-    |     - Opens browser to https://<server-ip>:3000/camera/engineering
+    |     - Opens browser to https://<server-ip>:3443/camera/engineering
     |
     +-- Camera Station B (tablet/laptop in IT)
-    |     - Opens browser to https://<server-ip>:3000/camera/it-department
+    |     - Opens browser to https://<server-ip>:3443/camera/it-department
     |
     +-- Admin Dashboard (any PC)
-          - Opens browser to https://<server-ip>:3000/dashboard
+          - Opens browser to https://<server-ip>:3443/dashboard
 ```
 
 ## Quick Start (Docker)
@@ -26,52 +30,39 @@ School LAN (no internet required)
 ```bash
 git clone https://github.com/Toki001/guest-reco.git && cd guest-reco
 
-# Optional: set secure credentials
-export JWT_SECRET=$(openssl rand -hex 32)
-export ADMIN_PASSWORD=your_secure_password
+# Optional: configure credentials
+cp .env.example .env
+# Edit .env to set JWT_SECRET, CAMERA_API_KEY, ADMIN_PASSWORD
 
 docker compose up --build -d
 ```
 
 This starts all three services:
 - **Backend** at `http://localhost:5001`
-- **Frontend** (nginx) at `http://localhost:3000`
+- **Frontend** at `http://localhost:3000` (HTTP) and `https://localhost:3443` (HTTPS)
 - **MediaMTX** at `http://localhost:8889`
 
 Check logs: `docker compose logs -f`
 
-## Manual Setup (Development)
+## Network Access (LAN)
 
-### 1. MediaMTX
+To access from other devices (phones, tablets, other PCs) on the same network:
 
-Download from [github.com/bluenviron/mediamtx/releases](https://github.com/bluenviron/mediamtx/releases) and place in the project root.
+1. Find the server's LAN IP:
+   - **macOS:** `ipconfig getifaddr en0`
+   - **Windows:** `ipconfig` (look for IPv4 Address under Wi-Fi)
+   - **Linux:** `hostname -I | awk '{print $1}'`
 
-```bash
-./mediamtx mediamtx.yml
-```
+2. Add the IP to CORS in your `.env` file:
+   ```env
+   CORS_ORIGINS=http://localhost:3000,https://localhost:3443,https://192.168.1.100:3443
+   ```
 
-### 2. Backend
+3. Restart: `docker compose restart backend`
 
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env.local       # Edit credentials
-python app.py
-```
+4. Access from other devices: `https://192.168.1.100:3443`
 
-The camera API key is printed on startup — copy it for camera station setup.
-
-### 3. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-HTTPS is required for camera access. The Vite dev server uses a self-signed certificate — accept the browser warning on first visit.
+> Camera stations **must** use HTTPS (port 3443) for webcam access to work.
 
 ## Camera Station Setup
 
@@ -87,7 +78,7 @@ Each department needs a device with a webcam and a web browser (Chrome recommend
 
 ### Option B: Manual URL
 
-Navigate to: `https://<server-ip>:3000/camera/<department-id>`
+Navigate to: `https://<server-ip>:3443/camera/<department-id>`
 
 URL format — use lowercase, hyphenated names:
 - Engineering: `/camera/engineering`
@@ -100,21 +91,26 @@ On first visit, enter the camera API key when prompted.
 
 Pre-configure by including the key in the URL:
 ```
-https://<server-ip>:3000/camera/engineering?key=YOUR_API_KEY
+https://<server-ip>:3443/camera/engineering?key=YOUR_API_KEY
 ```
 
 ### Kiosk Mode
 
 To prevent users from closing the camera app:
 
-**Chrome (Linux):**
-```bash
-google-chrome --kiosk https://<server-ip>:3000/camera/engineering?key=YOUR_KEY
-```
-
 **Chrome (macOS):**
 ```bash
-open -a "Google Chrome" --args --kiosk https://<server-ip>:3000/camera/engineering?key=YOUR_KEY
+open -a "Google Chrome" --args --kiosk "https://<server-ip>:3443/camera/engineering?key=YOUR_KEY"
+```
+
+**Chrome (Windows):**
+```cmd
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk "https://<server-ip>:3443/camera/engineering?key=YOUR_KEY"
+```
+
+**Chrome (Linux):**
+```bash
+google-chrome --kiosk "https://<server-ip>:3443/camera/engineering?key=YOUR_KEY"
 ```
 
 ### Camera Permissions
@@ -146,8 +142,8 @@ Go to **Settings** (gear icon in sidebar) to configure:
 - Movement threshold, countdown timers, scan cooldown, face size thresholds
 
 ### Face Recognition
-- **Match threshold** (0.2–0.7) — lower = stricter matching
-- **Confidence floor** (20–95%) — minimum confidence to accept a match
+- **Match threshold** (0.2-0.7) — lower = stricter matching
+- **Confidence floor** (20-95%) — minimum confidence to accept a match
 - **Uncertain zone** — distance range where context signals are used
 - **Embedding diversity** — how different a face must look to store a new variant
 
@@ -166,9 +162,52 @@ Records show `camera_id: system-auto` for automatic clock-outs.
 
 Both support date range filtering via URL parameters.
 
+## Ports Reference
+
+| Port | Protocol | Service | Required |
+|------|----------|---------|----------|
+| 3000 | TCP | Frontend (HTTP) | Yes |
+| 3443 | TCP | Frontend (HTTPS) | Yes (for camera access) |
+| 5001 | TCP | Backend API | Yes |
+| 8889 | TCP | MediaMTX WebRTC | Yes (for live camera grid) |
+| 8189 | UDP | MediaMTX ICE | Yes (for WebRTC) |
+| 9997 | TCP | MediaMTX API | Optional |
+
+Ensure these ports are not blocked by your firewall. On Windows, Docker Desktop usually handles firewall rules automatically.
+
+## Backup
+
+The SQLite database and avatar images are stored in Docker volumes.
+
+### Backup
+
+```bash
+mkdir -p backup
+docker cp securesight_api:/app/data/recognition.db ./backup/recognition.db
+docker cp securesight_api:/app/avatars ./backup/avatars
+```
+
+### Restore
+
+```bash
+docker compose stop backend
+docker cp ./backup/recognition.db securesight_api:/app/data/recognition.db
+docker cp ./backup/avatars/. securesight_api:/app/avatars/
+docker compose start backend
+```
+
 ## Environment Variables
 
-### Backend (`backend/.env.local`)
+### Docker (`.env` in project root)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET` | (auto-generated) | Set for token persistence across restarts |
+| `ADMIN_PASSWORD` | `securesight2026` | Override in production |
+| `CAMERA_API_KEY` | (auto-generated) | Set for predictable camera config |
+| `CORS_ORIGINS` | `http://localhost:3000,...` | Add LAN IPs for network access |
+
+### Backend (`.env` in project root)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -182,33 +221,16 @@ Both support date range filtering via URL parameters.
 | `CAMERA_API_KEY` | (auto-generated) | API key for camera auth |
 | `CORS_ORIGINS` | `https://localhost:3000` | Comma-separated allowed origins |
 
-### Docker (`docker-compose.yml` environment)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `JWT_SECRET` | (auto-generated) | Set via env for persistence across restarts |
-| `ADMIN_PASSWORD` | `securesight2026` | Override in production |
-| `CAMERA_API_KEY` | (auto-generated) | Set for predictable camera config |
-
-## Backup
-
-The SQLite database at `backend/recognition.db` (or Docker volume `recognition-data`) contains all face data and logs. Back it up regularly:
-
-```bash
-# Manual
-cp backend/recognition.db backup/recognition-$(date +%Y%m%d).db
-
-# Docker
-docker cp securesight_api:/app/data/recognition.db ./backup/
-```
-
 ## Troubleshooting
 
 | Issue | Fix |
 |-------|-----|
-| Camera shows blank | Accept the self-signed SSL certificate in the browser |
-| "Invalid API key" on camera | Copy the key from backend startup logs |
+| Camera shows blank / "Stream Offline" | Use HTTPS (port 3443), not HTTP. Accept the SSL certificate warning. Click the Play button. |
+| Camera works locally but not from other devices | Add server LAN IP to `CORS_ORIGINS` in `.env` and restart backend |
+| "Invalid API key" on camera | Copy the key from `docker compose logs backend` or your `.env` file |
 | WebRTC stream not connecting | Ensure MediaMTX is running and ports 8889/8189 are accessible |
-| Employee list empty after restructure | The trailing-slash redirect was fixed — clear browser cache |
 | Face not detected | Ensure adequate lighting and face is within camera frame |
 | "Too many requests" | Rate limiter triggered — wait 60 seconds |
+| SSL certificate warning | Expected for self-signed certs — click through once per device |
+| Build fails downloading model | Check internet. Retry: `docker compose build --no-cache backend` |
+| Docker build fails on Windows | Ensure WSL 2 is installed: `wsl --update` in admin PowerShell |

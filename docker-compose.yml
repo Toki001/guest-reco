@@ -34,6 +34,7 @@ services:
     container_name: securesight_web
     ports:
       - "3000:3000"
+      - "3443:3443"
     restart: unless-stopped
     depends_on:
       backend:

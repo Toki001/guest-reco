@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, Query
 from auth import require_admin
-from database import get_stats, get_today_stats, get_hourly_stats, get_stats_for_range
+from database import get_stats, get_today_stats, get_hourly_stats, get_stats_for_range, get_analytics
 
 router = APIRouter()
 
@@ -25,3 +25,8 @@ async def hourly_stats(date_from: str = Query(None), date_to: str = Query(None),
 @router.get('/range')
 async def stats_range(date_from: str = Query(None), date_to: str = Query(None), user=Depends(require_admin)):
     return await asyncio.to_thread(get_stats_for_range, date_from, date_to)
+
+
+@router.get('/analytics')
+async def analytics(days: int = Query(30), user=Depends(require_admin)):
+    return await asyncio.to_thread(get_analytics, days)

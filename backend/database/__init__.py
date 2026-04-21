@@ -13,7 +13,7 @@ from database.access_logs import (
     log_access_attempt, get_access_logs, get_stats, get_today_stats,
     get_active_users, get_inactive_users, get_attendance_logs,
     get_user_attendance, get_visitors_aggregated,
-    get_hourly_stats, get_stats_for_range, global_search,
+    get_hourly_stats, get_stats_for_range, global_search, get_analytics,
     auto_clock_out_stale,
 )
 from database.cameras import (

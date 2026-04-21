@@ -33,7 +33,7 @@ export function RecognitionBanner({ banner, onDismiss }: Props) {
 
   return (
     <div
-      className={`mx-4 mt-3 flex items-center gap-4 px-5 py-4 rounded-2xl shadow-2xl transition-all duration-500 ${
+      className={`mx-2 sm:mx-4 mt-2 sm:mt-3 flex items-center gap-2.5 sm:gap-4 px-3 sm:px-5 py-3 sm:py-4 rounded-xl sm:rounded-2xl shadow-2xl transition-all duration-500 ${
         exiting ? 'opacity-0 -translate-y-4 scale-95' : 'opacity-100 translate-y-0 scale-100'
       }`}
       style={{
@@ -49,24 +49,24 @@ export function RecognitionBanner({ banner, onDismiss }: Props) {
       }}
     >
       {imgSrc ? (
-        <img src={imgSrc} alt={banner.name} className="w-14 h-14 rounded-xl object-cover border-2 border-white/30 shrink-0 shadow-lg" />
+        <img src={imgSrc} alt={banner.name} className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl object-cover border-2 border-white/30 shrink-0 shadow-lg" />
       ) : (
-        <div className="w-14 h-14 rounded-xl bg-white/15 flex items-center justify-center border-2 border-white/20 shrink-0">
-          <span className="material-symbols-outlined text-white/80 text-2xl">person</span>
+        <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-white/15 flex items-center justify-center border-2 border-white/20 shrink-0">
+          <span className="material-symbols-outlined text-white/80 text-xl sm:text-2xl">person</span>
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-white font-bold text-lg truncate drop-shadow-sm">{banner.name}</p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="material-symbols-outlined text-white/80 text-sm">{isIn ? 'login' : 'logout'}</span>
-          <p className="text-white/90 text-sm font-semibold">{isIn ? 'Clocked In' : 'Clocked Out'}</p>
+        <p className="text-white font-bold text-sm sm:text-lg truncate drop-shadow-sm">{banner.name}</p>
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5">
+          <span className="material-symbols-outlined text-white/80 text-xs sm:text-sm">{isIn ? 'login' : 'logout'}</span>
+          <p className="text-white/90 text-xs sm:text-sm font-semibold">{isIn ? 'Clocked In' : 'Clocked Out'}</p>
         </div>
       </div>
       <div className="flex flex-col items-end gap-1 shrink-0">
-        <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${
+        <span className={`inline-flex px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold shadow-sm ${
           isGuest ? 'bg-amber-400/20 text-amber-100' : 'bg-white/15 text-white'
         }`}>{banner.type === 'guest' ? 'Guest' : 'Employee'}</span>
-        <p className="text-white/60 text-[11px] font-mono">{banner.confidence.toFixed(1)}%</p>
+        <p className="text-white/60 text-[10px] sm:text-[11px] font-mono">{banner.confidence.toFixed(1)}%</p>
       </div>
     </div>
   );

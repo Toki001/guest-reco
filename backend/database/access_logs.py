@@ -258,6 +258,123 @@ def get_stats_for_range(date_from=None, date_to=None):
     return {"total_scans": total, "employee_matches": employees, "guest_alerts": guests, "unique_people": unique}
 
 
+def get_analytics(days=30):
+    conn = get_connection()
+    cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)).isoformat()
+
+    # Peak hours: average entries per hour-of-day
+    peak_hours = conn.execute("""
+        SELECT CAST(strftime('%H', timestamp) AS INTEGER) as hour,
+               COUNT(*) as total,
+               SUM(CASE WHEN status = 'in' THEN 1 ELSE 0 END) as entries,
+               SUM(CASE WHEN status = 'out' THEN 1 ELSE 0 END) as exits
+        FROM access_logs WHERE timestamp >= ?
+        GROUP BY hour ORDER BY hour
+    """, (cutoff,)).fetchall()
+    peak_hours_data = [{"hour": r["hour"], "total": r["total"], "entries": r["entries"], "exits": r["exits"]} for r in peak_hours]
+
+    # Day of week: average traffic per weekday (0=Sunday in SQLite)
+    dow_rows = conn.execute("""
+        SELECT CAST(strftime('%w', timestamp) AS INTEGER) as dow,
+               COUNT(*) as total,
+               SUM(CASE WHEN status = 'in' THEN 1 ELSE 0 END) as entries,
+               COUNT(DISTINCT date(timestamp)) as num_days
+        FROM access_logs WHERE timestamp >= ?
+        GROUP BY dow ORDER BY dow
+    """, (cutoff,)).fetchall()
+    day_names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    dow_data = [{"day": day_names[r["dow"]], "dow": r["dow"], "total": r["total"], "entries": r["entries"],
+                 "avg": round(r["total"] / max(r["num_days"], 1), 1)} for r in dow_rows]
+
+    # Daily trend: entries/exits per day
+    daily_rows = conn.execute("""
+        SELECT date(timestamp) as day,
+               COUNT(*) as total,
+               SUM(CASE WHEN status = 'in' THEN 1 ELSE 0 END) as entries,
+               SUM(CASE WHEN status = 'out' THEN 1 ELSE 0 END) as exits,
+               COUNT(DISTINCT user_id) as unique_people
+        FROM access_logs WHERE timestamp >= ?
+        GROUP BY day ORDER BY day
+    """, (cutoff,)).fetchall()
+    daily_data = [{"day": r["day"], "total": r["total"], "entries": r["entries"],
+                   "exits": r["exits"], "unique_people": r["unique_people"]} for r in daily_rows]
+
+    # Per-camera traffic
+    camera_rows = conn.execute("""
+        SELECT a.camera_id, COALESCE(c.department, a.camera_id) as department,
+               COUNT(*) as total,
+               SUM(CASE WHEN a.status = 'in' THEN 1 ELSE 0 END) as entries,
+               COUNT(DISTINCT a.user_id) as unique_people
+        FROM access_logs a LEFT JOIN cameras c ON a.camera_id = c.camera_id
+        WHERE a.timestamp >= ? AND a.camera_id IS NOT NULL
+        GROUP BY a.camera_id ORDER BY total DESC
+    """, (cutoff,)).fetchall()
+    camera_data = [{"camera_id": r["camera_id"], "department": r["department"], "total": r["total"],
+                    "entries": r["entries"], "unique_people": r["unique_people"]} for r in camera_rows]
+
+    # Role breakdown
+    role_rows = conn.execute("""
+        SELECT COALESCE(u.role, 'Unknown') as role, COUNT(*) as total,
+               COUNT(DISTINCT a.user_id) as unique_people
+        FROM access_logs a LEFT JOIN users u ON a.user_id = u.id
+        WHERE a.timestamp >= ?
+        GROUP BY role
+    """, (cutoff,)).fetchall()
+    role_data = [{"role": r["role"], "total": r["total"], "unique_people": r["unique_people"]} for r in role_rows]
+
+    # Summary metrics
+    num_days = max(len(daily_data), 1)
+    total_scans = sum(d["total"] for d in daily_data)
+    total_entries = sum(d["entries"] for d in daily_data)
+    total_unique = conn.execute("SELECT COUNT(DISTINCT user_id) FROM access_logs WHERE timestamp >= ?", (cutoff,)).fetchone()[0]
+
+    busiest_hour = max(peak_hours_data, key=lambda x: x["total"])["hour"] if peak_hours_data else 0
+    busiest_day = max(dow_data, key=lambda x: x["avg"])["day"] if dow_data else "N/A"
+
+    # Prediction: expected tomorrow based on historical average for that weekday
+    tomorrow = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
+    tomorrow_dow = int(tomorrow.strftime('%w'))
+    hist_row = conn.execute("""
+        SELECT COUNT(*) as total,
+               SUM(CASE WHEN status = 'in' THEN 1 ELSE 0 END) as entries,
+               COUNT(DISTINCT user_id) as unique_people,
+               COUNT(DISTINCT date(timestamp)) as num_days
+        FROM access_logs
+        WHERE CAST(strftime('%w', timestamp) AS INTEGER) = ? AND timestamp >= ?
+    """, (tomorrow_dow, cutoff)).fetchone()
+
+    pred_days = max(hist_row["num_days"], 1)
+    prediction = {
+        "day_name": day_names[tomorrow_dow],
+        "date": tomorrow.strftime('%Y-%m-%d'),
+        "expected_scans": round(hist_row["total"] / pred_days),
+        "expected_entries": round(hist_row["entries"] / pred_days),
+        "expected_unique": round(hist_row["unique_people"] / pred_days),
+        "based_on_days": hist_row["num_days"],
+        "confidence": min(round(hist_row["num_days"] / max(num_days * 0.15, 1) * 100), 100),
+    }
+
+    return {
+        "summary": {
+            "total_scans": total_scans,
+            "total_entries": total_entries,
+            "total_unique": total_unique,
+            "avg_daily_scans": round(total_scans / num_days, 1),
+            "avg_daily_entries": round(total_entries / num_days, 1),
+            "avg_daily_unique": round(total_unique / num_days, 1) if num_days > 1 else total_unique,
+            "busiest_hour": busiest_hour,
+            "busiest_day": busiest_day,
+            "days_analyzed": num_days,
+        },
+        "peak_hours": peak_hours_data,
+        "day_of_week": dow_data,
+        "daily_trend": daily_data,
+        "camera_traffic": camera_data,
+        "role_breakdown": role_data,
+        "prediction": prediction,
+    }
+
+
 def global_search(query, limit=20):
     conn = get_connection()
     q = f"%{query}%"

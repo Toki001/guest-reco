@@ -12,6 +12,7 @@ const EmployeeProfilePage = lazy(() => import('./EmployeeProfilePage'));
 const AttendancePage = lazy(() => import('./AttendancePage'));
 const VisitorsPage = lazy(() => import('./VisitorsPage'));
 const HistoryPage = lazy(() => import('./HistoryPage'));
+const AnalyticsPage = lazy(() => import('./AnalyticsPage'));
 
 function PageTransition({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -73,6 +74,7 @@ function MainApp() {
               <Route path="visitors" element={<Suspense fallback={SuspenseFallback}><VisitorsPage /></Suspense>} />
               <Route path="attendance" element={<Suspense fallback={SuspenseFallback}><AttendancePage /></Suspense>} />
               <Route path="history" element={<Suspense fallback={SuspenseFallback}><HistoryPage /></Suspense>} />
+              <Route path="analytics" element={<Suspense fallback={SuspenseFallback}><AnalyticsPage /></Suspense>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </PageTransition>

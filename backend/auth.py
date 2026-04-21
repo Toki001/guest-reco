@@ -21,6 +21,8 @@ if not _jwt_secret:
     )
 
 _camera_api_key = Config.CAMERA_API_KEY or uuid.uuid4().hex
+if not Config.CAMERA_API_KEY:
+    logger.warning("CAMERA_API_KEY not set — generated: %s", _camera_api_key)
 
 
 def get_camera_api_key() -> str:

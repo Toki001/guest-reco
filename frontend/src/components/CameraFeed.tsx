@@ -437,31 +437,21 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
   };
 
   return (
-    <div className="relative w-full h-full bg-black rounded-[32px] overflow-hidden shadow-2xl border border-slate-800 flex flex-col items-center justify-center">
+    <div className="relative w-full h-full bg-black rounded-none sm:rounded-[32px] overflow-hidden shadow-2xl border-0 sm:border border-slate-800 flex flex-col items-center justify-center">
       <div className="relative w-full h-full">
         <video
           ref={videoRef}
           playsInline
           muted
-          className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 -scale-x-100 ${isOnline ? 'opacity-100' : 'opacity-0'} ${scanStatus === 'analyzing' ? 'blur-sm scale-105' : 'blur-0 scale-100'}`}
+          className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 -scale-x-100 ${isOnline ? 'opacity-100' : 'opacity-0'}`}
         />
         <canvas
           ref={overlayCanvasRef}
-          className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity ${scanStatus === 'analyzing' || !isScanning ? 'opacity-0' : 'opacity-100'}`}
+          className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity ${!isScanning ? 'opacity-0' : 'opacity-100'}`}
         />
       </div>
 
       <canvas ref={captureCanvasRef} className="hidden" />
-
-      {scanStatus === 'analyzing' && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm transition-all duration-300 animate-in fade-in">
-          <div className="relative mb-4">
-            <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center animate-pulse"><span className="material-symbols-outlined text-blue-400 text-2xl">group</span></div>
-          </div>
-          <h2 className="text-white text-xl font-bold tracking-widest animate-pulse drop-shadow-lg">ANALYZING FACES...</h2>
-        </div>
-      )}
 
       {(!isOnline || !isScanning) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black/50 backdrop-blur-sm">
@@ -470,8 +460,8 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
         </div>
       )}
 
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-6 bg-[#0f0f0f] px-8 py-4 rounded-[32px] border border-white/5 shadow-2xl z-30">
-        <span className={`text-[11px] font-mono font-bold uppercase tracking-[0.2em] transition-colors duration-300 ${
+      <div className="absolute bottom-4 sm:bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-3 sm:gap-6 bg-[#0f0f0f] px-4 sm:px-8 py-3 sm:py-4 rounded-2xl sm:rounded-[32px] border border-white/5 shadow-2xl z-30 max-w-[90vw]">
+        <span className={`text-[9px] sm:text-[11px] font-mono font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] transition-colors duration-300 ${
           scanFeedback === 'analyzing' ? 'text-blue-400 animate-pulse' :
           scanFeedback === 'move-closer' ? 'text-amber-500' :
           scanFeedback === 'hold-still' ? 'text-red-500' :
@@ -484,12 +474,12 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
            scanFeedback === 'counting' ? 'CAPTURING...' :
            isScanning ? 'READY TO SCAN' : 'SYSTEM PAUSED'}
         </span>
-        <div className="w-px h-8 bg-white/10"></div>
+        <div className="w-px h-6 sm:h-8 bg-white/10"></div>
         <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={onToggle}>
-          <button className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-95 ${isScanning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}>
-            <span className="material-symbols-outlined text-white text-2xl">{isScanning ? 'stop' : 'play_arrow'}</span>
+          <button className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-95 ${isScanning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}>
+            <span className="material-symbols-outlined text-white text-xl sm:text-2xl">{isScanning ? 'stop' : 'play_arrow'}</span>
           </button>
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-white transition-colors">{isScanning ? 'Stop' : 'Start'}</span>
+          <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-white transition-colors">{isScanning ? 'Stop' : 'Start'}</span>
         </div>
       </div>
 
