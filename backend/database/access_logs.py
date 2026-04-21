@@ -343,15 +343,15 @@ def get_analytics(days=30):
         WHERE CAST(strftime('%w', timestamp) AS INTEGER) = ? AND timestamp >= ?
     """, (tomorrow_dow, cutoff)).fetchone()
 
-    pred_days = max(hist_row["num_days"], 1)
+    pred_days = max(hist_row["num_days"] or 0, 1)
     prediction = {
         "day_name": day_names[tomorrow_dow],
         "date": tomorrow.strftime('%Y-%m-%d'),
-        "expected_scans": round(hist_row["total"] / pred_days),
-        "expected_entries": round(hist_row["entries"] / pred_days),
-        "expected_unique": round(hist_row["unique_people"] / pred_days),
-        "based_on_days": hist_row["num_days"],
-        "confidence": min(round(hist_row["num_days"] / max(num_days * 0.15, 1) * 100), 100),
+        "expected_scans": round((hist_row["total"] or 0) / pred_days),
+        "expected_entries": round((hist_row["entries"] or 0) / pred_days),
+        "expected_unique": round((hist_row["unique_people"] or 0) / pred_days),
+        "based_on_days": hist_row["num_days"] or 0,
+        "confidence": min(round((hist_row["num_days"] or 0) / max(num_days * 0.15, 1) * 100), 100),
     }
 
     return {
