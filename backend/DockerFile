@@ -15,12 +15,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
-# Pre-download the antelopev2 model so first request isn't slow
-RUN python -c "\
-import insightface; \
-app = insightface.app.FaceAnalysis(name='antelopev2', providers=['CPUExecutionProvider']); \
-app.prepare(ctx_id=-1, det_size=(640, 640)); \
-print('Model downloaded successfully')"
+# Pre-download the antelopev2 model manually (insightface auto-download can fail in Docker)
+RUN apt-get update && apt-get install -y --no-install-recommends unzip curl \
+    && mkdir -p /root/.insightface/models \
+    && curl -L -o /tmp/antelopev2.zip https://github.com/deepinsight/insightface/releases/download/v0.7/antelopev2.zip \
+    && unzip /tmp/antelopev2.zip -d /root/.insightface/models \
+    && rm /tmp/antelopev2.zip \
+    && apt-get purge -y unzip curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 

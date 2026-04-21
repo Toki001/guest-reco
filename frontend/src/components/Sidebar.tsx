@@ -31,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { path: '/visitors', label: 'Visitors', icon: 'person_search' },
     { path: '/attendance', label: 'Attendance', icon: 'schedule' },
     { path: '/history', label: 'History', icon: 'history' },
+    { path: '/analytics', label: 'Analytics', icon: 'show_chart' },
   ];
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');

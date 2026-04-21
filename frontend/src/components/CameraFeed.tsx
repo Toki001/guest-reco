@@ -443,25 +443,15 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
           ref={videoRef}
           playsInline
           muted
-          className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 -scale-x-100 ${isOnline ? 'opacity-100' : 'opacity-0'} ${scanStatus === 'analyzing' ? 'blur-sm scale-105' : 'blur-0 scale-100'}`}
+          className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 -scale-x-100 ${isOnline ? 'opacity-100' : 'opacity-0'}`}
         />
         <canvas
           ref={overlayCanvasRef}
-          className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity ${scanStatus === 'analyzing' || !isScanning ? 'opacity-0' : 'opacity-100'}`}
+          className={`absolute inset-0 w-full h-full object-cover z-10 transition-opacity ${!isScanning ? 'opacity-0' : 'opacity-100'}`}
         />
       </div>
 
       <canvas ref={captureCanvasRef} className="hidden" />
-
-      {scanStatus === 'analyzing' && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm transition-all duration-300 animate-in fade-in">
-          <div className="relative mb-4">
-            <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center animate-pulse"><span className="material-symbols-outlined text-blue-400 text-2xl">group</span></div>
-          </div>
-          <h2 className="text-white text-xl font-bold tracking-widest animate-pulse drop-shadow-lg">ANALYZING FACES...</h2>
-        </div>
-      )}
 
       {(!isOnline || !isScanning) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black/50 backdrop-blur-sm">

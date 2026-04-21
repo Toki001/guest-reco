@@ -22,12 +22,12 @@ Offline face recognition system for Fr. Saturnino Urios University (FSUU) school
 School LAN (no internet required)
 ├── Central Server
 │   ├── Backend API        :5001  (FastAPI)
-│   ├── Frontend           :3000  (Vite dev / nginx production)
+│   ├── Frontend           :3000  (HTTP) / :3443 (HTTPS)
 │   └── MediaMTX           :8889  (WebRTC WHIP/WHEP)
 ├── Camera Stations (browser on tablet/laptop)
-│   └── https://<server-ip>:3000/camera/<department-id>
+│   └── https://<server-ip>:3443/camera/<department-id>
 └── Admin Dashboard (any browser)
-    └── https://<server-ip>:3000/dashboard
+    └── https://<server-ip>:3443/dashboard
 ```
 
 Camera browsers detect faces client-side (MediaPipe), crop them, and POST to the backend. The backend matches against stored ArcFace embeddings using multi-embedding adaptive learning (up to 5 embeddings per person) and broadcasts results to the dashboard via WebSocket. Live video streams from cameras to the dashboard use MediaMTX (WHIP publish, WHEP subscribe).
@@ -47,7 +47,469 @@ Camera browsers detect faces client-side (MediaPipe), crop them, and POST to the
 - **Per-camera face data** — see who was detected at each camera
 - **Attendance tracking** — Who's In / Who's Not In with role filters
 
-## Prerequisites
+---
+
+## Docker Deployment Guide (Recommended)
+
+This is the easiest way to run SecureSight on any machine. Everything is containerized — no need to install Python, Node.js, or MediaMTX manually.
+
+### Prerequisites
+
+You only need **Docker Desktop** installed on your machine. Nothing else.
+
+#### Installing Docker Desktop
+
+**macOS:**
+
+1. Download Docker Desktop from https://www.docker.com/products/docker-desktop/
+2. Open the downloaded `.dmg` file and drag Docker to Applications
+3. Launch Docker Desktop from Applications
+4. Wait for the Docker icon in the menu bar to show "Docker Desktop is running"
+
+Or install via Homebrew:
+```bash
+brew install --cask docker
+```
+Then launch Docker Desktop from Applications.
+
+**Windows:**
+
+1. Download Docker Desktop from https://www.docker.com/products/docker-desktop/
+2. Run the installer (`Docker Desktop Installer.exe`)
+3. **Important:** During installation, ensure "Use WSL 2 instead of Hyper-V" is checked (recommended)
+4. If prompted, install the WSL 2 Linux kernel update from the link provided
+5. Restart your computer when prompted
+6. Launch Docker Desktop from the Start Menu
+7. Wait for the Docker icon in the system tray to show "Docker Desktop is running"
+
+If you see "WSL 2 installation is incomplete":
+```powershell
+# Open PowerShell as Administrator and run:
+wsl --install
+# Restart your computer, then launch Docker Desktop again
+```
+
+**Linux (Ubuntu/Debian):**
+
+```bash
+# Remove old versions
+sudo apt remove docker docker-engine docker.io containerd runc
+
+# Install prerequisites
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg
+
+# Add Docker's official GPG key
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# Add the repository
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker Engine and Docker Compose
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Allow running Docker without sudo
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+**Linux (Fedora):**
+
+```bash
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+#### Verify Docker is installed
+
+Run this on any platform to confirm Docker is ready:
+
+```bash
+docker --version
+docker compose version
+```
+
+You should see version numbers for both. If `docker compose` fails, you may have an older version — install the Docker Compose plugin or upgrade Docker Desktop.
+
+---
+
+### Step 1: Clone the Repository
+
+**macOS / Linux:**
+```bash
+git clone https://github.com/Toki001/guest-reco.git
+cd guest-reco
+```
+
+**Windows (Command Prompt):**
+```cmd
+git clone https://github.com/Toki001/guest-reco.git
+cd guest-reco
+```
+
+**Windows (PowerShell):**
+```powershell
+git clone https://github.com/Toki001/guest-reco.git
+cd guest-reco
+```
+
+> If you don't have `git`, download it from https://git-scm.com/downloads or download the repository as a ZIP from GitHub and extract it.
+
+---
+
+### Step 2: Configure Environment Variables (Optional but Recommended)
+
+Create a `.env` file from the example:
+
+**macOS / Linux:**
+```bash
+cp .env.example .env
+```
+
+**Windows (Command Prompt):**
+```cmd
+copy .env.example .env
+```
+
+**Windows (PowerShell):**
+```powershell
+Copy-Item .env.example .env
+```
+
+Now open `.env` in any text editor and configure:
+
+```env
+# Leave blank to auto-generate (will be printed in docker logs)
+JWT_SECRET=
+CAMERA_API_KEY=
+
+# Admin login password (default: securesight2026)
+ADMIN_PASSWORD=securesight2026
+
+# Add your machine's LAN IP for camera access from other devices (see Step 5)
+# CORS_ORIGINS=
+```
+
+> **If you skip this step**, the system will still work. `JWT_SECRET` and `CAMERA_API_KEY` will be auto-generated and printed in the backend logs. The default admin password is `securesight2026`.
+
+---
+
+### Step 3: Build and Start
+
+This single command builds all three services (backend, frontend, MediaMTX) and starts them:
+
+**All platforms:**
+```bash
+docker compose up --build -d
+```
+
+The first build takes **5-10 minutes** because it:
+- Installs Python dependencies and compiles native packages
+- Downloads the face recognition model (~350MB) from GitHub
+- Builds the React frontend
+- Generates an SSL certificate
+
+Subsequent builds are much faster due to Docker layer caching.
+
+> **Note:** You need an internet connection for the first build. After that, the system runs fully offline.
+
+#### Verify everything is running
+
+```bash
+docker compose ps
+```
+
+You should see three containers with status `Up` or `Up (healthy)`:
+
+```
+NAME                   STATUS
+securesight_api        Up (healthy)
+securesight_web        Up
+securesight_mediamtx   Up
+```
+
+If the backend shows `Up (health: starting)`, wait 30 seconds and check again — it takes a moment to load the face recognition model.
+
+#### Check the logs
+
+```bash
+docker compose logs backend
+```
+
+Look for:
+- `"Model already cached"` or model loaded successfully
+- The auto-generated `CAMERA_API_KEY` if you didn't set one in `.env` — **copy this, you'll need it for camera stations**
+- `Uvicorn running on http://0.0.0.0:5001`
+
+---
+
+### Step 4: Access the Application
+
+Once all containers are running:
+
+| URL | What | When to use |
+|-----|------|-------------|
+| `https://localhost:3443` | Admin dashboard (HTTPS) | From the same machine |
+| `http://localhost:3000` | Admin dashboard (HTTP) | From the same machine (no camera access) |
+| `https://localhost:3443/login` | Login page | First visit |
+| `https://localhost:3443/camera/department-name` | Camera station | Setting up a scanning station |
+
+**Default login credentials:**
+
+| Field | Value |
+|-------|-------|
+| Username | `admin` |
+| Password | `securesight2026` (or whatever you set in `.env`) |
+
+> **Browser SSL warning:** You will see a "Your connection is not private" warning because the SSL certificate is self-signed. This is expected and safe for LAN use.
+>
+> - **Chrome:** Click "Advanced" then "Proceed to localhost (unsafe)"
+> - **Firefox:** Click "Advanced" then "Accept the Risk and Continue"
+> - **Edge:** Click "Advanced" then "Continue to localhost (unsafe)"
+
+> **Important:** Use `https://` (port 3443), not `http://` (port 3000), if you need camera/webcam access. Browsers block camera access on non-HTTPS origins (except localhost).
+
+---
+
+### Step 5: Access from Other Devices on Your Network
+
+To open SecureSight from a phone, tablet, or another computer on the same Wi-Fi/LAN network, you need the server machine's local IP address.
+
+#### Find your machine's local IP address
+
+**macOS:**
+```bash
+ipconfig getifaddr en0
+```
+
+**Windows (Command Prompt or PowerShell):**
+```cmd
+ipconfig
+```
+Look for **"Wireless LAN adapter Wi-Fi"** (or "Ethernet adapter" if using a cable) and find the **IPv4 Address** line. It will look like `192.168.1.100` or `10.0.0.50`.
+
+**Linux:**
+```bash
+hostname -I | awk '{print $1}'
+```
+
+#### Update CORS to allow your IP
+
+Edit your `.env` file and add your IP to `CORS_ORIGINS`:
+
+```env
+CORS_ORIGINS=http://localhost:3000,https://localhost:3443,https://YOUR_IP_HERE:3443
+```
+
+For example, if your IP is `192.168.1.100`:
+```env
+CORS_ORIGINS=http://localhost:3000,https://localhost:3443,https://192.168.1.100:3443
+```
+
+Then restart the backend to apply:
+
+```bash
+docker compose restart backend
+```
+
+#### Access from the other device
+
+On the other device's browser, go to:
+
+```
+https://192.168.1.100:3443
+```
+
+(Replace `192.168.1.100` with your actual IP)
+
+You will see the SSL warning again on the other device — click through it the same way.
+
+> **Camera stations** must use the HTTPS URL (`https://YOUR_IP:3443/camera/department-name`) for the webcam to work. HTTP will not allow camera access from non-localhost devices.
+
+---
+
+### Step 6: Set Up Camera Stations
+
+Camera stations are tablets, laptops, or any device with a webcam that will be placed in each department for scanning.
+
+#### Option A: Manual URL
+
+1. On the camera device, open Chrome and go to:
+   ```
+   https://<server-ip>:3443/camera/<department-id>
+   ```
+   Examples:
+   - `https://192.168.1.100:3443/camera/engineering`
+   - `https://192.168.1.100:3443/camera/main-lobby`
+   - `https://192.168.1.100:3443/camera/it-department`
+
+2. Enter the **Camera API Key** when prompted (from backend logs or your `.env` file)
+
+3. Allow camera access when the browser asks
+
+4. Click the green **Play** button to start scanning
+
+#### Option B: URL with Pre-configured Key
+
+Include the API key in the URL so the camera connects automatically:
+
+```
+https://192.168.1.100:3443/camera/engineering?key=YOUR_CAMERA_API_KEY
+```
+
+#### Option C: QR Code (from Admin Dashboard)
+
+1. Log into the admin dashboard
+2. Go to the **Cameras** page
+3. Click **"Add Camera"**
+4. Enter the department name and API key
+5. Scan the generated QR code from the camera device
+
+#### Kiosk Mode (Prevent Users from Closing the App)
+
+**Chrome on macOS:**
+```bash
+open -a "Google Chrome" --args --kiosk "https://192.168.1.100:3443/camera/engineering?key=YOUR_KEY"
+```
+
+**Chrome on Windows:**
+```cmd
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk "https://192.168.1.100:3443/camera/engineering?key=YOUR_KEY"
+```
+
+**Chrome on Linux:**
+```bash
+google-chrome --kiosk "https://192.168.1.100:3443/camera/engineering?key=YOUR_KEY"
+```
+
+---
+
+### Common Docker Commands
+
+| Command | What it does |
+|---------|--------------|
+| `docker compose up --build -d` | Build and start all services in the background |
+| `docker compose down` | Stop and remove all containers |
+| `docker compose restart` | Restart all services |
+| `docker compose restart backend` | Restart only the backend |
+| `docker compose logs backend` | View backend logs |
+| `docker compose logs -f` | Follow all logs in real-time (Ctrl+C to stop) |
+| `docker compose ps` | Check status of all containers |
+| `docker compose build --no-cache` | Rebuild everything from scratch |
+
+---
+
+### Stopping and Starting
+
+**Stop all services (keeps data):**
+```bash
+docker compose down
+```
+
+**Start again (no rebuild needed):**
+```bash
+docker compose up -d
+```
+
+**Full reset (delete all data and rebuild):**
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
+> **Warning:** `docker compose down -v` deletes all Docker volumes, which means all your registered employees, visitors, and scan history will be permanently lost.
+
+---
+
+### Updating
+
+When a new version is available:
+
+```bash
+git pull
+docker compose up --build -d
+```
+
+Your data is safe — it's stored in Docker volumes that persist across rebuilds.
+
+---
+
+### Backup and Restore
+
+#### Backup the database
+
+**macOS / Linux:**
+```bash
+mkdir -p backup
+docker cp securesight_api:/app/data/recognition.db ./backup/recognition-$(date +%Y%m%d).db
+```
+
+**Windows (Command Prompt):**
+```cmd
+mkdir backup
+docker cp securesight_api:/app/data/recognition.db ./backup/recognition.db
+```
+
+**Windows (PowerShell):**
+```powershell
+New-Item -ItemType Directory -Force -Path backup
+docker cp securesight_api:/app/data/recognition.db ./backup/recognition-$(Get-Date -Format yyyyMMdd).db
+```
+
+#### Backup avatar images
+
+```bash
+docker cp securesight_api:/app/avatars ./backup/avatars
+```
+
+#### Restore from backup
+
+```bash
+docker compose stop backend
+docker cp ./backup/recognition.db securesight_api:/app/data/recognition.db
+docker cp ./backup/avatars/. securesight_api:/app/avatars/
+docker compose start backend
+```
+
+---
+
+### Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `docker compose` command not found | Install Docker Desktop (see Prerequisites). On older systems, try `docker-compose` (with hyphen). |
+| Build fails downloading the model | Check your internet connection. The 350MB model downloads from GitHub during build. Retry with `docker compose build --no-cache backend`. |
+| Backend container keeps restarting | Run `docker compose logs backend` to see the error. Usually a missing model file — rebuild with `docker compose build --no-cache backend`. |
+| Camera shows "Stream Offline" | Make sure you clicked the green Play button. Check that the browser allowed camera access. Use HTTPS (port 3443), not HTTP. |
+| Camera works on localhost but not from other devices | You need to add the server's LAN IP to `CORS_ORIGINS` in `.env` and restart. See Step 5. |
+| "Invalid API key" on camera page | Copy the correct key from `docker compose logs backend` or your `.env` file. |
+| Images/avatars not loading | Verify the frontend container is running: `docker compose ps`. Try `docker compose restart frontend`. |
+| SSL certificate warning | Expected for self-signed certificates. Click "Advanced" > "Proceed" in your browser. This only needs to be done once per device. |
+| WebRTC stream not connecting | Ensure MediaMTX is running: `docker compose ps`. Check that ports 8889 and 8189/udp are not blocked by a firewall. |
+| Very slow first scan after restart | The face recognition model loads on the first request. This takes 10-30 seconds. Subsequent scans are fast. |
+| "Too many requests" error | Rate limiter triggered. Wait 60 seconds and try again. |
+| Port already in use | Another application is using port 3000, 3443, or 5001. Stop the other app, or change the port in `docker-compose.yml` under `ports`. |
+| Docker build fails on Windows | Make sure Docker Desktop is running and WSL 2 is properly installed. Run `wsl --update` in PowerShell as Administrator. |
+| `permission denied` on Linux | Run `sudo usermod -aG docker $USER` then log out and back in. |
+
+---
+
+## Development Setup (Manual, Without Docker)
+
+Use this if you want to modify the code and see changes immediately without rebuilding containers.
+
+### Prerequisites
 
 | Requirement | Why |
 |-------------|-----|
@@ -60,30 +522,20 @@ Camera browsers detect faces client-side (MediaPipe), crop them, and POST to the
 brew install python@3.11 node
 ```
 
+**Windows:**
+- Python: https://www.python.org/downloads/ (check "Add to PATH" during install)
+- Node.js: https://nodejs.org/ (LTS version)
+
 **Ubuntu/Debian:**
 ```bash
 sudo apt install python3.11 python3.11-venv nodejs npm
 ```
 
-> Note: InsightFace uses ONNX Runtime (CPU) — no cmake, dlib, or C++ compiler needed.
-
-## Quick Start (Docker)
-
-```bash
-git clone https://github.com/Toki001/guest-reco.git && cd guest-reco
-docker compose up --build -d
-```
-
-All three services start automatically:
-- Backend: `http://localhost:5001`
-- Frontend: `http://localhost:3000`
-- MediaMTX: `http://localhost:8889`
-
-## Development Setup (Manual)
+### Running the three services
 
 You need **3 terminal processes** running simultaneously:
 
-### 1. MediaMTX (WebRTC relay)
+#### 1. MediaMTX (WebRTC relay)
 
 Download the [MediaMTX binary](https://github.com/bluenviron/mediamtx/releases) for your platform and place it in the project root.
 
@@ -91,20 +543,31 @@ Download the [MediaMTX binary](https://github.com/bluenviron/mediamtx/releases) 
 ./mediamtx mediamtx.yml
 ```
 
-### 2. Backend
+#### 2. Backend
 
+**macOS / Linux:**
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt  # First time only
-cp .env.example .env.local       # First time only
+cp .env.example .env             # First time only (in project root)
+python app.py
+```
+
+**Windows:**
+```cmd
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
 python app.py
 ```
 
 Runs on `http://localhost:5001`. Prints the camera API key on startup.
 
-### 3. Frontend
+#### 3. Frontend
 
 ```bash
 cd frontend
@@ -114,6 +577,8 @@ npm run dev
 
 Runs on `https://localhost:3000` (self-signed SSL via `@vitejs/plugin-basic-ssl` — required for camera access in browsers).
 
+---
+
 ## Default Credentials
 
 | What | Value |
@@ -122,14 +587,14 @@ Runs on `https://localhost:3000` (self-signed SSL via `@vitejs/plugin-basic-ssl`
 | Admin password | `securesight2026` |
 | Camera API key | Auto-generated, printed in backend console on startup |
 
-Change these via `backend/.env.local`. See `backend/.env.example` for all options.
+Change these in the `.env` file at the project root. See `.env.example` for all options.
 
 ## Project Structure
 
 ```
 guest-reco/
 ├── backend/
-│   ├── app.py              # FastAPI setup, lifespan, WebSocket, static mounts (~90 lines)
+│   ├── app.py              # FastAPI setup, lifespan, WebSocket, static mounts
 │   ├── auth.py             # JWT + API key authentication
 │   ├── config.py           # Environment config loader
 │   ├── database/           # Database package (6 modules)
@@ -140,69 +605,40 @@ guest-reco/
 │   │   ├── settings.py     # System settings (camera + face recognition thresholds)
 │   │   └── export.py       # CSV export queries
 │   ├── routes/             # FastAPI routers (12 modules)
-│   │   ├── auth.py         # Login, auth check
-│   │   ├── recognition.py  # Face recognition (single + batch)
-│   │   ├── employees.py    # Employee CRUD, reface, attendance
-│   │   ├── cameras.py      # Camera register, heartbeat, delete
-│   │   ├── attendance.py   # Active/inactive users, attendance log
-│   │   ├── visitors.py     # Visitor listing
-│   │   ├── stats.py        # Dashboard stats, hourly, time range
-│   │   ├── search.py       # Global search
-│   │   ├── settings.py     # Settings get/update
-│   │   ├── streaming.py    # MJPEG relay (legacy)
-│   │   ├── export.py       # CSV download endpoints
-│   │   └── health.py       # Health check
 │   ├── services/
 │   │   ├── face_engine.py  # InsightFace model, embedding matching
 │   │   ├── websocket.py    # ConnectionManager for broadcast
 │   │   └── rate_limiter.py # In-memory rate limiting
 │   ├── requirements.txt
-│   └── Dockerfile
+│   ├── Dockerfile
+│   └── .dockerignore
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/
-│   │   │   ├── CameraStationPage.tsx   # Camera capture + face detection
-│   │   │   ├── CameraGridPage.tsx      # Live camera grid (WHEP viewer)
-│   │   │   ├── EmployeesPage.tsx       # Employee management
-│   │   │   ├── AttendancePage.tsx       # Who's In / Who's Not In
-│   │   │   ├── VisitorsPage.tsx        # Visitor tracking + delete
-│   │   │   ├── LoginPage.tsx           # Admin login (light/dark)
-│   │   │   └── MainApp.tsx             # Layout, routing, command palette
-│   │   └── components/
-│   │       ├── DashboardTab.tsx        # Dashboard with charts + real-time feed
-│   │       ├── Sidebar.tsx             # Collapsible glass sidebar
-│   │       ├── Header.tsx              # Glass header with search + clock
-│   │       ├── CameraFeed.tsx          # WHIP publish + face detection
-│   │       ├── CommandPalette.tsx       # Global search (Cmd+K)
-│   │       ├── AddEmployeeModal.tsx    # Single + batch registration
-│   │       ├── SettingsModal.tsx       # Camera + face recognition settings
-│   │       ├── HoverCard.tsx           # Detail popover on hover
-│   │       ├── GlassSkeleton.tsx       # Skeleton loading components
-│   │       ├── EmptyState.tsx          # Animated empty state illustrations
-│   │       └── RecognitionBanner.tsx   # Clock in/out notification banners
+│   │   ├── pages/          # React page components
+│   │   └── components/     # Reusable UI components
 │   ├── public/
-│   │   ├── fsuu-logo.png              # University logo
-│   │   ├── mediapipe-wasm/            # Bundled MediaPipe face detection
-│   │   └── models/                    # ML model files
-│   ├── nginx.conf                     # Production reverse proxy config
-│   ├── vite.config.ts                 # Dev server + proxy config
-│   ├── Dockerfile                     # Multi-stage build (Node -> nginx)
-│   └── package.json
-├── mediamtx.yml           # MediaMTX config (WebRTC ports, ICE servers)
-├── docker-compose.yml     # Full stack: backend + frontend + MediaMTX
-└── CLAUDE.md              # AI assistant context file
+│   │   ├── mediapipe-wasm/ # Bundled MediaPipe face detection
+│   │   └── models/         # ML model files
+│   ├── nginx.conf          # Production reverse proxy config
+│   ├── vite.config.ts      # Dev server + proxy config
+│   ├── Dockerfile          # Multi-stage build (Node -> nginx + SSL)
+│   └── .dockerignore
+├── mediamtx.yml            # MediaMTX config (WebRTC ports, ICE servers)
+├── docker-compose.yml      # Full stack: backend + frontend + MediaMTX
+├── .env.example            # Environment variable template
+└── README.md
 ```
 
-## Key URLs (Development)
+## Key URLs
 
 | URL | What |
 |-----|------|
-| `https://localhost:3000/login` | Admin login |
-| `https://localhost:3000/dashboard` | Live dashboard with charts |
-| `https://localhost:3000/camera/<dept-id>` | Camera station (e.g. `/camera/engineering`) |
-| `https://localhost:3000/employees` | Employee management |
-| `https://localhost:3000/attendance` | Who's In / Who's Not In |
-| `https://localhost:3000/visitors` | Visitor tracking |
+| `https://localhost:3443/login` | Admin login |
+| `https://localhost:3443/dashboard` | Live dashboard with charts |
+| `https://localhost:3443/camera/<dept-id>` | Camera station (e.g. `/camera/engineering`) |
+| `https://localhost:3443/employees` | Employee management |
+| `https://localhost:3443/attendance` | Who's In / Who's Not In |
+| `https://localhost:3443/visitors` | Visitor tracking |
 | `http://localhost:5001/docs` | FastAPI auto-generated API docs |
 
 ## API Overview
@@ -241,7 +677,7 @@ Full interactive API docs available at `http://localhost:5001/docs` when the bac
 
 ## Environment Variables
 
-### Backend (`backend/.env.local`)
+### All settings (`.env` in project root)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -253,7 +689,7 @@ Full interactive API docs available at `http://localhost:5001/docs` when the bac
 | `JWT_SECRET` | (auto-generated) | JWT signing key (set for production) |
 | `JWT_EXPIRY_HOURS` | `24` | JWT token lifetime |
 | `CAMERA_API_KEY` | (auto-generated) | API key for camera stations |
-| `CORS_ORIGINS` | `https://localhost:3000` | Allowed CORS origins |
+| `CORS_ORIGINS` | `https://localhost:3000` | Allowed CORS origins (comma-separated) |
 
 ### Frontend
 

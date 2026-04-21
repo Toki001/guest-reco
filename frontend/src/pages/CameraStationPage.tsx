@@ -60,6 +60,28 @@ function CameraStationPage() {
     return () => clearInterval(interval);
   }, [apiKey]);
 
+  useEffect(() => {
+    if (!apiKey || !cameraId) return;
+    const loadRecentActivity = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/camera/${encodeURIComponent(cameraId)}/recent-activity?limit=50`, { headers: { 'X-API-Key': apiKey } });
+        if (!res.ok) return;
+        const data = await res.json();
+        const entries = data.map((item: any) => ({
+          id: `hist-${item.id}`,
+          name: item.name || item.user_id,
+          type: (item.role || 'guest').toLowerCase() as 'guest' | 'employee',
+          status: item.status as 'in' | 'out',
+          confidence: item.confidence,
+          imageUrl: item.image_url || '',
+          timestamp: new Date(item.timestamp),
+        }));
+        setHistory(entries);
+      } catch (e) { console.error('Failed to load recent activity:', e); }
+    };
+    loadRecentActivity();
+  }, [apiKey, cameraId]);
+
   const handleFeedbackChange = useCallback((feedback: string) => {
     clearTimeout(idleTimerRef.current);
     if (feedback === 'idle') {

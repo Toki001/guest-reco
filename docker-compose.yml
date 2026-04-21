@@ -15,7 +15,7 @@ services:
       - DB_PATH=/app/data/recognition.db
       - AVATARS_DIR=/app/avatars
       - SNAPSHOTS_DIR=/app/snapshots
-      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,https://localhost:3443}
       - JWT_SECRET=${JWT_SECRET:-}
       - CAMERA_API_KEY=${CAMERA_API_KEY:-}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-securesight2026}
@@ -33,6 +33,7 @@ services:
     container_name: securesight_web
     ports:
       - "3000:3000"
+      - "3443:3443"
     restart: unless-stopped
     depends_on:
       backend:

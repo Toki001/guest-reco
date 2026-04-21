@@ -81,3 +81,8 @@ async def get_camera_statistics(camera_id: str, user=Depends(require_admin)):
 @router.get('/cameras/{camera_id}/activity')
 async def get_camera_activity_feed(camera_id: str, limit: int = Query(20), user=Depends(require_admin)):
     return await asyncio.to_thread(get_camera_activity, camera_id, limit)
+
+
+@router.get('/camera/{camera_id}/recent-activity')
+async def get_camera_recent_activity(camera_id: str, limit: int = Query(50), auth=Depends(require_camera_or_admin)):
+    return await asyncio.to_thread(get_camera_activity, camera_id, limit)
