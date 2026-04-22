@@ -12,6 +12,8 @@ srt: no
 
 webrtc: yes
 webrtcAddress: :8889
+webrtcAdditionalHosts:
+  - 192.168.1.33
 webrtcICEServers2:
   - url: stun:stun.l.google.com:19302
 

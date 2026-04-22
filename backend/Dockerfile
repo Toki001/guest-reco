@@ -1,11 +1,8 @@
 FROM python:3.11-slim
 
-# Install build deps for insightface/onnxruntime
+# Runtime deps only (no build-essential/cmake — use pre-built wheels)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
     libopenblas-dev \
-    liblapack-dev \
     libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
@@ -13,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=1000 --no-cache-dir --prefer-binary -r requirements.txt
 
 COPY . .
 
