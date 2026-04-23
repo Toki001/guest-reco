@@ -12,12 +12,14 @@ dist
 dist-ssr
 *.local
 *.env
+docs
 
 # Python
 __pycache__/
 *.pyc
 .venv/
 venv/
+docs
 
 # Database
 *.db
