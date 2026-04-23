@@ -29,7 +29,7 @@ class Config:
     DB_NAME = os.getenv('DB_NAME', 'securesight')
 
     # Auth
-    ADMIN_USERNAME = os.getenv('ADMIN_USERNAME')
+    ADMIN_USERNAME = _require('ADMIN_USERNAME')
     ADMIN_PASSWORD = _require('ADMIN_PASSWORD')
     CAMERA_API_KEY = _require('CAMERA_API_KEY')
     JWT_SECRET = _require('JWT_SECRET', min_length=32)

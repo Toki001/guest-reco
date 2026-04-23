@@ -331,7 +331,7 @@ function CameraStationPage() {
           </CameraFeed>
 
           {!showHistory && history.length > 0 && (
-            <div className="absolute bottom-20 sm:bottom-4 left-1/2 -translate-x-1/2 z-20">
+            <div className="absolute bottom-20 sm:bottom-4 left-3 sm:left-4 z-20">
               <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl" style={{ background: isDark ? 'rgba(10,14,26,0.7)' : 'rgba(255,255,255,0.7)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}` }}>
                 <span className={`${isDark ? 'text-white/40' : 'text-[var(--text-muted)]'} text-[9px] sm:text-[10px] font-semibold uppercase`}>{history.length} scans</span>
                 <span className="text-emerald-400 text-[9px] sm:text-[10px] font-bold">{inCount} IN</span>
