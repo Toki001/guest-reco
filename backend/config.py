@@ -10,8 +10,12 @@ class Config:
     PORT = int(os.getenv('PORT', '5001'))
     HOST = os.getenv('HOST', '0.0.0.0')
 
-    # Database
-    DB_PATH = os.getenv('DB_PATH', 'recognition.db')
+    # Database (MySQL)
+    DB_HOST = os.getenv('DB_HOST', 'mysql')
+    DB_PORT = int(os.getenv('DB_PORT', '3306'))
+    DB_USER = os.getenv('DB_USER', 'securesight')
+    DB_PASSWORD = os.getenv('DB_PASSWORD', 'securesight')
+    DB_NAME = os.getenv('DB_NAME', 'securesight')
 
     # Auth
     ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')

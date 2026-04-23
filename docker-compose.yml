@@ -1,4 +1,24 @@
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: securesight_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-securesight_root}
+      MYSQL_DATABASE: securesight
+      MYSQL_USER: securesight
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-securesight}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-securesight_root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   backend:
     build:
       context: ./backend
@@ -8,24 +28,30 @@ services:
       - "5001:5001"
     restart: unless-stopped
     volumes:
-      - recognition-data:/app/data
       - avatars-data:/app/avatars
       - snapshots-data:/app/snapshots
       - model-cache:/root/.insightface
     environment:
-      - DB_PATH=/app/data/recognition.db
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=securesight
+      - DB_PASSWORD=${MYSQL_PASSWORD:-securesight}
+      - DB_NAME=securesight
       - AVATARS_DIR=/app/avatars
       - SNAPSHOTS_DIR=/app/snapshots
       - CORS_ORIGINS=*
       - JWT_SECRET=${JWT_SECRET:-}
       - CAMERA_API_KEY=${CAMERA_API_KEY:-}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-securesight2026}
+    depends_on:
+      mysql:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
-      interval: 15s
-      timeout: 5s
-      retries: 20
-      start_period: 300s
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
 
   frontend:
     build:
@@ -52,7 +78,7 @@ services:
       - ./mediamtx.yml:/mediamtx.yml:ro
 
 volumes:
-  recognition-data:
+  mysql-data:
   avatars-data:
   snapshots-data:
   model-cache:

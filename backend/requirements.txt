@@ -10,3 +10,4 @@ websockets
 PyJWT
 bcrypt
 openpyxl
+mysql-connector-python

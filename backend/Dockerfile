@@ -14,7 +14,7 @@ WORKDIR /app
 RUN pip install --upgrade pip
 
 COPY requirements.txt .
-RUN pip install --default-timeout=1000 --no-cache-dir --prefer-binary -r requirements.txt
+RUN pip install --default-timeout=10000 --no-cache-dir --prefer-binary -r requirements.txt
 
 COPY . .
 
