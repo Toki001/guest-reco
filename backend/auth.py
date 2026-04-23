@@ -1,4 +1,3 @@
-import uuid
 import datetime
 import logging
 
@@ -11,18 +10,8 @@ from config import Config
 
 logger = logging.getLogger(__name__)
 
-# --- Fail-fast: require JWT_SECRET in production ---
 _jwt_secret = Config.JWT_SECRET
-if not _jwt_secret:
-    _jwt_secret = uuid.uuid4().hex
-    logger.warning(
-        "JWT_SECRET not set — generated a random one. "
-        "Tokens will NOT survive server restarts. Set JWT_SECRET in .env.local for production."
-    )
-
-_camera_api_key = Config.CAMERA_API_KEY or uuid.uuid4().hex
-if not Config.CAMERA_API_KEY:
-    logger.warning("CAMERA_API_KEY not set — generated: %s", _camera_api_key)
+_camera_api_key = Config.CAMERA_API_KEY
 
 
 def get_camera_api_key() -> str:

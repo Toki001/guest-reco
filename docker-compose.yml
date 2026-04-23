@@ -4,16 +4,16 @@ services:
     container_name: securesight_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-securesight_root}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
       MYSQL_DATABASE: securesight
-      MYSQL_USER: securesight
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-securesight}
+      MYSQL_USER: ${DB_USER:?DB_USER is required}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     ports:
       - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-securesight_root}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -34,15 +34,15 @@ services:
     environment:
       - DB_HOST=mysql
       - DB_PORT=3306
-      - DB_USER=securesight
-      - DB_PASSWORD=${MYSQL_PASSWORD:-securesight}
+      - DB_USER=${DB_USER:?DB_USER is required}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - DB_NAME=securesight
       - AVATARS_DIR=/app/avatars
       - SNAPSHOTS_DIR=/app/snapshots
       - CORS_ORIGINS=*
-      - JWT_SECRET=${JWT_SECRET:-}
-      - CAMERA_API_KEY=${CAMERA_API_KEY:-}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-securesight2026}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - CAMERA_API_KEY=${CAMERA_API_KEY:?CAMERA_API_KEY is required}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
     depends_on:
       mysql:
         condition: service_healthy

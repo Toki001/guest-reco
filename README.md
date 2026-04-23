@@ -8,7 +8,7 @@ Offline face recognition system for Fr. Saturnino Urios University (FSUU) school
 |-------|------|
 | Backend | Python 3.11, FastAPI, uvicorn |
 | Face Recognition | InsightFace (ArcFace + RetinaFace, `antelopev2` model) |
-| Database | SQLite (WAL mode) |
+| Database | MySQL 8.0 |
 | Frontend | React 19, TypeScript, Tailwind CSS 4, Vite 6 |
 | Face Detection (client) | MediaPipe WASM (bundled in `public/`) |
 | Video Streaming | MediaMTX (WebRTC via WHIP/WHEP) |
@@ -168,7 +168,7 @@ cd guest-reco
 
 ---
 
-### Step 2: Configure Environment Variables (Optional but Recommended)
+### Step 2: Configure Environment Variables (Required)
 
 Create a `.env` file from the example:
 
@@ -187,27 +187,35 @@ copy .env.example .env
 Copy-Item .env.example .env
 ```
 
-Now open `.env` in any text editor and configure:
+Now open `.env` in any text editor and fill in the **required** values:
 
 ```env
-# Leave blank to auto-generate (will be printed in docker logs)
-JWT_SECRET=
-CAMERA_API_KEY=
+# Database
+DB_USER=securesight
+DB_PASSWORD=your-strong-db-password
 
-# Admin login password (default: securesight2026)
-ADMIN_PASSWORD=securesight2026
+# Auth
+ADMIN_PASSWORD=your-admin-password
+JWT_SECRET=your-secret-at-least-32-bytes-long
+CAMERA_API_KEY=your-camera-api-key
 
-# Add your machine's LAN IP for camera access from other devices (see Step 5)
-# CORS_ORIGINS=
+# MySQL root password (used by docker-compose only)
+MYSQL_ROOT_PASSWORD=your-mysql-root-password
 ```
 
-> **If you skip this step**, the system will still work. `JWT_SECRET` and `CAMERA_API_KEY` will be auto-generated and printed in the backend logs. The default admin password is `securesight2026`.
+You can generate secure random values with:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+> **Important:** The app will **not start** if any required variable is missing or if `JWT_SECRET` is shorter than 32 bytes. See `.env.example` for all available options.
 
 ---
 
 ### Step 3: Build and Start
 
-This single command builds all three services (backend, frontend, MediaMTX) and starts them:
+This single command builds all services (MySQL, backend, frontend, MediaMTX) and starts them:
 
 **All platforms:**
 ```bash
@@ -230,10 +238,11 @@ Subsequent builds are much faster due to Docker layer caching.
 docker compose ps
 ```
 
-You should see three containers with status `Up` or `Up (healthy)`:
+You should see four containers with status `Up` or `Up (healthy)`:
 
 ```
 NAME                   STATUS
+securesight_mysql      Up (healthy)
 securesight_api        Up (healthy)
 securesight_web        Up
 securesight_mediamtx   Up
@@ -249,8 +258,26 @@ docker compose logs backend
 
 Look for:
 - `"Model already cached"` or model loaded successfully
-- The auto-generated `CAMERA_API_KEY` if you didn't set one in `.env` — **copy this, you'll need it for camera stations**
+- `CAMERA_API_KEY` value confirmation — **copy this, you'll need it for camera stations**
 - `Uvicorn running on http://0.0.0.0:5001`
+
+---
+
+### Quick Start Scripts
+
+Instead of running `docker compose up -d` directly, you can use the start scripts to launch the app and see your access URLs printed automatically:
+
+**macOS / Linux:**
+```bash
+./start.sh
+```
+
+**Windows:**
+```cmd
+start.bat
+```
+
+These scripts start all containers and print the HTTP/HTTPS URLs with your machine's LAN IP, so you know exactly where to access SecureSight from other devices.
 
 ---
 
@@ -270,7 +297,7 @@ Once all containers are running:
 | Field | Value |
 |-------|-------|
 | Username | `admin` |
-| Password | `securesight2026` (or whatever you set in `.env`) |
+| Password | Whatever you set as `ADMIN_PASSWORD` in `.env` |
 
 > **Browser SSL warning:** You will see a "Your connection is not private" warning because the SSL certificate is self-signed. This is expected and safe for LAN use.
 >
@@ -339,7 +366,53 @@ You will see the SSL warning again on the other device — click through it the 
 
 ---
 
-### Step 6: Set Up Camera Stations
+### Step 6: Windows Firewall Setup
+
+If you're running SecureSight on Windows and other devices on your network can't connect, you need to allow the ports through Windows Firewall.
+
+#### Add firewall rules (Admin PowerShell required)
+
+```powershell
+New-NetFirewallRule -DisplayName "SecureSight Web HTTP" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow -Profile Any
+New-NetFirewallRule -DisplayName "SecureSight Web HTTPS" -Direction Inbound -LocalPort 3443 -Protocol TCP -Action Allow -Profile Any
+New-NetFirewallRule -DisplayName "SecureSight API" -Direction Inbound -LocalPort 5001 -Protocol TCP -Action Allow -Profile Any
+New-NetFirewallRule -DisplayName "SecureSight WebRTC" -Direction Inbound -LocalPort 8889 -Protocol TCP -Action Allow -Profile Any
+```
+
+#### Verify rules are active
+
+```powershell
+Get-NetFirewallRule -DisplayName "SecureSight*" | Format-Table DisplayName, Enabled, Action
+```
+
+#### Remove rules (when no longer needed)
+
+```powershell
+Remove-NetFirewallRule -DisplayName "SecureSight Web HTTP"
+Remove-NetFirewallRule -DisplayName "SecureSight Web HTTPS"
+Remove-NetFirewallRule -DisplayName "SecureSight API"
+Remove-NetFirewallRule -DisplayName "SecureSight WebRTC"
+```
+
+#### Check your network profile
+
+If firewall rules are in place but other devices still can't connect, your network may be set to "Public" (which blocks most inbound traffic). Check with:
+
+```powershell
+Get-NetConnectionProfile | Format-Table Name, InterfaceAlias, NetworkCategory
+```
+
+If it shows `Public`, change it to `Private` (Admin PowerShell required):
+
+```powershell
+Set-NetConnectionProfile -InterfaceAlias "Wi-Fi" -NetworkCategory Private
+```
+
+> **Note:** All commands that create, remove, or modify rules/profiles require an **Administrator PowerShell**. The `Get-` commands work without admin.
+
+---
+
+### Step 7: Set Up Camera Stations
 
 Camera stations are tablets, laptops, or any device with a webcam that will be placed in each department for scanning.
 
@@ -395,6 +468,48 @@ google-chrome --kiosk "https://192.168.1.100:3443/camera/engineering?key=YOUR_KE
 
 ---
 
+### Manual Model Download (If Auto-Download Fails)
+
+The backend automatically downloads the **antelopev2** face recognition model (~350MB) on first startup. If the download times out or fails (e.g. slow internet, GitHub rate limits), you can download it manually.
+
+**1. Download the model ZIP:**
+
+Download from: `https://github.com/deepinsight/insightface/releases/download/v0.7/antelopev2.zip`
+
+**2. Extract the ZIP.** It should contain these 4 `.onnx` files:
+
+```
+antelopev2/
+├── 1k3d68.onnx
+├── 2d106det.onnx
+├── genderage.onnx
+└── scrfd_10g_bnkps.onnx
+```
+
+**3. Copy into the Docker container's model volume:**
+
+First, make sure the containers are running (`docker compose up -d`), then:
+
+**macOS / Linux:**
+```bash
+docker exec securesight_api mkdir -p /root/.insightface/models/antelopev2
+docker cp ./antelopev2/. securesight_api:/root/.insightface/models/antelopev2/
+docker compose restart backend
+```
+
+**Windows (Command Prompt / PowerShell):**
+```cmd
+docker exec securesight_api mkdir -p /root/.insightface/models/antelopev2
+docker cp antelopev2\. securesight_api:/root/.insightface/models/antelopev2/
+docker compose restart backend
+```
+
+The model is stored in the `model-cache` Docker volume, so it persists across container restarts and rebuilds. You only need to do this once.
+
+> **Verify the model loaded:** Run `docker compose logs backend` and look for `"Model already cached"`.
+
+---
+
 ### Common Docker Commands
 
 | Command | What it does |
@@ -428,7 +543,7 @@ docker compose down -v
 docker compose up --build -d
 ```
 
-> **Warning:** `docker compose down -v` deletes all Docker volumes, which means all your registered employees, visitors, and scan history will be permanently lost.
+> **Warning:** `docker compose down -v` deletes all Docker volumes, including the MySQL database. All registered employees, visitors, and scan history will be permanently lost.
 
 ---
 
@@ -452,19 +567,13 @@ Your data is safe — it's stored in Docker volumes that persist across rebuilds
 **macOS / Linux:**
 ```bash
 mkdir -p backup
-docker cp securesight_api:/app/data/recognition.db ./backup/recognition-$(date +%Y%m%d).db
-```
-
-**Windows (Command Prompt):**
-```cmd
-mkdir backup
-docker cp securesight_api:/app/data/recognition.db ./backup/recognition.db
+docker exec securesight_mysql mysqldump -u root -p"${MYSQL_ROOT_PASSWORD}" securesight > ./backup/securesight-$(date +%Y%m%d).sql
 ```
 
 **Windows (PowerShell):**
 ```powershell
 New-Item -ItemType Directory -Force -Path backup
-docker cp securesight_api:/app/data/recognition.db ./backup/recognition-$(Get-Date -Format yyyyMMdd).db
+docker exec securesight_mysql mysqldump -u root -p"$env:MYSQL_ROOT_PASSWORD" securesight > ./backup/securesight-$(Get-Date -Format yyyyMMdd).sql
 ```
 
 #### Backup avatar images
@@ -477,7 +586,7 @@ docker cp securesight_api:/app/avatars ./backup/avatars
 
 ```bash
 docker compose stop backend
-docker cp ./backup/recognition.db securesight_api:/app/data/recognition.db
+docker exec -i securesight_mysql mysql -u root -p"${MYSQL_ROOT_PASSWORD}" securesight < ./backup/securesight-YYYYMMDD.sql
 docker cp ./backup/avatars/. securesight_api:/app/avatars/
 docker compose start backend
 ```
@@ -579,15 +688,15 @@ Runs on `https://localhost:3000` (self-signed SSL via `@vitejs/plugin-basic-ssl`
 
 ---
 
-## Default Credentials
+## Credentials
 
-| What | Value |
+| What | Where |
 |------|-------|
-| Admin username | `admin` |
-| Admin password | `securesight2026` |
-| Camera API key | Auto-generated, printed in backend console on startup |
+| Admin username | `ADMIN_USERNAME` in `.env` (default: `admin`) |
+| Admin password | `ADMIN_PASSWORD` in `.env` (required, no default) |
+| Camera API key | `CAMERA_API_KEY` in `.env` (required, no default) |
 
-Change these in the `.env` file at the project root. See `.env.example` for all options.
+All sensitive credentials must be set in the `.env` file. See `.env.example` for all options.
 
 ## Project Structure
 
@@ -598,7 +707,7 @@ guest-reco/
 │   ├── auth.py             # JWT + API key authentication
 │   ├── config.py           # Environment config loader
 │   ├── database/           # Database package (6 modules)
-│   │   ├── connection.py   # Thread-local SQLite, schema init
+│   │   ├── connection.py   # MySQL connection pool, schema init
 │   │   ├── users.py        # User CRUD, multi-embedding management
 │   │   ├── access_logs.py  # Logging, stats, attendance, search, auto-clock-out
 │   │   ├── cameras.py      # Camera CRUD, heartbeat, per-camera data
@@ -624,8 +733,10 @@ guest-reco/
 │   ├── Dockerfile          # Multi-stage build (Node -> nginx + SSL)
 │   └── .dockerignore
 ├── mediamtx.yml            # MediaMTX config (WebRTC ports, ICE servers)
-├── docker-compose.yml      # Full stack: backend + frontend + MediaMTX
+├── docker-compose.yml      # Full stack: MySQL + backend + frontend + MediaMTX
 ├── .env.example            # Environment variable template
+├── start.sh                # macOS/Linux start script (prints LAN URLs)
+├── start.bat               # Windows start script (prints LAN URLs)
 └── README.md
 ```
 
@@ -679,17 +790,22 @@ Full interactive API docs available at `http://localhost:5001/docs` when the bac
 
 ### All settings (`.env` in project root)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `5001` | API server port |
-| `HOST` | `0.0.0.0` | Server bind address |
-| `DB_PATH` | `recognition.db` | SQLite database file path |
-| `ADMIN_USERNAME` | `admin` | Admin login username |
-| `ADMIN_PASSWORD` | `securesight2026` | Admin login password |
-| `JWT_SECRET` | (auto-generated) | JWT signing key (set for production) |
-| `JWT_EXPIRY_HOURS` | `24` | JWT token lifetime |
-| `CAMERA_API_KEY` | (auto-generated) | API key for camera stations |
-| `CORS_ORIGINS` | `https://localhost:3000` | Allowed CORS origins (comma-separated) |
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `PORT` | `5001` | No | API server port |
+| `HOST` | `0.0.0.0` | No | Server bind address |
+| `DB_HOST` | `mysql` | No | MySQL host |
+| `DB_PORT` | `3306` | No | MySQL port |
+| `DB_USER` | — | **Yes** | MySQL username |
+| `DB_PASSWORD` | — | **Yes** | MySQL password |
+| `DB_NAME` | `securesight` | No | MySQL database name |
+| `ADMIN_USERNAME` | `admin` | No | Admin login username |
+| `ADMIN_PASSWORD` | — | **Yes** | Admin login password |
+| `JWT_SECRET` | — | **Yes** | JWT signing key (min 32 bytes) |
+| `JWT_EXPIRY_HOURS` | `24` | No | JWT token lifetime |
+| `CAMERA_API_KEY` | — | **Yes** | API key for camera stations |
+| `MYSQL_ROOT_PASSWORD` | — | **Yes** | MySQL root password (docker-compose only) |
+| `CORS_ORIGINS` | `*` | No | Allowed CORS origins (comma-separated) |
 
 ### Frontend
 
