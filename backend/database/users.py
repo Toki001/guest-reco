@@ -103,8 +103,8 @@ def get_users_with_last_seen(role=None):
     conn = get_connection()
     role_filter = ""
     params = []
-    if role and role != "all":
-        role_filter = "WHERE u.role = ?"
+    if role and role.lower() != "all":
+        role_filter = "WHERE u.role COLLATE NOCASE = ?"
         params = [role]
     rows = conn.execute(f"""
         SELECT u.id, u.name, u.image_path, u.role,

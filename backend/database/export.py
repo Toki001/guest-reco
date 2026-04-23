@@ -7,7 +7,7 @@ def export_attendance(date_from=None, date_to=None, camera_id=None, role=None, u
     if date_from: conditions.append("a.timestamp >= ?"); params.append(date_from)
     if date_to: conditions.append("a.timestamp <= ?"); params.append(date_to)
     if camera_id: conditions.append("a.camera_id = ?"); params.append(camera_id)
-    if role and role != "all": conditions.append("u.role = ?"); params.append(role)
+    if role and role.lower() != "all": conditions.append("u.role COLLATE NOCASE = ?"); params.append(role)
     if user_id: conditions.append("(a.user_id = ? OR u.name LIKE ?)"); params.extend([user_id, f"%{user_id}%"])
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     rows = conn.execute(f"""

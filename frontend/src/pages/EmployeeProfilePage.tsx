@@ -30,6 +30,10 @@ function EmployeeProfilePage() {
   const [attendance, setAttendance] = useState<AttendanceSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -87,6 +91,32 @@ function EmployeeProfilePage() {
       }
     };
     input.click();
+  };
+
+  const startEditing = () => {
+    if (!profile) return;
+    setEditName(profile.name);
+    setEditRole(profile.role);
+    setEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!id || !profile) return;
+    setSaving(true);
+    const formData = new FormData();
+    formData.append('name', editName);
+    formData.append('role', editRole);
+    try {
+      const res = await authFetch(`/api/employees/${encodeURIComponent(id)}`, { method: 'PUT', body: formData });
+      if (res.ok) {
+        setProfile(prev => prev ? { ...prev, name: editName, role: editRole } : prev);
+        setEditing(false);
+      }
+    } catch (e) {
+      console.error('Failed to save:', e);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getImageUrl = (url: string | null) => {
@@ -166,11 +196,25 @@ function EmployeeProfilePage() {
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-1">
-              <h2 className="text-2xl font-bold text-[var(--text-primary)]">{profile.name}</h2>
-              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                profile.role === 'Guest' ? 'bg-amber-500/15 text-amber-400 '
-                  : 'bg-blue-500/15 text-blue-400'
-              }`}>{profile.role}</span>
+              {editing ? (
+                <>
+                  <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                    className="text-2xl font-bold text-[var(--text-primary)] bg-transparent border-b-2 border-[var(--accent)] outline-none w-auto min-w-[120px]" autoFocus />
+                  <select value={editRole} onChange={e => setEditRole(e.target.value)}
+                    className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-primary)] outline-none">
+                    <option value="Employee">Employee</option>
+                    <option value="Guest">Guest</option>
+                  </select>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-2xl font-bold text-[var(--text-primary)]">{profile.name}</h2>
+                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                    profile.role === 'Guest' ? 'bg-amber-500/15 text-amber-400 '
+                      : 'bg-blue-500/15 text-blue-400'
+                  }`}>{profile.role}</span>
+                </>
+              )}
             </div>
             <p className="text-sm text-slate-400 font-mono mb-3">{profile.id}</p>
 
@@ -204,15 +248,37 @@ function EmployeeProfilePage() {
 
           {/* Action buttons */}
           <div className="flex gap-2 shrink-0">
-            <button onClick={handleReface} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Re-capture face">
-              <span className="material-symbols-outlined text-lg">photo_camera</span>
-              Re-face
-            </button>
-            <button onClick={handleDelete} disabled={deleting}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50" title="Delete employee">
-              <span className="material-symbols-outlined text-lg">{deleting ? 'hourglass_empty' : 'delete'}</span>
-              Delete
-            </button>
+            {editing ? (
+              <>
+                <button onClick={handleSaveEdit} disabled={saving}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors disabled:opacity-50" title="Save changes">
+                  <span className="material-symbols-outlined text-lg">{saving ? 'hourglass_empty' : 'check'}</span>
+                  Save
+                </button>
+                <button onClick={() => setEditing(false)}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[var(--text-muted)] hover:bg-white/[0.06] rounded-lg transition-colors" title="Cancel">
+                  <span className="material-symbols-outlined text-lg">close</span>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={startEditing}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10 rounded-lg transition-colors" title="Edit details">
+                  <span className="material-symbols-outlined text-lg">edit</span>
+                  Edit
+                </button>
+                <button onClick={handleReface} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Re-capture face">
+                  <span className="material-symbols-outlined text-lg">photo_camera</span>
+                  Re-face
+                </button>
+                <button onClick={handleDelete} disabled={deleting}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50" title="Delete employee">
+                  <span className="material-symbols-outlined text-lg">{deleting ? 'hourglass_empty' : 'delete'}</span>
+                  Delete
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

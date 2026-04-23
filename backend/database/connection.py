@@ -72,5 +72,20 @@ def init_db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_camera ON access_logs(camera_id, timestamp DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_status ON access_logs(user_id, status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            location TEXT,
+            start_date TEXT NOT NULL,
+            end_date TEXT,
+            start_time TEXT,
+            end_time TEXT,
+            category TEXT DEFAULT 'General',
+            created_at TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_events_start_date ON events(start_date)")
     conn.commit()
     logger.info("SQLite Database Initialized")

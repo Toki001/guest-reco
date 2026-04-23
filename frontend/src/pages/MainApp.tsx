@@ -11,6 +11,7 @@ import { CommandPalette } from '../components/CommandPalette';
 const EmployeeProfilePage = lazy(() => import('./EmployeeProfilePage'));
 const AttendancePage = lazy(() => import('./AttendancePage'));
 const VisitorsPage = lazy(() => import('./VisitorsPage'));
+const EventsPage = lazy(() => import('./EventsPage'));
 const HistoryPage = lazy(() => import('./HistoryPage'));
 const AnalyticsPage = lazy(() => import('./AnalyticsPage'));
 
@@ -73,6 +74,7 @@ function MainApp() {
               <Route path="employees/:id" element={<Suspense fallback={SuspenseFallback}><EmployeeProfilePage /></Suspense>} />
               <Route path="visitors" element={<Suspense fallback={SuspenseFallback}><VisitorsPage /></Suspense>} />
               <Route path="attendance" element={<Suspense fallback={SuspenseFallback}><AttendancePage /></Suspense>} />
+              <Route path="events" element={<Suspense fallback={SuspenseFallback}><EventsPage /></Suspense>} />
               <Route path="history" element={<Suspense fallback={SuspenseFallback}><HistoryPage /></Suspense>} />
               <Route path="analytics" element={<Suspense fallback={SuspenseFallback}><AnalyticsPage /></Suspense>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -4,8 +4,9 @@ python-multipart
 python-dotenv
 insightface==0.7.3
 onnxruntime==1.17.1
-numpy
+numpy<2
 Pillow
 websockets
 PyJWT
 bcrypt
+openpyxl

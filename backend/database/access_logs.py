@@ -204,7 +204,7 @@ def get_user_attendance(user_id, limit=100):
 
 def get_visitors_aggregated(page=1, per_page=50, date_from=None, date_to=None, search=None):
     conn = get_connection()
-    conditions, params = ["u.role = 'Guest'"], []
+    conditions, params = ["u.role COLLATE NOCASE = 'Guest'"], []
     if date_from: conditions.append("a.timestamp >= ?"); params.append(date_from)
     if date_to: conditions.append("a.timestamp <= ?"); params.append(date_to)
     if search: conditions.append("(u.name LIKE ? OR u.id LIKE ?)"); params.extend([f"%{search}%", f"%{search}%"])

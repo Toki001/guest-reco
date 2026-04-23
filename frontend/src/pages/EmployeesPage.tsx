@@ -21,7 +21,6 @@ function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('All');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -45,11 +44,9 @@ function EmployeesPage() {
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
 
   const filtered = employees.filter(emp => {
-    const matchesSearch = !search ||
-      emp.name.toLowerCase().includes(search.toLowerCase()) ||
-      emp.id.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = roleFilter === 'All' || emp.role === roleFilter;
-    return matchesSearch && matchesRole;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return emp.name.toLowerCase().includes(q) || emp.id.toLowerCase().includes(q);
   });
 
   const handleEdit = (emp: Employee) => {
@@ -137,14 +134,6 @@ function EmployeesPage() {
           <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
             className="w-full h-9 pl-9 pr-3 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] bg-[var(--glass-bg)] border border-[var(--glass-border)]" />
         </div>
-        <div className="glass-card flex items-center h-9 rounded-xl overflow-hidden">
-          {['All', 'Employee', 'Guest'].map(r => (
-            <button key={r} onClick={() => setRoleFilter(r)}
-              className={`px-3 h-full rounded-lg text-[11px] font-semibold transition-all flex items-center ${roleFilter === r ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
-              {r === 'All' ? 'All Roles' : r}
-            </button>
-          ))}
-        </div>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setShowAddModal(true)}
             className="flex items-center gap-1.5 px-3.5 h-9 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-semibold text-xs transition-colors">
@@ -163,7 +152,7 @@ function EmployeesPage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <span className="material-symbols-outlined text-5xl text-slate-300 mb-3 block">group_off</span>
-            <p className="text-slate-400">{search || roleFilter !== 'All' ? 'No matching employees found.' : 'No employees registered yet.'}</p>
+            <p className="text-slate-400">{search ? 'No matching employees found.' : 'No employees registered yet.'}</p>
           </div>
         </div>
       ) : (

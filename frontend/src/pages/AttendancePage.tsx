@@ -24,6 +24,21 @@ interface InactiveUser {
   last_status: string | null;
 }
 
+interface EventInfo {
+  id: number;
+  title: string;
+  start_date: string;
+  end_date: string;
+  category: string;
+  location: string;
+}
+
+interface CameraInfo {
+  camera_id: string;
+  department: string;
+  is_online: number;
+}
+
 function AttendancePage() {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [inactiveUsers, setInactiveUsers] = useState<InactiveUser[]>([]);
@@ -34,6 +49,10 @@ function AttendancePage() {
   const [search, setSearch] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const [todayEvents, setTodayEvents] = useState<EventInfo[]>([]);
+  const [allEvents, setAllEvents] = useState<EventInfo[]>([]);
+  const [showEventBanner, setShowEventBanner] = useState(true);
+  const [cameras, setCameras] = useState<CameraInfo[]>([]);
 
   const fetchActive = useCallback(async () => {
     try {
@@ -60,6 +79,32 @@ function AttendancePage() {
   useEffect(() => { fetchActive(); fetchInactive(); }, [fetchActive, fetchInactive]);
 
   useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const res = await authFetch('/api/events');
+        if (res.ok) {
+          const all: EventInfo[] = await res.json();
+          setAllEvents(all);
+          const today = new Date();
+          const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+          setTodayEvents(all.filter(ev => todayStr >= ev.start_date && todayStr <= (ev.end_date || ev.start_date)));
+        }
+      } catch {}
+    };
+    fetchEvents();
+  }, []);
+
+  useEffect(() => {
+    const fetchCameras = async () => {
+      try {
+        const res = await authFetch('/api/cameras');
+        if (res.ok) setCameras(await res.json());
+      } catch {}
+    };
+    fetchCameras();
+  }, []);
+
+  useEffect(() => {
     const ws = new WebSocket(getAuthWsUrl('/ws/dashboard'));
     wsRef.current = ws;
     ws.onmessage = (event) => {
@@ -83,11 +128,27 @@ function AttendancePage() {
     try { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch { return ts; }
   };
 
-  const applyFilters = <T extends { name: string; id: string; role: string }>(list: T[]) => {
+  const getCameraDept = (cameraId: string | null) => {
+    if (!cameraId) return '';
+    const cam = cameras.find(c => c.camera_id === cameraId);
+    return cam?.department || cameraId;
+  };
+
+  const applyFilters = <T extends { name: string; id: string; role: string; camera_id: string | null }>(list: T[]) => {
     let filtered = roleFilter === 'all' ? list : list.filter(u => u.role === roleFilter);
     if (search) {
       const q = search.toLowerCase();
-      filtered = filtered.filter(u => u.name.toLowerCase().includes(q) || u.id.toLowerCase().includes(q));
+      filtered = filtered.filter(u =>
+        u.name.toLowerCase().includes(q) ||
+        u.id.toLowerCase().includes(q) ||
+        (u.camera_id && u.camera_id.toLowerCase().includes(q)) ||
+        getCameraDept(u.camera_id).toLowerCase().includes(q) ||
+        todayEvents.some(ev =>
+          ev.title.toLowerCase().includes(q) ||
+          ev.location.toLowerCase().includes(q) ||
+          ev.category.toLowerCase().includes(q)
+        )
+      );
     }
     return filtered;
   };
@@ -95,24 +156,66 @@ function AttendancePage() {
   const filteredActive = applyFilters(activeUsers);
   const filteredInactive = applyFilters(inactiveUsers);
 
+  const exportFilteredCsv = (label: string, list: Array<ActiveUser | InactiveUser>) => {
+    const isIn = activeTab === 'in';
+    const headers = ['ID', 'Name', 'Role', isIn ? 'Clocked In' : 'Last Seen', 'Camera', 'Department', 'Status'];
+    const rows = list.map(u => [
+      u.id,
+      u.name,
+      u.role,
+      isIn ? (u as ActiveUser).clock_in_time || '' : (u as InactiveUser).last_seen || '',
+      u.camera_id || '',
+      getCameraDept(u.camera_id),
+      isIn ? 'IN' : ((u as InactiveUser).last_status === 'out' ? 'OUT' : 'N/A'),
+    ]);
+    const csvContent = [headers, ...rows].map(row =>
+      row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_${label.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col w-full pb-10 page-enter">
+      {/* Today's Events Banner */}
+      {todayEvents.length > 0 && showEventBanner && (
+        <div className="glass-card rounded-xl px-4 py-3 mb-4 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[var(--accent)] text-lg shrink-0">event</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-[var(--text-primary)]">
+              {todayEvents.length} event{todayEvents.length !== 1 ? 's' : ''} today
+            </p>
+            <p className="text-[10px] text-[var(--text-muted)] truncate">
+              {todayEvents.map(ev => ev.title).join(' · ')}
+            </p>
+          </div>
+          <button onClick={() => setShowEventBanner(false)} className="p-1 hover:bg-white/10 rounded-lg transition-colors shrink-0">
+            <span className="material-symbols-outlined text-[var(--text-muted)] text-sm">close</span>
+          </button>
+        </div>
+      )}
+
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-2.5 mb-5">
         <div className="relative flex-1 min-w-[180px] max-w-sm">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] text-base z-10 pointer-events-none">search</span>
-          <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
+          <input type="text" placeholder="Search name, ID, camera, department, event..." value={search} onChange={e => setSearch(e.target.value)}
             className="w-full h-9 pl-9 pr-3 rounded-xl text-xs outline-none focus:ring-1 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] bg-[var(--glass-bg)] border border-[var(--glass-border)]" />
         </div>
         <div className="glass-card flex items-center h-9 rounded-xl overflow-hidden">
           <button onClick={() => setActiveTab('in')}
-            className={`flex items-center gap-1.5 px-3 h-full rounded-lg text-[11px] font-semibold transition-all flex items-center ${activeTab === 'in' ? 'bg-emerald-500 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+            className={`flex items-center gap-1.5 px-3 h-full rounded-lg text-[11px] font-semibold transition-all ${activeTab === 'in' ? 'bg-emerald-500 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
             <span className="material-symbols-outlined text-sm">login</span>
             In
             <span className={`px-1 py-0.5 rounded text-[9px] ${activeTab === 'in' ? 'bg-white/20' : 'bg-white/[0.06]'}`}>{filteredActive.length}</span>
           </button>
           <button onClick={() => setActiveTab('out')}
-            className={`flex items-center gap-1.5 px-3 h-full rounded-lg text-[11px] font-semibold transition-all flex items-center ${activeTab === 'out' ? 'bg-red-500 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
+            className={`flex items-center gap-1.5 px-3 h-full rounded-lg text-[11px] font-semibold transition-all ${activeTab === 'out' ? 'bg-red-500 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}>
             <span className="material-symbols-outlined text-sm">logout</span>
             Out
             <span className={`px-1 py-0.5 rounded text-[9px] ${activeTab === 'out' ? 'bg-white/20' : 'bg-white/[0.06]'}`}>{filteredInactive.length}</span>
@@ -137,14 +240,49 @@ function AttendancePage() {
             {showExportMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
-                <div className="absolute right-0 top-full mt-1 z-50 rounded-xl overflow-hidden py-1 min-w-[160px]"
+                <div className="absolute right-0 top-full mt-1 z-50 rounded-xl overflow-hidden py-1 min-w-[220px] max-h-[70vh] overflow-y-auto glass-scrollbar"
                   style={{ background: 'var(--modal-bg)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)', boxShadow: '0 12px 32px rgba(0,0,0,0.2)' }}>
+
+                  {/* Current view */}
+                  <button onClick={() => { exportFilteredCsv(`current_view_${activeTab}`, activeTab === 'in' ? filteredActive : filteredInactive); setShowExportMenu(false); }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors text-left">
+                    <span className="material-symbols-outlined text-sm">visibility</span>
+                    Current View
+                    <span className="text-[9px] text-[var(--text-muted)] ml-auto">{activeTab === 'in' ? filteredActive.length : filteredInactive.length}</span>
+                  </button>
+
+                  <div className="h-px bg-[var(--glass-border)] my-1" />
+
+                  {/* Server-side full exports */}
                   {[{ label: 'All Records', role: 'all', icon: 'groups' }, { label: 'Employees Only', role: 'Employee', icon: 'badge' }, { label: 'Guests Only', role: 'Guest', icon: 'person_search' }].map(opt => (
                     <button key={opt.role} onClick={() => { downloadCsv(`/api/export/attendance${opt.role !== 'all' ? `?role=${opt.role}` : ''}`, `attendance_${opt.role.toLowerCase()}.csv`); setShowExportMenu(false); }}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors text-left">
                       <span className="material-symbols-outlined text-sm">{opt.icon}</span>{opt.label}
                     </button>
                   ))}
+
+                  {/* Per-event exports */}
+                  {allEvents.length > 0 && (
+                    <>
+                      <div className="h-px bg-[var(--glass-border)] my-1" />
+                      <div className="px-4 py-1.5">
+                        <span className="text-[9px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">By Event</span>
+                      </div>
+                      {allEvents.map(ev => (
+                        <button key={ev.id} onClick={() => {
+                          const dateFrom = ev.start_date;
+                          const dateTo = ev.end_date || ev.start_date;
+                          downloadCsv(`/api/export/attendance?date_from=${dateFrom}&date_to=${dateTo}T23:59:59`, `attendance_${ev.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)}.csv`);
+                          setShowExportMenu(false);
+                        }}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition-colors text-left">
+                          <span className="material-symbols-outlined text-sm">event</span>
+                          <span className="truncate flex-1">{ev.title}</span>
+                          <span className="text-[9px] text-[var(--text-muted)] shrink-0">{ev.start_date}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -207,7 +345,9 @@ function AttendancePage() {
                         <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${user.role === 'Guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'}`}>{user.role}</span>
                       </td>
                       <td className="px-5 py-3 text-[11px] font-mono text-[var(--text-muted)]">{formatTime(user.clock_in_time)}</td>
-                      <td className="px-5 py-3 text-xs text-[var(--text-muted)] capitalize">{user.camera_id?.replace(/-/g, ' ') || '—'}</td>
+                      <td className="px-5 py-3 text-xs text-[var(--text-muted)]">
+                        <span className="capitalize">{getCameraDept(user.camera_id) || '—'}</span>
+                      </td>
                       <td className="px-5 py-3">
                         <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20">IN</span>
                       </td>
@@ -274,7 +414,9 @@ function AttendancePage() {
                         <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${user.role === 'Guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'}`}>{user.role}</span>
                       </td>
                       <td className="px-5 py-3 text-[11px] font-mono text-[var(--text-muted)]">{formatTime(user.last_seen)}</td>
-                      <td className="px-5 py-3 text-xs text-[var(--text-muted)] capitalize">{user.camera_id?.replace(/-/g, ' ') || '—'}</td>
+                      <td className="px-5 py-3 text-xs text-[var(--text-muted)]">
+                        <span className="capitalize">{getCameraDept(user.camera_id) || '—'}</span>
+                      </td>
                       <td className="px-5 py-3">
                         <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ring-1 ${
                           user.last_status === 'out' ? 'bg-red-500/15 text-red-400 ring-red-500/20' : 'bg-white/[0.06] text-[var(--text-muted)] ring-[var(--glass-border)]'

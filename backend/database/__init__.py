@@ -22,6 +22,10 @@ from database.cameras import (
     get_faces_by_camera, get_camera_stats, get_camera_activity,
 )
 from database.export import export_attendance, export_visitors
+from database.events import (
+    get_all_events, get_event_by_id, create_event, update_event,
+    delete_event, bulk_insert_events,
+)
 
 # Initialize schema on import, then clean up stale clock-ins
 init_db()

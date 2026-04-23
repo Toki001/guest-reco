@@ -17,8 +17,16 @@ interface BatchEntry {
   message?: string;
 }
 
+interface FileRow {
+  employee_id: string;
+  name: string;
+  role: string;
+  status: 'pending' | 'created' | 'skipped';
+  reason?: string;
+}
+
 export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModalProps) {
-  const [tab, setTab] = useState<'single' | 'batch'>('single');
+  const [tab, setTab] = useState<'single' | 'batch' | 'file'>('single');
 
   // ─── Single registration state ────────────────────────
   const [employeeId, setEmployeeId] = useState('');
@@ -35,10 +43,21 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // ─── Batch state ──────────────────────────────────────
+  // ─── Batch photo state ────────────────────────────────
   const [batchEntries, setBatchEntries] = useState<BatchEntry[]>([]);
   const [batchUploading, setBatchUploading] = useState(false);
   const batchFileRef = useRef<HTMLInputElement>(null);
+
+  // ─── File import state ────────────────────────────────
+  const [fileUploading, setFileUploading] = useState(false);
+  const [fileStatus, setFileStatus] = useState('');
+  const [fileRows, setFileRows] = useState<FileRow[]>([]);
+  const [fileStep, setFileStep] = useState<'upload' | 'preview' | 'done'>('upload');
+  const [editingFileRow, setEditingFileRow] = useState<number | null>(null);
+  const csvFileRef = useRef<HTMLInputElement>(null);
+  const imageFilesRef = useRef<HTMLInputElement>(null);
+  const [rawFileData, setRawFileData] = useState<File | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
 
   const startCamera = async () => {
     try {
@@ -126,7 +145,7 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
     }
   };
 
-  // ─── Batch handlers ───────────────────────────────────
+  // ─── Batch photo handlers ─────────────────────────────
   const handleBatchFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -185,10 +204,95 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
     onSuccess();
   };
 
+  // ─── File import handlers ─────────────────────────────
+  const handleFileParse = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setRawFileData(file);
+    setFileUploading(true);
+    setFileStatus('');
+    setFileRows([]);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await authFetch('/api/employees/batch-upload/preview', { method: 'POST', body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        setFileRows((data.rows || []).map((r: any) => ({ ...r, status: 'pending' as const })));
+        setFileStep('preview');
+      } else {
+        const res2 = await authFetch('/api/employees/batch-upload', { method: 'POST', body: formData });
+        const data = await res2.json();
+        if (res2.ok) {
+          setFileRows((data.results || []).map((r: any) => ({
+            employee_id: r.employee_id || '',
+            name: r.name || '',
+            role: r.role || 'Employee',
+            status: r.status === 'created' ? 'created' as const : 'skipped' as const,
+            reason: r.reason,
+          })));
+          setFileStep('done');
+          setFileStatus(`success: ${data.message}`);
+          onSuccess();
+        } else {
+          setFileStatus(`error: ${data.detail}`);
+        }
+      }
+    } catch {
+      setFileStatus('error: Network error');
+    } finally {
+      setFileUploading(false);
+      if (csvFileRef.current) csvFileRef.current.value = '';
+    }
+  };
+
+  const handleFileConfirm = async () => {
+    if (!rawFileData) return;
+    setFileUploading(true);
+    const formData = new FormData();
+    formData.append('file', rawFileData);
+    for (const img of imageFiles) {
+      formData.append('images', img);
+    }
+    try {
+      const res = await authFetch('/api/employees/batch-upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (res.ok) {
+        setFileRows((data.results || []).map((r: any) => ({
+          employee_id: r.employee_id || '',
+          name: r.name || '',
+          role: r.role || 'Employee',
+          status: r.status === 'created' ? 'created' as const : 'skipped' as const,
+          reason: r.reason,
+        })));
+        setFileStep('done');
+        setFileStatus(`success: ${data.message}`);
+        onSuccess();
+      } else {
+        setFileStatus(`error: ${data.detail}`);
+      }
+    } catch {
+      setFileStatus('error: Network error');
+    } finally {
+      setFileUploading(false);
+    }
+  };
+
+  const resetFileImport = () => {
+    setFileRows([]);
+    setFileStatus('');
+    setFileStep('upload');
+    setRawFileData(null);
+    setEditingFileRow(null);
+    setImageFiles([]);
+  };
+
   const pendingCount = batchEntries.filter(e => e.status === 'pending' || e.status === 'error').length;
   const successCount = batchEntries.filter(e => e.status === 'success').length;
+  const fileCreated = fileRows.filter(r => r.status === 'created').length;
+  const fileSkipped = fileRows.filter(r => r.status === 'skipped').length;
 
-  // ─── Shared glass styles ──────────────────────────────
   const inputStyle: React.CSSProperties = {
     background: 'var(--modal-input-bg)',
     border: '1px solid var(--modal-input-border)',
@@ -199,7 +303,7 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
       <div
-        className="relative w-full max-w-lg mx-4 max-h-[90vh] flex flex-col rounded-2xl overflow-hidden page-enter"
+        className="relative w-full max-w-xl mx-4 max-h-[90vh] flex flex-col rounded-2xl overflow-hidden page-enter"
         style={{
           background: 'var(--modal-bg)',
           backdropFilter: 'blur(24px) saturate(1.3)',
@@ -219,17 +323,22 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
 
         {/* Tab switcher */}
         <div className="flex px-6 pt-4 gap-1">
-          {(['single', 'batch'] as const).map(t => (
+          {([
+            ['single', 'Single', 'person_add'],
+            ['batch', 'Batch Photos', 'photo_library'],
+            ['file', 'Import File', 'upload_file'],
+          ] as const).map(([t, label, icon]) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                 tab === t
                   ? 'bg-[var(--accent)] text-white shadow-md'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/[0.06]'
               }`}
             >
-              {t === 'single' ? 'Single' : 'Batch Upload'}
+              <span className="material-symbols-outlined text-sm">{icon}</span>
+              {label}
             </button>
           ))}
         </div>
@@ -331,7 +440,171 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
             </form>
           )}
 
-          {/* ─── BATCH TAB ───────────────────────── */}
+          {/* ─── FILE IMPORT TAB ────────────────── */}
+          {tab === 'file' && (
+            <div className="space-y-4">
+              {fileStep === 'upload' && (
+                <>
+                  <div className="rounded-xl p-3.5" style={{ background: 'rgba(46,163,242,0.08)', border: '1px solid rgba(46,163,242,0.15)' }}>
+                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                      Upload an <strong>Excel (.xlsx)</strong> or <strong>CSV</strong> file. Supported columns:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {['employee_id / id', 'name / full_name', 'role (optional)'].map(col => (
+                        <span key={col} className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-white/[0.08] text-[var(--text-secondary)]">{col}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button type="button" onClick={() => csvFileRef.current?.click()} disabled={fileUploading}
+                    className="w-full py-10 rounded-xl text-sm font-medium text-[var(--text-muted)] transition-all flex flex-col items-center gap-3 disabled:opacity-50 hover:bg-white/[0.03]"
+                    style={{ ...inputStyle, borderStyle: 'dashed' }}>
+                    {fileUploading ? (
+                      <div className="w-7 h-7 border-2 border-[var(--accent)]/30 border-t-[var(--accent)] rounded-full animate-spin" />
+                    ) : (
+                      <span className="material-symbols-outlined text-4xl opacity-30">description</span>
+                    )}
+                    <span>{fileUploading ? 'Reading file...' : 'Click to select file'}</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">.xlsx, .xls, or .csv</span>
+                  </button>
+                  <input type="file" accept=".xlsx,.xls,.csv" ref={csvFileRef} onChange={handleFileParse} className="hidden" />
+
+                  {fileStatus && fileStatus.startsWith('error') && (
+                    <div className="p-3 rounded-xl text-center text-sm font-medium bg-red-500/10 text-red-400 ring-1 ring-red-500/20">
+                      {fileStatus.substring(fileStatus.indexOf(':') + 1).trim()}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {fileStep === 'preview' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      <strong>{fileRows.length}</strong> employee{fileRows.length !== 1 ? 's' : ''} found — review before importing
+                    </p>
+                    <button onClick={resetFileImport} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                      Choose different file
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--glass-border)' }}>
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                          <th className="px-3 py-2 text-[9px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">ID</th>
+                          <th className="px-3 py-2 text-[9px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Name</th>
+                          <th className="px-3 py-2 text-[9px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Role</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--glass-border)]">
+                        {fileRows.slice(0, 50).map((row, i) => (
+                          <tr key={i} className="hover:bg-white/[0.03]">
+                            <td className="px-3 py-2 text-[11px] font-mono text-[var(--text-primary)]">{row.employee_id || <span className="text-red-400">missing</span>}</td>
+                            <td className="px-3 py-2 text-[11px] text-[var(--text-primary)]">{row.name || <span className="text-red-400">missing</span>}</td>
+                            <td className="px-3 py-2">
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${row.role === 'Guest' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'}`}>{row.role}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {fileRows.length > 50 && (
+                      <div className="px-3 py-2 text-[10px] text-[var(--text-muted)] text-center border-t border-[var(--glass-border)]">
+                        ...and {fileRows.length - 50} more
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Optional image upload */}
+                  <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm text-[var(--text-muted)]">photo_library</span>
+                        <span className="text-[11px] font-semibold text-[var(--text-secondary)]">Attach Photos (optional)</span>
+                      </div>
+                      {imageFiles.length > 0 && (
+                        <span className="text-[10px] text-emerald-400 font-mono">{imageFiles.length} photos</span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-[var(--text-muted)] mb-2">
+                      Upload face photos named by employee ID (e.g. <span className="font-mono">EMP-001.jpg</span>) or referenced in an <span className="font-mono">image</span> column.
+                    </p>
+                    <button type="button" onClick={() => imageFilesRef.current?.click()}
+                      className="w-full py-3 rounded-lg text-[11px] font-medium text-[var(--text-muted)] transition-all flex items-center justify-center gap-2 hover:bg-white/[0.03]"
+                      style={{ border: '1px dashed var(--glass-border)' }}>
+                      <span className="material-symbols-outlined text-base opacity-40">add_photo_alternate</span>
+                      {imageFiles.length > 0 ? `${imageFiles.length} photos selected — click to add more` : 'Select photos'}
+                    </button>
+                    <input type="file" accept="image/*" multiple ref={imageFilesRef} onChange={e => {
+                      const files = e.target.files;
+                      if (files) setImageFiles(prev => [...prev, ...Array.from(files)]);
+                      e.target.value = '';
+                    }} className="hidden" />
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button onClick={resetFileImport}
+                      className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all"
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)' }}>
+                      Cancel
+                    </button>
+                    <button onClick={handleFileConfirm} disabled={fileUploading}
+                      className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50"
+                      style={{
+                        background: fileUploading ? 'rgba(46,163,242,0.3)' : 'linear-gradient(135deg, #2EA3F2, #0C71C3)',
+                        boxShadow: fileUploading ? 'none' : '0 4px 16px rgba(46,163,242,0.3)',
+                        cursor: fileUploading ? 'not-allowed' : 'pointer',
+                      }}>
+                      {fileUploading ? 'Importing...' : `Import ${fileRows.length} Employee${fileRows.length !== 1 ? 's' : ''}`}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {fileStep === 'done' && (
+                <>
+                  {fileStatus && (
+                    <div className={`p-4 rounded-xl text-center ${fileStatus.startsWith('error') ? 'bg-red-500/10 ring-1 ring-red-500/20' : 'bg-emerald-500/10 ring-1 ring-emerald-500/20'}`}>
+                      <span className={`material-symbols-outlined text-3xl mb-2 block ${fileStatus.startsWith('error') ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {fileStatus.startsWith('error') ? 'error' : 'check_circle'}
+                      </span>
+                      <p className={`text-sm font-semibold ${fileStatus.startsWith('error') ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {fileStatus.substring(fileStatus.indexOf(':') + 1).trim()}
+                      </p>
+                      {fileCreated > 0 && <p className="text-[11px] text-[var(--text-muted)] mt-1">{fileCreated} created · {fileSkipped} skipped</p>}
+                    </div>
+                  )}
+
+                  <div className="space-y-1 max-h-52 overflow-y-auto glass-scrollbar">
+                    {fileRows.map((r, i) => (
+                      <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px]"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)' }}>
+                        {r.status === 'created' ? (
+                          <span className="material-symbols-outlined text-emerald-400 text-sm shrink-0">check_circle</span>
+                        ) : (
+                          <span className="material-symbols-outlined text-amber-400 text-sm shrink-0">info</span>
+                        )}
+                        <span className="font-mono text-[var(--text-secondary)] shrink-0">{r.employee_id || '—'}</span>
+                        <span className="text-[var(--text-primary)] flex-1 truncate">{r.name || ''}</span>
+                        <span className="text-[var(--text-muted)] shrink-0">
+                          {r.status === 'created' ? 'Created' : r.reason || 'Skipped'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button onClick={resetFileImport}
+                    className="w-full py-2.5 rounded-xl font-semibold text-sm text-[var(--text-primary)] transition-all hover:bg-white/[0.06]"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)' }}>
+                    Import Another File
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ─── BATCH PHOTOS TAB ────────────────── */}
           {tab === 'batch' && (
             <div className="space-y-4">
               <p className="text-xs text-[var(--text-muted)]">
@@ -339,9 +612,9 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
               </p>
 
               <button type="button" onClick={() => batchFileRef.current?.click()}
-                className="w-full py-6 rounded-xl text-sm font-medium text-[var(--text-muted)] transition-all flex flex-col items-center gap-2"
+                className="w-full py-6 rounded-xl text-sm font-medium text-[var(--text-muted)] transition-all flex flex-col items-center gap-2 hover:bg-white/[0.03]"
                 style={{ ...inputStyle, borderStyle: 'dashed' }}>
-                <span className="material-symbols-outlined text-2xl opacity-40">upload_file</span>
+                <span className="material-symbols-outlined text-2xl opacity-40">add_photo_alternate</span>
                 Click to select images
               </button>
               <input type="file" accept="image/*" multiple ref={batchFileRef} onChange={handleBatchFiles} className="hidden" />
@@ -352,25 +625,36 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
                     <div key={entry.id} className="flex items-center gap-3 p-2.5 rounded-xl transition-all"
                       style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)' }}>
                       <img src={entry.previewUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0 border border-[var(--glass-border)]" />
-                      <div className="flex-1 min-w-0 grid grid-cols-2 gap-1.5">
-                        <input
-                          type="text"
-                          value={entry.employeeId}
-                          onChange={e => updateBatchEntry(entry.id, { employeeId: e.target.value })}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <input
+                            type="text"
+                            value={entry.employeeId}
+                            onChange={e => updateBatchEntry(entry.id, { employeeId: e.target.value })}
+                            disabled={entry.status === 'uploading' || entry.status === 'success'}
+                            className="rounded-lg px-2 py-1 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:opacity-50"
+                            style={inputStyle}
+                            placeholder="ID"
+                          />
+                          <input
+                            type="text"
+                            value={entry.name}
+                            onChange={e => updateBatchEntry(entry.id, { name: e.target.value })}
+                            disabled={entry.status === 'uploading' || entry.status === 'success'}
+                            className="rounded-lg px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:opacity-50"
+                            style={inputStyle}
+                            placeholder="Name"
+                          />
+                        </div>
+                        <select
+                          value={entry.role}
+                          onChange={e => updateBatchEntry(entry.id, { role: e.target.value })}
                           disabled={entry.status === 'uploading' || entry.status === 'success'}
-                          className="rounded-lg px-2 py-1 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:opacity-50"
-                          style={inputStyle}
-                          placeholder="ID"
-                        />
-                        <input
-                          type="text"
-                          value={entry.name}
-                          onChange={e => updateBatchEntry(entry.id, { name: e.target.value })}
-                          disabled={entry.status === 'uploading' || entry.status === 'success'}
-                          className="rounded-lg px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:opacity-50"
-                          style={inputStyle}
-                          placeholder="Name"
-                        />
+                          className="rounded-lg px-2 py-1 text-[10px] text-[var(--text-primary)] outline-none disabled:opacity-50 w-24"
+                          style={inputStyle}>
+                          <option value="Employee">Employee</option>
+                          <option value="Guest">Guest</option>
+                        </select>
                       </div>
                       <div className="shrink-0 flex items-center gap-1.5">
                         {entry.status === 'pending' && (
@@ -398,17 +682,26 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
                   <span className="text-[11px] text-[var(--text-muted)]">
                     {pendingCount} pending · {successCount} registered
                   </span>
-                  <button
-                    onClick={handleBatchUpload}
-                    disabled={batchUploading || pendingCount === 0}
-                    className="px-4 py-2 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-40"
-                    style={{
-                      background: batchUploading || pendingCount === 0 ? 'rgba(46,163,242,0.3)' : 'linear-gradient(135deg, #2EA3F2, #0C71C3)',
-                      boxShadow: batchUploading || pendingCount === 0 ? 'none' : '0 4px 16px rgba(46,163,242,0.3)',
-                      cursor: batchUploading || pendingCount === 0 ? 'not-allowed' : 'pointer',
-                    }}>
-                    {batchUploading ? 'Uploading...' : `Register ${pendingCount} Employee${pendingCount !== 1 ? 's' : ''}`}
-                  </button>
+                  <div className="flex gap-2">
+                    {pendingCount > 0 && !batchUploading && (
+                      <button onClick={() => setBatchEntries(prev => prev.filter(e => e.status !== 'pending'))}
+                        className="px-3 py-2 rounded-xl text-xs font-medium text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                        style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        Clear All
+                      </button>
+                    )}
+                    <button
+                      onClick={handleBatchUpload}
+                      disabled={batchUploading || pendingCount === 0}
+                      className="px-4 py-2 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-40"
+                      style={{
+                        background: batchUploading || pendingCount === 0 ? 'rgba(46,163,242,0.3)' : 'linear-gradient(135deg, #2EA3F2, #0C71C3)',
+                        boxShadow: batchUploading || pendingCount === 0 ? 'none' : '0 4px 16px rgba(46,163,242,0.3)',
+                        cursor: batchUploading || pendingCount === 0 ? 'not-allowed' : 'pointer',
+                      }}>
+                      {batchUploading ? 'Uploading...' : `Register ${pendingCount}`}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

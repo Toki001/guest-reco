@@ -30,6 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { path: '/employees', label: 'Employees', icon: 'group' },
     { path: '/visitors', label: 'Visitors', icon: 'person_search' },
     { path: '/attendance', label: 'Attendance', icon: 'schedule' },
+    { path: '/events', label: 'Events', icon: 'event' },
     { path: '/history', label: 'History', icon: 'history' },
     { path: '/analytics', label: 'Analytics', icon: 'show_chart' },
   ];

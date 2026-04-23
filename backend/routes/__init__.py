@@ -11,6 +11,7 @@ from routes.settings import router as settings_router
 from routes.streaming import router as streaming_router
 from routes.export import router as export_router
 from routes.health import router as health_router
+from routes.events import router as events_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)
@@ -25,3 +26,4 @@ api_router.include_router(search_router, prefix="/api")
 api_router.include_router(settings_router, prefix="/api/settings")
 api_router.include_router(streaming_router, prefix="/api")
 api_router.include_router(export_router, prefix="/api/export")
+api_router.include_router(events_router, prefix="/api/events")
