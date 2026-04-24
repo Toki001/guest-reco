@@ -39,7 +39,6 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
   const [fileStep, setFileStep] = useState<'upload' | 'preview' | 'done'>('upload');
   const [editingFileRow, setEditingFileRow] = useState<number | null>(null);
   const csvFileRef = useRef<HTMLInputElement>(null);
-  const imageFilesRef = useRef<HTMLInputElement>(null);
   const [rawFileData, setRawFileData] = useState<File | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
 
@@ -365,6 +364,7 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
           {/* ─── FILE IMPORT TAB ────────────────── */}
           {tab === 'file' && (
             <div className="space-y-4">
+
               {fileStep === 'upload' && (
                 <>
                   <div className="rounded-xl p-3.5" style={{ background: 'rgba(46,163,242,0.08)', border: '1px solid rgba(46,163,242,0.15)' }}>
@@ -438,7 +438,7 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
                     )}
                   </div>
 
-                  {/* Optional image upload */}
+                  {/* Photo upload */}
                   <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)' }}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -450,19 +450,44 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
                       )}
                     </div>
                     <p className="text-[10px] text-[var(--text-muted)] mb-2">
-                      Upload face photos named by employee ID (e.g. <span className="font-mono">EMP-001.jpg</span>) or referenced in an <span className="font-mono">image</span> column.
+                      Upload face photos named by employee ID (e.g. <span className="font-mono">22100000463.jpg</span>).
                     </p>
-                    <button type="button" onClick={() => imageFilesRef.current?.click()}
-                      className="w-full py-3 rounded-lg text-[11px] font-medium text-[var(--text-muted)] transition-all flex items-center justify-center gap-2 hover:bg-white/[0.03]"
+                    <label
+                      className="w-full py-3 rounded-lg text-[11px] font-medium text-[var(--text-muted)] transition-all flex items-center justify-center gap-2 hover:bg-white/[0.03] cursor-pointer"
                       style={{ border: '1px dashed var(--glass-border)' }}>
                       <span className="material-symbols-outlined text-base opacity-40">add_photo_alternate</span>
                       {imageFiles.length > 0 ? `${imageFiles.length} photos selected — click to add more` : 'Select photos'}
-                    </button>
-                    <input type="file" accept="image/*" multiple ref={imageFilesRef} onChange={e => {
-                      const files = e.target.files;
-                      if (files) setImageFiles(prev => [...prev, ...Array.from(files)]);
-                      e.target.value = '';
-                    }} className="hidden" />
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png"
+                        multiple
+                        className="hidden"
+                        onChange={e => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            const newFiles = Array.from(e.target.files);
+                            setImageFiles(prev => [...prev, ...newFiles]);
+                          }
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    {imageFiles.length > 0 && (
+                      <div className="mt-2 space-y-1 max-h-32 overflow-y-auto glass-scrollbar">
+                        {imageFiles.map((f, i) => (
+                          <div key={i} className="flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px]"
+                            style={{ background: 'rgba(255,255,255,0.04)' }}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="material-symbols-outlined text-emerald-400 text-xs">image</span>
+                              <span className="text-[var(--text-secondary)] truncate">{f.name}</span>
+                            </div>
+                            <button type="button" onClick={() => setImageFiles(prev => prev.filter((_, j) => j !== i))}
+                              className="text-red-400 hover:text-red-300 ml-2 shrink-0">
+                              <span className="material-symbols-outlined text-xs">close</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3">
