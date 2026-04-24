@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import io
+import json
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from auth import require_admin
@@ -8,6 +9,7 @@ from database.events import (
     get_all_events, get_event_by_id, create_event, update_event,
     delete_event, bulk_insert_events,
 )
+from database.event_cameras import get_event_attendance
 
 router = APIRouter()
 
@@ -63,11 +65,13 @@ async def add_event(
     start_time: str = Form(''),
     end_time: str = Form(''),
     category: str = Form('General'),
+    camera_ids: str = Form(''),
     user=Depends(require_admin),
 ):
+    cids = [c.strip() for c in camera_ids.split(',') if c.strip()] if camera_ids else []
     await asyncio.to_thread(
         create_event, title, description, location,
-        start_date, end_date, start_time, end_time, category,
+        start_date, end_date, start_time, end_time, category, cids,
     )
     return {"message": "Event created"}
 
@@ -96,6 +100,14 @@ async def get_single_event(event_id: int, user=Depends(require_admin)):
     return ev
 
 
+@router.get('/{event_id}/attendance')
+async def event_attendance(event_id: int, user=Depends(require_admin)):
+    result = await asyncio.to_thread(get_event_attendance, event_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return result
+
+
 @router.put('/{event_id}')
 async def edit_event(
     event_id: int,
@@ -107,17 +119,20 @@ async def edit_event(
     start_time: str = Form(None),
     end_time: str = Form(None),
     category: str = Form(None),
+    camera_ids: str = Form(None),
     user=Depends(require_admin),
 ):
     ev = await asyncio.to_thread(get_event_by_id, event_id)
     if not ev:
         raise HTTPException(status_code=404, detail="Event not found")
-    await asyncio.to_thread(
-        update_event, event_id,
+    kwargs = dict(
         title=title, description=description, location=location,
         start_date=start_date, end_date=end_date,
         start_time=start_time, end_time=end_time, category=category,
     )
+    if camera_ids is not None:
+        kwargs["camera_ids"] = [c.strip() for c in camera_ids.split(',') if c.strip()] if camera_ids else []
+    await asyncio.to_thread(update_event, event_id, **kwargs)
     return {"status": "updated"}
 
 

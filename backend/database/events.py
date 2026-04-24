@@ -1,5 +1,6 @@
 import datetime
 from database.connection import get_connection
+from database.event_cameras import get_event_cameras, set_event_cameras
 
 
 def get_all_events():
@@ -7,10 +8,13 @@ def get_all_events():
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT * FROM events ORDER BY start_date ASC, start_time ASC")
-        return cursor.fetchall()
+        events = cursor.fetchall()
     finally:
         cursor.close()
         conn.close()
+    for ev in events:
+        ev["camera_ids"] = get_event_cameras(ev["id"])
+    return events
 
 
 def get_event_by_id(event_id: int):
@@ -18,13 +22,16 @@ def get_event_by_id(event_id: int):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("SELECT * FROM events WHERE id = %s", (event_id,))
-        return cursor.fetchone()
+        ev = cursor.fetchone()
     finally:
         cursor.close()
         conn.close()
+    if ev:
+        ev["camera_ids"] = get_event_cameras(ev["id"])
+    return ev
 
 
-def create_event(title, description, location, start_date, end_date, start_time, end_time, category):
+def create_event(title, description, location, start_date, end_date, start_time, end_time, category, camera_ids=None):
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -35,13 +42,18 @@ def create_event(title, description, location, start_date, end_date, start_time,
             (title, description or '', location or '', start_date, end_date or start_date,
              start_time or '', end_time or '', category or 'General', now),
         )
+        event_id = cursor.lastrowid
         conn.commit()
     finally:
         cursor.close()
         conn.close()
+    if camera_ids:
+        set_event_cameras(event_id, camera_ids)
+    return event_id
 
 
 def update_event(event_id, **kwargs):
+    camera_ids = kwargs.pop("camera_ids", None)
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -51,14 +63,15 @@ def update_event(event_id, **kwargs):
             if key in kwargs and kwargs[key] is not None:
                 fields.append(f"{key} = %s")
                 values.append(kwargs[key])
-        if not fields:
-            return
-        values.append(event_id)
-        cursor.execute(f"UPDATE events SET {', '.join(fields)} WHERE id = %s", values)
-        conn.commit()
+        if fields:
+            values.append(event_id)
+            cursor.execute(f"UPDATE events SET {', '.join(fields)} WHERE id = %s", values)
+            conn.commit()
     finally:
         cursor.close()
         conn.close()
+    if camera_ids is not None:
+        set_event_cameras(event_id, camera_ids)
 
 
 def delete_event(event_id):

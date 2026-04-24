@@ -12,6 +12,31 @@ interface Event {
   end_time: string;
   category: string;
   created_at: string;
+  camera_ids: string[];
+}
+
+interface Camera {
+  camera_id: string;
+  department: string;
+  is_online: number;
+}
+
+interface Attendee {
+  user_id: string;
+  name: string;
+  role: string;
+  image_url: string | null;
+  first_scan: string;
+  last_scan: string;
+}
+
+interface AttendanceData {
+  total_scans: number;
+  unique_people: number;
+  employees: number;
+  guests: number;
+  cameras: string[];
+  attendees: Attendee[];
 }
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
@@ -39,6 +64,8 @@ function EventsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [search, setSearch] = useState('');
+  const [attendance, setAttendance] = useState<AttendanceData | null>(null);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -92,6 +119,24 @@ function EventsPage() {
   };
 
   const monthLabel = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const fetchAttendance = async (eventId: number) => {
+    setLoadingAttendance(true);
+    setAttendance(null);
+    try {
+      const res = await authFetch(`/api/events/${eventId}/attendance`);
+      if (res.ok) setAttendance(await res.json());
+    } catch (e) {
+      console.error('Failed to fetch attendance:', e);
+    } finally {
+      setLoadingAttendance(false);
+    }
+  };
+
+  const handleSelectEvent = (ev: Event) => {
+    setSelectedEvent(ev);
+    fetchAttendance(ev.id);
+  };
 
   const handleDeleteEvent = async (id: number) => {
     if (!confirm('Delete this event?')) return;
@@ -212,7 +257,7 @@ function EventsPage() {
               {selectedEvent ? 'Event Details' : selectedDate ? `Events on ${new Date(selectedDate + 'T00:00').toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' })}` : search ? 'Search Results' : 'All Events'}
             </h3>
             {selectedEvent && (
-              <button onClick={() => setSelectedEvent(null)} className="p-1 hover:bg-white/10 rounded-lg transition-colors">
+              <button onClick={() => { setSelectedEvent(null); setAttendance(null); }} className="p-1 hover:bg-white/10 rounded-lg transition-colors">
                 <span className="material-symbols-outlined text-[var(--text-muted)] text-base">arrow_back</span>
               </button>
             )}
@@ -258,7 +303,82 @@ function EventsPage() {
                       <span className="text-xs text-[var(--text-secondary)]">{selectedEvent.location}</span>
                     </div>
                   )}
+                  {selectedEvent.camera_ids && selectedEvent.camera_ids.length > 0 && (
+                    <div className="flex items-start gap-2.5">
+                      <span className="material-symbols-outlined text-sm text-[var(--text-muted)] mt-0.5">videocam</span>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedEvent.camera_ids.map(cid => (
+                          <span key={cid} className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
+                            {cid.replace(/-/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                {/* Attendance Section */}
+                <div className="pt-2 border-t border-[var(--glass-border)]">
+                  <h5 className="text-xs font-bold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm">groups</span>
+                    Attendance
+                  </h5>
+                  {loadingAttendance ? (
+                    <div className="flex items-center justify-center py-6">
+                      <div className="w-5 h-5 border-2 border-[var(--accent)]/30 border-t-[var(--accent)] rounded-full animate-spin" />
+                    </div>
+                  ) : !attendance || (attendance.unique_people === 0 && selectedEvent.camera_ids.length === 0) ? (
+                    <div className="text-center py-4">
+                      <span className="material-symbols-outlined text-2xl text-[var(--text-muted)] opacity-30 block mb-1">person_off</span>
+                      <p className="text-[11px] text-[var(--text-muted)]">
+                        {selectedEvent.camera_ids.length === 0 ? 'No cameras assigned to this event' : 'No attendance data yet'}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div className="rounded-xl p-2.5 text-center" style={{ background: 'rgba(46,163,242,0.08)', border: '1px solid rgba(46,163,242,0.15)' }}>
+                          <p className="text-lg font-bold text-blue-400">{attendance.unique_people}</p>
+                          <p className="text-[9px] text-[var(--text-muted)] font-semibold uppercase">Total</p>
+                        </div>
+                        <div className="rounded-xl p-2.5 text-center" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)' }}>
+                          <p className="text-lg font-bold text-emerald-400">{attendance.employees}</p>
+                          <p className="text-[9px] text-[var(--text-muted)] font-semibold uppercase">Employees</p>
+                        </div>
+                        <div className="rounded-xl p-2.5 text-center" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}>
+                          <p className="text-lg font-bold text-amber-400">{attendance.guests}</p>
+                          <p className="text-[9px] text-[var(--text-muted)] font-semibold uppercase">Guests</p>
+                        </div>
+                      </div>
+                      {attendance.attendees.length > 0 && (
+                        <div className="space-y-1 max-h-48 overflow-y-auto glass-scrollbar">
+                          {attendance.attendees.map(a => (
+                            <div key={a.user_id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white/[0.04] transition-colors">
+                              {a.image_url ? (
+                                <img src={a.image_url.startsWith('/') ? a.image_url : `/${a.image_url}`} alt={a.name}
+                                  className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                                  <span className="material-symbols-outlined text-blue-400 text-sm">person</span>
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-semibold text-[var(--text-primary)] truncate">{a.name}</p>
+                                <p className="text-[9px] text-[var(--text-muted)]">
+                                  {a.role} · {a.first_scan ? new Date(a.first_scan).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                                </p>
+                              </div>
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${a.role === 'Employee' ? 'bg-blue-500/15 text-blue-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                                {a.role}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
                 <button onClick={() => handleDeleteEvent(selectedEvent.id)}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors">
                   <span className="material-symbols-outlined text-sm">delete</span>
@@ -275,7 +395,7 @@ function EventsPage() {
                 {filteredEvents.map(ev => (
                   <button
                     key={ev.id}
-                    onClick={() => setSelectedEvent(ev)}
+                    onClick={() => handleSelectEvent(ev)}
                     className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-white/[0.06] transition-all text-left"
                   >
                     <div className={`w-1 shrink-0 rounded-full self-stretch ${getColor(ev.category).dot}`} />
@@ -324,8 +444,14 @@ function AddEventModal({ onClose, onSuccess }: { onClose: () => void; onSuccess:
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [category, setCategory] = useState('General');
+  const [selectedCameras, setSelectedCameras] = useState<string[]>([]);
+  const [cameras, setCameras] = useState<Camera[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    authFetch('/api/cameras').then(res => res.ok ? res.json() : []).then(setCameras).catch(() => {});
+  }, []);
 
   const inputStyle: React.CSSProperties = {
     background: 'var(--modal-input-bg)',
@@ -345,6 +471,7 @@ function AddEventModal({ onClose, onSuccess }: { onClose: () => void; onSuccess:
     formData.append('start_time', startTime);
     formData.append('end_time', endTime);
     formData.append('category', category);
+    formData.append('camera_ids', selectedCameras.join(','));
     try {
       const res = await authFetch('/api/events', { method: 'POST', body: formData });
       if (res.ok) {
@@ -422,6 +549,32 @@ function AddEventModal({ onClose, onSuccess }: { onClose: () => void; onSuccess:
               </select>
             </div>
           </div>
+          {/* Camera Assignment */}
+          {cameras.length > 0 && (
+            <div>
+              <label className="text-[11px] font-medium text-[var(--text-muted)] block mb-1.5">
+                Assign Cameras
+                {selectedCameras.length > 0 && <span className="ml-1 text-[var(--accent)]">({selectedCameras.length})</span>}
+              </label>
+              <div className="rounded-xl p-2 space-y-1 max-h-32 overflow-y-auto glass-scrollbar" style={inputStyle}>
+                {cameras.map(cam => (
+                  <label key={cam.camera_id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] cursor-pointer transition-colors">
+                    <input type="checkbox"
+                      checked={selectedCameras.includes(cam.camera_id)}
+                      onChange={e => {
+                        if (e.target.checked) setSelectedCameras(prev => [...prev, cam.camera_id]);
+                        else setSelectedCameras(prev => prev.filter(c => c !== cam.camera_id));
+                      }}
+                      className="rounded accent-[var(--accent)]" />
+                    <span className="material-symbols-outlined text-sm text-[var(--text-muted)]">videocam</span>
+                    <span className="text-xs text-[var(--text-primary)] flex-1">{cam.department || cam.camera_id.replace(/-/g, ' ')}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${cam.is_online ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           <button type="submit" disabled={submitting}
             className="w-full py-2.5 rounded-xl font-bold text-sm text-white transition-all mt-2"
             style={{ background: submitting ? 'rgba(46,163,242,0.3)' : 'linear-gradient(135deg, #2EA3F2, #0C71C3)', boxShadow: submitting ? 'none' : '0 4px 16px rgba(46,163,242,0.3)', cursor: submitting ? 'not-allowed' : 'pointer' }}>

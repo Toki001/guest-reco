@@ -6,6 +6,13 @@ from database.users import USER_STATE_CACHE, KNOWN_USERS_CACHE, get_user_profile
 logger = logging.getLogger(__name__)
 
 
+def formatHour(h):
+    if h == 0: return '12 AM'
+    if h < 12: return f'{h} AM'
+    if h == 12: return '12 PM'
+    return f'{h - 12} PM'
+
+
 def auto_clock_out_stale():
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -483,6 +490,137 @@ def global_search(query, limit=20):
         for r in cursor.fetchall():
             results.append({"type": "camera", "id": r["camera_id"], "name": r["department"], "is_online": r["is_online"]})
         return results[:limit]
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_day_analytics(date_str):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        day_start = f"{date_str} 00:00:00"
+        day_end = f"{date_str} 23:59:59"
+
+        # Hourly breakdown
+        cursor.execute("""
+            SELECT HOUR(timestamp) as hour,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN status = 'in' THEN 1 ELSE 0 END) as entries,
+                   SUM(CASE WHEN status = 'out' THEN 1 ELSE 0 END) as exits,
+                   COUNT(DISTINCT user_id) as unique_people
+            FROM access_logs
+            WHERE timestamp >= %s AND timestamp <= %s
+            GROUP BY hour ORDER BY hour
+        """, (day_start, day_end))
+        hourly = cursor.fetchall()
+        hourly_data = [{"hour": r["hour"], "total": r["total"], "entries": int(r["entries"] or 0),
+                        "exits": int(r["exits"] or 0), "unique_people": r["unique_people"]} for r in hourly]
+
+        # Summary for the day
+        cursor.execute("""
+            SELECT COUNT(*) as total_scans,
+                   SUM(CASE WHEN status = 'in' THEN 1 ELSE 0 END) as total_entries,
+                   SUM(CASE WHEN status = 'out' THEN 1 ELSE 0 END) as total_exits,
+                   COUNT(DISTINCT user_id) as unique_people
+            FROM access_logs
+            WHERE timestamp >= %s AND timestamp <= %s
+        """, (day_start, day_end))
+        summary = cursor.fetchone()
+
+        # Role breakdown
+        cursor.execute("""
+            SELECT COALESCE(u.role, 'Unknown') as role, COUNT(*) as total,
+                   COUNT(DISTINCT a.user_id) as unique_people
+            FROM access_logs a LEFT JOIN users u ON a.user_id = u.id
+            WHERE a.timestamp >= %s AND a.timestamp <= %s
+            GROUP BY role
+        """, (day_start, day_end))
+        role_rows = cursor.fetchall()
+        role_data = [{"role": r["role"], "total": r["total"], "unique_people": r["unique_people"]} for r in role_rows]
+
+        # Camera breakdown
+        cursor.execute("""
+            SELECT a.camera_id, COALESCE(c.department, a.camera_id) as department,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN a.status = 'in' THEN 1 ELSE 0 END) as entries,
+                   COUNT(DISTINCT a.user_id) as unique_people
+            FROM access_logs a LEFT JOIN cameras c ON a.camera_id = c.camera_id
+            WHERE a.timestamp >= %s AND a.timestamp <= %s AND a.camera_id IS NOT NULL
+            GROUP BY a.camera_id ORDER BY total DESC
+        """, (day_start, day_end))
+        camera_rows = cursor.fetchall()
+        camera_data = [{"camera_id": r["camera_id"], "department": r["department"], "total": r["total"],
+                        "entries": int(r["entries"] or 0), "unique_people": r["unique_people"]} for r in camera_rows]
+
+        # Peak hour
+        busiest_hour = max(hourly_data, key=lambda x: x["total"])["hour"] if hourly_data else 0
+
+        return {
+            "date": date_str,
+            "summary": {
+                "total_scans": summary["total_scans"] or 0,
+                "total_entries": int(summary["total_entries"] or 0),
+                "total_exits": int(summary["total_exits"] or 0),
+                "unique_people": summary["unique_people"] or 0,
+                "busiest_hour": busiest_hour,
+            },
+            "hourly": hourly_data,
+            "role_breakdown": role_data,
+            "camera_traffic": camera_data,
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_hours_analytics(hours=6):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
+
+        cursor.execute("""
+            SELECT HOUR(timestamp) as hr,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN status = 'in' THEN 1 ELSE 0 END) as entries,
+                   SUM(CASE WHEN status = 'out' THEN 1 ELSE 0 END) as exits,
+                   COUNT(DISTINCT user_id) as unique_people
+            FROM access_logs
+            WHERE timestamp >= %s
+            GROUP BY hr
+            ORDER BY hr
+        """, (cutoff,))
+        hourly = cursor.fetchall()
+        hourly_data = [{"time": formatHour(r["hr"]), "total": r["total"], "entries": int(r["entries"] or 0),
+                        "exits": int(r["exits"] or 0), "unique_people": r["unique_people"]} for r in hourly]
+
+        cursor.execute("""
+            SELECT COUNT(*) as total_scans,
+                   SUM(CASE WHEN status = 'in' THEN 1 ELSE 0 END) as total_entries,
+                   COUNT(DISTINCT user_id) as unique_people
+            FROM access_logs WHERE timestamp >= %s
+        """, (cutoff,))
+        summary = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT COALESCE(u.role, 'Unknown') as role, COUNT(*) as total,
+                   COUNT(DISTINCT a.user_id) as unique_people
+            FROM access_logs a LEFT JOIN users u ON a.user_id = u.id
+            WHERE a.timestamp >= %s GROUP BY role
+        """, (cutoff,))
+        role_data = [{"role": r["role"], "total": r["total"], "unique_people": r["unique_people"]} for r in cursor.fetchall()]
+
+        return {
+            "hours": hours,
+            "summary": {
+                "total_scans": summary["total_scans"] or 0,
+                "total_entries": int(summary["total_entries"] or 0),
+                "unique_people": summary["unique_people"] or 0,
+            },
+            "hourly": hourly_data,
+            "role_breakdown": role_data,
+        }
     finally:
         cursor.close()
         conn.close()

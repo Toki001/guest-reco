@@ -14,7 +14,7 @@ from database.access_logs import (
     get_active_users, get_inactive_users, get_attendance_logs,
     get_user_attendance, get_visitors_aggregated,
     get_hourly_stats, get_stats_for_range, global_search, get_analytics,
-    auto_clock_out_stale,
+    auto_clock_out_stale, get_day_analytics, get_hours_analytics,
 )
 from database.cameras import (
     register_camera, update_camera_heartbeat, get_all_cameras,
@@ -25,6 +25,9 @@ from database.export import export_attendance, export_visitors
 from database.events import (
     get_all_events, get_event_by_id, create_event, update_event,
     delete_event, bulk_insert_events,
+)
+from database.event_cameras import (
+    get_event_cameras, set_event_cameras, get_event_attendance,
 )
 
 # Initialize schema on import, then clean up stale clock-ins

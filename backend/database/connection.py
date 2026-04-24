@@ -96,6 +96,16 @@ def init_db():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS event_cameras (
+                event_id INT NOT NULL,
+                camera_id VARCHAR(255) NOT NULL,
+                PRIMARY KEY (event_id, camera_id),
+                FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+                FOREIGN KEY (camera_id) REFERENCES cameras(camera_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+
         indexes = [
             ("idx_face_embeddings_user", "face_embeddings", "(user_id)"),
             ("idx_access_logs_user_timestamp", "access_logs", "(user_id, timestamp DESC)"),
