@@ -31,6 +31,9 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
 
   const [isOnline, setIsOnline] = useState(false);
   const [scanStatus, setScanStatus] = useState<'idle' | 'analyzing'>('idle');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
 
   const isScanningRef = useRef(isScanning);
   const isAnalyzingRef = useRef(false);
@@ -77,11 +80,24 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
     }
   }, [isScanning]);
 
+  // Detect multiple cameras on mount
+  useEffect(() => {
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+      const videoInputs = devices.filter(d => d.kind === 'videoinput');
+      setHasMultipleCameras(videoInputs.length >= 2);
+    }).catch(() => { });
+  }, []);
+
+  // Main camera + face detector init — re-runs when facingMode changes
   useEffect(() => {
     let faceDetector: FaceDetector;
     let videoStream: MediaStream;
+    let cancelled = false;
 
     const initializeSystem = async () => {
+      // Show switching overlay (but not on first mount)
+      if (isOnline) setIsSwitching(true);
+
       try {
         const vision = await FilesetResolver.forVisionTasks("/mediapipe-wasm");
 
@@ -94,18 +110,22 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
           minDetectionConfidence: 0.6
         });
 
+        if (cancelled) { faceDetector.close(); return; }
+
         videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 } }
+          video: { facingMode: facingMode, width: { ideal: 640 }, height: { ideal: 480 } }
         });
+
+        if (cancelled) { videoStream.getTracks().forEach(t => t.stop()); faceDetector.close(); return; }
 
         if (videoRef.current) {
           videoRef.current.srcObject = videoStream;
 
           const onVideoReady = () => {
-            if (isScanningRef.current) {
-              videoRef.current?.play();
-            }
+            if (cancelled) return;
+            videoRef.current?.play().catch(() => { });
             setIsOnline(true);
+            setIsSwitching(false);
             if (onStatusChange) onStatusChange(true);
 
             lastVideoTime = -1;
@@ -205,13 +225,11 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
             }
           };
 
-          // Always use onloadedmetadata — even on StrictMode remount,
-          // we have a NEW stream from getUserMedia, so the video element
-          // will fire loadedmetadata when the new stream is assigned.
           videoRef.current.onloadedmetadata = onVideoReady;
         }
       } catch (err) {
         console.error("Camera/MediaPipe Initialization Error:", err);
+        setIsSwitching(false);
       }
     };
 
@@ -343,6 +361,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
     initializeSystem();
 
     return () => {
+      cancelled = true;
       if (rtcCleanupRef.current) {
         rtcCleanupRef.current();
         rtcCleanupRef.current = null;
@@ -352,7 +371,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
       if (videoStream) videoStream.getTracks().forEach(track => track.stop());
       if (onStatusChange) onStatusChange(false);
     };
-  }, []);
+  }, [facingMode]);
 
   const captureAndSendAll = async (detections: any[]) => {
     isAnalyzingRef.current = true;
@@ -443,7 +462,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
           ref={videoRef}
           playsInline
           muted
-          className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 -scale-x-100 ${isOnline ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 w-full h-full object-cover ${isOnline ? 'opacity-100' : 'opacity-0'}`}
         />
         <canvas
           ref={overlayCanvasRef}
@@ -453,7 +472,15 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
 
       <canvas ref={captureCanvasRef} className="hidden" />
 
-      {(!isOnline || !isScanning) && (
+      {/* Switching camera overlay — semi-transparent with spinner, keeps old frame visible underneath */}
+      {isSwitching && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/30 backdrop-blur-[2px]">
+          <span className="material-symbols-outlined text-4xl text-white animate-spin">sync</span>
+          <span className="text-white/80 font-medium text-xs mt-2 tracking-wide">Switching camera…</span>
+        </div>
+      )}
+
+      {(!isOnline || !isScanning) && !isSwitching && (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black/50 backdrop-blur-sm">
           <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">{isScanning ? 'cloud_off' : 'videocam_off'}</span>
           <span className="text-slate-200 font-medium text-sm tracking-wide">{isScanning ? 'Stream Offline' : 'Camera Paused'}</span>
@@ -461,19 +488,29 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ isScanning, onSnap, onTo
       )}
 
       <div className="absolute bottom-4 sm:bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-3 sm:gap-6 bg-[#0f0f0f] px-4 sm:px-8 py-3 sm:py-4 rounded-2xl sm:rounded-[32px] border border-white/5 shadow-2xl z-30 max-w-[90vw]">
-        <span className={`text-[9px] sm:text-[11px] font-mono font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] transition-colors duration-300 ${
-          scanFeedback === 'analyzing' ? 'text-blue-400 animate-pulse' :
-          scanFeedback === 'move-closer' ? 'text-amber-500' :
-          scanFeedback === 'hold-still' ? 'text-red-500' :
-          scanFeedback === 'counting' ? 'text-emerald-500' :
-          isScanning ? 'text-[#4ade80]' : 'text-amber-500'
-        }`}>
+        <span className={`text-[9px] sm:text-[11px] font-mono font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] transition-colors duration-300 ${scanFeedback === 'analyzing' ? 'text-blue-400 animate-pulse' :
+            scanFeedback === 'move-closer' ? 'text-amber-500' :
+              scanFeedback === 'hold-still' ? 'text-red-500' :
+                scanFeedback === 'counting' ? 'text-emerald-500' :
+                  isScanning ? 'text-[#4ade80]' : 'text-amber-500'
+          }`}>
           {scanFeedback === 'analyzing' ? 'ANALYZING...' :
-           scanFeedback === 'move-closer' ? 'MOVE CLOSER' :
-           scanFeedback === 'hold-still' ? 'HOLD STILL' :
-           scanFeedback === 'counting' ? 'CAPTURING...' :
-           isScanning ? 'READY TO SCAN' : 'SYSTEM PAUSED'}
+            scanFeedback === 'move-closer' ? 'MOVE CLOSER' :
+              scanFeedback === 'hold-still' ? 'HOLD STILL' :
+                scanFeedback === 'counting' ? 'CAPTURING...' :
+                  isScanning ? 'READY TO SCAN' : 'SYSTEM PAUSED'}
         </span>
+        {hasMultipleCameras && (
+          <>
+            <div className="w-px h-6 sm:h-8 bg-white/10"></div>
+            <div className={`flex flex-col items-center gap-1 group ${isSwitching ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`} onClick={() => !isSwitching && setFacingMode(prev => prev === 'user' ? 'environment' : 'user')}>
+              <button className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-95 bg-slate-700 hover:bg-slate-600" disabled={isSwitching}>
+                <span className={`material-symbols-outlined text-white text-xl sm:text-2xl ${isSwitching ? 'animate-spin' : ''}`}>cameraswitch</span>
+              </button>
+              <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-white transition-colors">{isSwitching ? '...' : 'Switch'}</span>
+            </div>
+          </>
+        )}
         <div className="w-px h-6 sm:h-8 bg-white/10"></div>
         <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={onToggle}>
           <button className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-95 ${isScanning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}>
