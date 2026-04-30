@@ -31,6 +31,7 @@ services:
       - avatars-data:/app/avatars
       - snapshots-data:/app/snapshots
       - model-cache:/root/.insightface
+      - /:/host:ro
     environment:
       - DB_HOST=mysql
       - DB_PORT=3306
